@@ -1,6 +1,6 @@
 ---
 name: webpage-parser
-description: Guidance for adding or updating webpage-to-EPUB providers in the book-management project. Use when Codex needs to support a new novel/book website, inspect webpage HTML, implement provider parser/search modules, register domain auto-detection, add search/preview support, convert Traditional Chinese to Simplified Chinese when needed, remove boilerplate/review/footer text, handle pagination/concurrency safely, or patch generated EPUB output.
+description: Guidance for adding or updating webpage-to-EPUB providers in the epub-creator-from-web project. Use when Codex needs to support a new novel/book website, inspect webpage HTML, implement provider parser/search modules, register domain auto-detection, add search/preview support, convert Traditional Chinese to Simplified Chinese when needed, remove boilerplate/review/footer text, handle pagination/concurrency safely, or patch generated EPUB output.
 ---
 
 # Webpage Parser

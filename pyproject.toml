@@ -3,7 +3,7 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "book-management"
+name = "epub-creator-from-web"
 version = "0.1.0"
 description = "Scrape supported web novels and build EPUB files."
 readme = "AGENTS.md"
