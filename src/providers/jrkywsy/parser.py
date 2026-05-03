@@ -16,12 +16,13 @@ import time
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup, Tag, XMLParsedAsHTMLWarning
 from opencc import OpenCC
 
-from booklib import Chapter, Volume, write_epub
+from src import Chapter, Volume, write_epub
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
@@ -30,6 +31,7 @@ UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
+ENTRY_RE = re.compile(r"blog-entry-\d+\.html")
 CHAPTER_RE = re.compile(
     r"^\s*(?:.+?\s+)?(第\s*[一二三四五六七八九十百零兩两\d]+\s*回(?:\s+.*)?)\s*$"
 )
@@ -157,6 +159,23 @@ def parse_page(html: str, url: str) -> tuple[BookMeta, list[Volume]]:
     return BookMeta(title=title, author=author, intro_paragraphs=intro_paragraphs), [volume]
 
 
+def collect_related_entry_urls(html: str, url: str) -> list[str]:
+    soup = BeautifulSoup(html, "lxml")
+    main = soup.select_one("div.main") or soup
+    urls: list[str] = []
+    seen: set[str] = set()
+    for a in main.find_all("a", href=True):
+        href = a["href"]
+        if not ENTRY_RE.search(href):
+            continue
+        linked = urljoin(url, href)
+        if linked in seen:
+            continue
+        seen.add(linked)
+        urls.append(linked)
+    return urls
+
+
 def convert_book(meta: BookMeta, volumes: list[Volume], cc: OpenCC) -> None:
     meta.title = cc.convert(meta.title)
     meta.author = cc.convert(meta.author)
@@ -170,7 +189,16 @@ def convert_book(meta: BookMeta, volumes: list[Volume], cc: OpenCC) -> None:
 
 def crawl_book(url: str) -> tuple[BookMeta, list[Volume]]:
     html = fetch(url)
-    meta, volumes = parse_page(html, url)
+    related_urls = collect_related_entry_urls(html, url) or [url]
+    meta: BookMeta | None = None
+    volumes: list[Volume] = []
+    for index, page_url in enumerate(related_urls):
+        page_html = html if index == 0 and page_url == url else fetch(page_url)
+        page_meta, page_volumes = parse_page(page_html, page_url)
+        if meta is None:
+            meta = page_meta
+        volumes.extend(page_volumes)
+    assert meta is not None
     convert_book(meta, volumes, OpenCC("t2s"))
     return meta, volumes
 
@@ -201,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         out_path = Path(args.output)
     else:
-        out_dir = Path(__file__).resolve().parents[2] / "epub"
+        out_dir = Path(__file__).resolve().parents[3] / "epub"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{meta.title}.epub"
     out_path.parent.mkdir(parents=True, exist_ok=True)

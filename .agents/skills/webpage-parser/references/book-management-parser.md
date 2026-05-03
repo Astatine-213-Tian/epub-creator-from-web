@@ -2,11 +2,12 @@
 
 ## Expected File Layout
 
-- Entry point: `book_to_epub.py` only.
-- Registry: `booklib/parser_registry.py`.
-- Parser modules: `booklib/parsers/<site>.py`.
-- Shared EPUB writer: `booklib/epub_writer.py`.
-- Shared models: `booklib/models.py`.
+- Entry point: `src/cli/main.py`, exposed as `uv run book-to-epub`.
+- Registry: `src/providers/registry.py`.
+- Parser modules: `src/providers/<site>/parser.py`.
+- Search modules: `src/providers/<site>/search.py`.
+- Shared EPUB writer: `src/core/epub_writer.py`.
+- Shared models: `src/core/models.py`.
 - Generated outputs: `epub/`, ignored by Git.
 
 ## Parser Module Contract
@@ -22,18 +23,18 @@ def main(argv: list[str] | None = None) -> int: ...
 Use local `BookMeta` when site metadata differs, but reuse:
 
 ```python
-from booklib import Chapter, Volume, write_epub
+from src import Chapter, Volume, write_epub
 ```
 
 `build_epub()` should delegate to `write_epub(...)` instead of creating EbookLib objects directly.
 
 ## Registry Pattern
 
-Add a lazy import runner in `booklib/parser_registry.py`:
+Add a lazy import runner in `src/providers/registry.py`:
 
 ```python
 def run_example(target: str, options: ParserOptions) -> Path:
-    from booklib.parsers import example as parser
+    from src.providers.example import parser
 
     meta, volumes = parser.crawl_book(target)
     out_path = resolve_output(options, meta.title)
@@ -120,7 +121,7 @@ Run at least:
 
 ```bash
 uv run book-to-epub --list-parsers
-uv run python -m py_compile book_to_epub.py booklib/*.py booklib/parsers/*.py
+uv run python -m py_compile src/*.py src/*/*.py src/providers/*/*.py
 ```
 
 For a new parser, validate with a saved page fixture or a small live crawl:

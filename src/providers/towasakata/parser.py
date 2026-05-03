@@ -26,8 +26,8 @@ from bs4 import BeautifulSoup, NavigableString, Tag, XMLParsedAsHTMLWarning
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 from opencc import OpenCC
 
-from booklib import Chapter, Volume, write_epub
-from booklib.epub_writer import escape_text
+from src import Chapter, Volume, write_epub
+from src.core.epub_writer import escape_text
 
 
 UA = (
@@ -444,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         out_path = Path(args.output)
     else:
-        out_dir = Path(__file__).resolve().parents[2] / "epub"
+        out_dir = Path(__file__).resolve().parents[3] / "epub"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{title or 'book'}.epub"
     out_path.parent.mkdir(parents=True, exist_ok=True)

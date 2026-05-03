@@ -48,7 +48,7 @@ def resolve_output(options: ParserOptions, title: str) -> Path:
 def run_towasakata(target: str, options: ParserOptions) -> Path:
     from opencc import OpenCC
 
-    from booklib.parsers import towasakata as parser
+    from src.providers.towasakata import parser
 
     delay = options.delay if options.delay is not None else 1.0
     cc = OpenCC("t2s")
@@ -73,7 +73,7 @@ def run_towasakata(target: str, options: ParserOptions) -> Path:
 
 
 def run_jrkywsy(target: str, options: ParserOptions) -> Path:
-    from booklib.parsers import jrkywsy as parser
+    from src.providers.jrkywsy import parser
 
     meta, volumes = parser.crawl_book(target)
     out_path = resolve_output(options, meta.title)
@@ -82,7 +82,7 @@ def run_jrkywsy(target: str, options: ParserOptions) -> Path:
 
 
 def run_mgsf(target: str, options: ParserOptions) -> Path:
-    from booklib.parsers import mgsf as parser
+    from src.providers.mgsf import parser
 
     delay = options.delay if options.delay is not None else 0.4
     book_url = parser._resolve_book_url(target)
@@ -94,7 +94,7 @@ def run_mgsf(target: str, options: ParserOptions) -> Path:
 
 
 def run_xfxs(target: str, options: ParserOptions) -> Path:
-    from booklib.parsers import xfxs as parser
+    from src.providers.xfxs import parser
 
     delay = options.delay if options.delay is not None else 0.4
     concurrency = options.concurrency if options.concurrency is not None else 2
@@ -114,7 +114,7 @@ def run_xfxs(target: str, options: ParserOptions) -> Path:
 
 
 def run_pili45(target: str, options: ParserOptions) -> Path:
-    from booklib.parsers import pili45 as parser
+    from src.providers.pili45 import parser
 
     delay = options.delay if options.delay is not None else 0.4
     concurrency = options.concurrency if options.concurrency is not None else 4
@@ -134,7 +134,7 @@ def run_pili45(target: str, options: ParserOptions) -> Path:
 
 
 def run_quanben(target: str, options: ParserOptions) -> Path:
-    from booklib.parsers import quanben as parser
+    from src.providers.quanben import parser
 
     delay = options.delay if options.delay is not None else 0.4
     concurrency = options.concurrency if options.concurrency is not None else 4
@@ -172,13 +172,13 @@ PARSERS: tuple[ParserSpec, ...] = (
     ParserSpec(
         name="xfxs",
         domains=("xfxs1.com",),
-        description="xfxs1.com novels through Chrome/zendriver",
+        description="xfxs1.com novels through browser-backed zendriver",
         run=run_xfxs,
     ),
     ParserSpec(
         name="pili45",
         domains=("pili45.com",),
-        description="pili45.com novels through Chrome/zendriver",
+        description="pili45.com novels through browser-backed zendriver",
         run=run_pili45,
     ),
     ParserSpec(

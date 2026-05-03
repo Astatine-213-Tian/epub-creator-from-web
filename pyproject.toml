@@ -14,15 +14,12 @@ dependencies = [
     "lxml==6.1.0",
     "opencc-python-reimplemented==0.1.7",
     "requests==2.33.1",
+    "tqdm==4.67.1",
     "zendriver==0.15.3",
 ]
 
 [project.scripts]
-book-to-epub = "book_to_epub:main"
-txt-to-epub = "txt_to_epub:main"
-
-[tool.setuptools]
-py-modules = ["book_to_epub", "txt_to_epub"]
+book-to-epub = "src.cli.main:main"
 
 [tool.setuptools.packages.find]
-include = ["booklib*"]
+include = ["src*"]

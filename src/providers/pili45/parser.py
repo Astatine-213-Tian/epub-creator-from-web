@@ -2,12 +2,12 @@
 """Scrape a book from pili45.com (霹雳书屋) and build an EPUB.
 
 Usage:
-    python -m booklib.parsers.pili45 <book_url_or_id> [-o output.epub] [--concurrency N]
+    uv run book-to-epub <book_url_or_id> --parser pili45 [-o output.epub] [--concurrency N]
 
 Examples:
-    python -m booklib.parsers.pili45 https://www.pili45.com/5/2965/info.html
-    python -m booklib.parsers.pili45 2965          # defaults to category 5
-    python -m booklib.parsers.pili45 5/2965        # explicit category
+    uv run book-to-epub https://www.pili45.com/5/2965/info.html
+    uv run book-to-epub 2965 --parser pili45          # defaults to category 5
+    uv run book-to-epub 5/2965 --parser pili45        # explicit category
 
 The site returns a Cloudflare JavaScript challenge to raw HTTP clients, so this
 parser follows the existing browser-backed approach used by xfxs.
@@ -27,12 +27,12 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 import zendriver as zd
 
-from booklib import Chapter, Volume, write_epub
-from booklib.parallel_fetch import crawl_items, retry_async
+from src import Chapter, Volume, write_epub
+from src.fetch.browser import resolve_browser_executable
+from src.fetch.parallel import crawl_items, retry_async
 
 
 HOST = "https://www.pili45.com"
-CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 INFO_RE = re.compile(r"^/(\d+)/(\d+)/info\.html$")
 CHAPTER_RE = re.compile(r"^/(\d+)/(\d+)/read/(\d+)\.html$")
@@ -51,7 +51,7 @@ class Fetcher:
     async def start(self) -> None:
         config = zd.Config(
             headless=self.headless,
-            browser_executable_path=CHROME_PATH,
+            browser_executable_path=resolve_browser_executable(),
             sandbox=False,
             browser_connection_timeout=1.0,
             browser_connection_max_tries=30,
@@ -432,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         out_path = Path(args.output)
     else:
-        out_dir = Path(__file__).resolve().parents[2] / "epub"
+        out_dir = Path(__file__).resolve().parents[3] / "epub"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{meta.title}.epub"
     out_path.parent.mkdir(parents=True, exist_ok=True)

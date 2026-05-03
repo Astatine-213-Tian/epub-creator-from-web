@@ -26,7 +26,7 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from booklib import Chapter, Volume, write_epub
+from src import Chapter, Volume, write_epub
 
 
 HOST = "https://www.mangguoshufang.com"
@@ -399,7 +399,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         out_path = Path(args.output)
     else:
-        out_dir = Path(__file__).resolve().parents[2] / "epub"
+        out_dir = Path(__file__).resolve().parents[3] / "epub"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{meta.title}.epub"
     out_path.parent.mkdir(parents=True, exist_ok=True)

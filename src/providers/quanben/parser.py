@@ -2,11 +2,11 @@
 """Scrape a book from quanben.io and build an EPUB.
 
 Usage:
-    python -m booklib.parsers.quanben <book_url_or_slug> [-o output.epub]
+    uv run book-to-epub <book_url_or_slug> --parser quanben [-o output.epub]
 
 Examples:
-    python -m booklib.parsers.quanben https://quanben.io/n/yaoer/list.html
-    python -m booklib.parsers.quanben yaoer
+    uv run book-to-epub https://quanben.io/n/yaoer/list.html
+    uv run book-to-epub yaoer --parser quanben
 
 The canonical list page hides middle chapters behind JSONP, but the AMP list
 page exposes the complete table of contents in plain HTML.
@@ -25,8 +25,8 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from booklib import Chapter, Volume, write_epub
-from booklib.parallel_fetch import crawl_items, retry_async
+from src import Chapter, Volume, write_epub
+from src.fetch.parallel import crawl_items, retry_async
 
 
 HOST = "https://quanben.io"
@@ -337,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         out_path = Path(args.output)
     else:
-        out_dir = Path(__file__).resolve().parents[2] / "epub"
+        out_dir = Path(__file__).resolve().parents[3] / "epub"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{meta.title}.epub"
     out_path.parent.mkdir(parents=True, exist_ok=True)

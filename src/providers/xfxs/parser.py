@@ -9,7 +9,7 @@ Examples:
     python xfxs_to_epub.py 2287
 
 The site is fronted by Cloudflare with an interactive Turnstile challenge.
-We use ``zendriver`` to bring up a real Chrome instance, solve the challenge
+We use ``zendriver`` to bring up a real Chromium-compatible browser, solve the challenge
 once per run, then crawl all chapter pages within that browser session.
 A visible window is required for the first request: Cloudflare may demand a
 manual click; subsequent navigations reuse the same cookies automatically.
@@ -30,8 +30,9 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 import zendriver as zd
 
-from booklib import Chapter, Volume, write_epub
-from booklib.parallel_fetch import crawl_items
+from src import Chapter, Volume, write_epub
+from src.fetch.browser import resolve_browser_executable
+from src.fetch.parallel import crawl_items
 
 
 HOST = "https://www.xfxs1.com"
@@ -39,7 +40,6 @@ BOOK_INDEX_RE = re.compile(r"/goreadbook/(\d+)/?$")
 CHAPTER_RE = re.compile(r"/goreadbook/(\d+)/(\d+)(?:_(\d+))?\.html$")
 BAD_TOC_TITLE_RE = re.compile(r"[”」』]|。")
 
-CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 INTRO_REVIEW_HEADING_RE = re.compile(
     r"^(?:[^，。！？；\n]{0,40})?(?:(?:作品)?简评|编辑评价|强推奖章)\s*[:：】）)]?$"
 )
@@ -86,7 +86,7 @@ class Fetcher:
     async def start(self) -> None:
         config = zd.Config(
             headless=self.headless,
-            browser_executable_path=CHROME_PATH,
+            browser_executable_path=resolve_browser_executable(),
             sandbox=False,
             browser_connection_timeout=1.0,
             browser_connection_max_tries=30,
@@ -684,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("book", help="Book URL on xfxs1.com or just the book id")
     p.add_argument("-o", "--output", default=None)
     p.add_argument("--headless", action="store_true",
-                   help="Run Chrome headless (CF challenge often fails — use only "
+                   help="Run the browser headless (CF challenge often fails — use only "
                         "if you've previously cached a session)")
     p.add_argument("--delay", type=float, default=0.4)
     p.add_argument(
@@ -713,7 +713,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         out_path = Path(args.output)
     else:
-        out_dir = Path(__file__).resolve().parents[2] / "epub"
+        out_dir = Path(__file__).resolve().parents[3] / "epub"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{meta.title}.epub"
     out_path.parent.mkdir(parents=True, exist_ok=True)
