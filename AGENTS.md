@@ -65,7 +65,7 @@ There is no formal test suite yet. For parser changes, add lightweight tests onl
 
 ## Commit & Pull Request Guidelines
 
-This checkout has no Git history, so use clear, imperative commit messages such as `Fix mangguoshufang chapter title parsing` or `Add xfxs cover fallback`. Pull requests should describe the target site, commands used for validation, generated output path, and any manual steps such as Cloudflare verification.
+Use Conventional Commits for commit messages, such as `fix(xfxs): repair preview metadata` or `docs: update provider search notes`. Pull requests should describe the target site, commands used for validation, generated output path, and any manual steps such as Cloudflare verification.
 
 ## Security & Configuration Tips
 
