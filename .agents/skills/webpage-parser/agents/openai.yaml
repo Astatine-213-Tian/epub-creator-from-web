@@ -1,0 +1,3 @@
+display_name: Webpage Parser
+short_description: Add or update webpage-to-EPUB parsers for this project.
+default_prompt: Create or update a parser for a webpage source in this project.
