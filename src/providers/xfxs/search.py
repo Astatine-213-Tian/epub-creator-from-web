@@ -302,6 +302,7 @@ async def preview_book_with_browser(result: SearchResult, *, browser) -> BookPre
         raise ValueError(f"not an xfxs book index URL: {book_url}")
     book_id = m.group(1)
     tab = await browser.get(book_url, new_tab=True)
+    await wait_for_page_ready(tab, ready_selector="div.book h1", settle_delay=0.5)
     meta, refs = await _fetch_preview_data(
         book_id,
         get_html=lambda url: _get_html_with_tab(tab, url),
