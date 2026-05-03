@@ -65,7 +65,7 @@ Preview should return title, author, canonical book URL, status when available, 
 
 Ranking is centralized in `src/search/orchestrator.py`: query match level first, then chapter count, then provider priority. Provider `search.py` should return clean candidate metadata and avoid its own complex ranking.
 
-Use `src.search.engines.site_search()` for reusable Bing/Google fallback:
+Use `src.search.engines.site_search()` for reusable DuckDuckGo/Google fallback:
 
 ```python
 from src.search.engines import site_search
@@ -79,6 +79,11 @@ items = site_search(
 ```
 
 Always filter external search results back to canonical provider URLs before returning `SearchResult`.
+
+For providers where raw result pages throttle or block requests, optionally expose
+`search_books_with_browser(query, *, limit, browser)` and reuse the same external
+search strategy through Chromium. Keep browser search provider-specific when the
+result parsing or canonicalization depends on that site's URL shapes.
 
 ## Project Reference
 
