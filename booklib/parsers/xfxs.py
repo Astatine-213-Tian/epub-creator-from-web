@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup
 import zendriver as zd
 
 from booklib import Chapter, Volume, write_epub
+from booklib.parallel_fetch import crawl_items
 
 
 HOST = "https://www.xfxs1.com"
@@ -564,87 +565,14 @@ async def crawl_chapters(
     *,
     concurrency: int = 4,
 ) -> list[Chapter]:
-    if not refs:
-        return []
-
-    total = len(refs)
-    limit = max(1, concurrency)
-    if limit == 1:
-        chapters: list[Chapter] = []
-        for index, ref in enumerate(refs):
-            print(f"[+] [{index + 1}/{total}] {ref.title}", file=sys.stderr)
-            chapter = await crawl_chapter(fetcher, ref, use_navigation=True)
-            chapters.append(chapter)
-            remaining = total - len(chapters)
-            print(
-                f"[=] progress: done={len(chapters)}/{total}, "
-                f"remaining={remaining}, current={ref.title}",
-                file=sys.stderr,
-            )
-        return chapters
-
-    semaphore = asyncio.Semaphore(limit)
-    progress_lock = asyncio.Lock()
-    completed = 0
-    failed = 0
-
-    async def log_progress(label: str, ref: ChapterRef) -> None:
-        remaining = total - completed - failed
-        print(
-            f"[=] progress: done={completed}/{total}, "
-            f"failed={failed}, remaining={remaining}, "
-            f"{label}={ref.title}",
-            file=sys.stderr,
-        )
-
-    async def fetch_one(index: int, ref: ChapterRef) -> Chapter:
-        nonlocal completed, failed
-        async with semaphore:
-            print(f"[+] [{index + 1}/{total}] {ref.title}", file=sys.stderr)
-            try:
-                chapter = await crawl_chapter(fetcher, ref)
-            except Exception:
-                async with progress_lock:
-                    failed += 1
-                    await log_progress("failed_chapter", ref)
-                raise
-            async with progress_lock:
-                completed += 1
-                await log_progress("current", ref)
-            return chapter
-
-    results: list[Chapter | BaseException] = await asyncio.gather(
-        *(fetch_one(index, ref) for index, ref in enumerate(refs)),
-        return_exceptions=True,
+    return await crawl_items(
+        refs,
+        lambda ref: crawl_chapter(fetcher, ref),
+        fallback_one=lambda ref: crawl_chapter(fetcher, ref, use_navigation=True),
+        concurrency=concurrency,
+        item_name="chapter",
+        fallback_label="serial navigation fallback",
     )
-    failed_indexes = [
-        index
-        for index, result in enumerate(results)
-        if isinstance(result, BaseException)
-    ]
-    if failed_indexes:
-        print(
-            f"[!] fast path failed for {len(failed_indexes)} chapter(s); "
-            "retrying serial navigation fallback",
-            file=sys.stderr,
-        )
-    for index in failed_indexes:
-        ref = refs[index]
-        print(f"[>] fallback [{index + 1}/{total}] {ref.title}", file=sys.stderr)
-        try:
-            chapter = await crawl_chapter(fetcher, ref, use_navigation=True)
-        except Exception as exc:
-            print(f"[!] fallback failed for {ref.title}: {exc}", file=sys.stderr)
-            raise RuntimeError(
-                f"chapter fetch failed after fallback: [{index + 1}/{total}] {ref.title}"
-            ) from exc
-        results[index] = chapter
-        async with progress_lock:
-            completed += 1
-            failed -= 1
-            await log_progress("fallback_recovered", ref)
-
-    return [result for result in results if isinstance(result, Chapter)]
 
 
 async def crawl_book(

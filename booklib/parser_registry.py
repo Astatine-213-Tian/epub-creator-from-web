@@ -16,6 +16,7 @@ class ParserOptions:
     output: Path | None = None
     delay: float | None = None
     headless: bool = False
+    concurrency: int | None = None
 
 
 @dataclass(frozen=True)
@@ -96,9 +97,15 @@ def run_xfxs(target: str, options: ParserOptions) -> Path:
     from booklib.parsers import xfxs as parser
 
     delay = options.delay if options.delay is not None else 0.4
+    concurrency = options.concurrency if options.concurrency is not None else 2
     book_url = parser._resolve_book_url(target)
     meta, volumes = asyncio.run(
-        parser.crawl_book(book_url, headless=options.headless, delay=delay)
+        parser.crawl_book(
+            book_url,
+            headless=options.headless,
+            delay=delay,
+            concurrency=concurrency,
+        )
     )
 
     out_path = resolve_output(options, meta.title)
@@ -110,9 +117,32 @@ def run_pili45(target: str, options: ParserOptions) -> Path:
     from booklib.parsers import pili45 as parser
 
     delay = options.delay if options.delay is not None else 0.4
+    concurrency = options.concurrency if options.concurrency is not None else 4
     book_url = parser._resolve_book_url(target)
     meta, volumes = asyncio.run(
-        parser.crawl_book(book_url, headless=options.headless, delay=delay)
+        parser.crawl_book(
+            book_url,
+            headless=options.headless,
+            delay=delay,
+            concurrency=concurrency,
+        )
+    )
+
+    out_path = resolve_output(options, meta.title)
+    parser.build_epub(meta, volumes, out_path)
+    return out_path
+
+
+def run_quanben(target: str, options: ParserOptions) -> Path:
+    from booklib.parsers import quanben as parser
+
+    delay = options.delay if options.delay is not None else 0.4
+    concurrency = options.concurrency if options.concurrency is not None else 4
+    book_url = parser._resolve_book_url(target)
+    meta, volumes = parser.crawl_book(
+        book_url,
+        delay=delay,
+        concurrency=concurrency,
     )
 
     out_path = resolve_output(options, meta.title)
@@ -150,6 +180,12 @@ PARSERS: tuple[ParserSpec, ...] = (
         domains=("pili45.com",),
         description="pili45.com novels through Chrome/zendriver",
         run=run_pili45,
+    ),
+    ParserSpec(
+        name="quanben",
+        domains=("quanben.io",),
+        description="quanben.io novels",
+        run=run_quanben,
     ),
 )
 

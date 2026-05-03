@@ -28,6 +28,7 @@ from bs4 import BeautifulSoup
 import zendriver as zd
 
 from booklib import Chapter, Volume, write_epub
+from booklib.parallel_fetch import crawl_items, retry_async
 
 
 HOST = "https://www.pili45.com"
@@ -338,40 +339,24 @@ async def crawl_book(
         await fetcher.stop()
 
 
-async def crawl_chapter(fetcher: Fetcher, ref: ChapterRef) -> Chapter | None:
-    for attempt in range(5):
-        try:
-            title, paragraphs = parse_chapter(await fetcher.fetch_html(ref.url))
-            if not paragraphs:
-                return None
-            return Chapter(title=title or ref.title, paragraphs=paragraphs)
-        except Exception as exc:
-            if attempt == 4:
-                raise
-            print(
-                f"[!] fetch failed for {ref.title}: {exc}; retrying ({attempt + 2}/5)",
-                file=sys.stderr,
-            )
-            await asyncio.sleep(1.0 * (attempt + 1))
-    return None
+async def crawl_chapter(fetcher: Fetcher, ref: ChapterRef) -> Chapter:
+    async def fetch() -> Chapter:
+        title, paragraphs = parse_chapter(await fetcher.fetch_html(ref.url))
+        if not paragraphs:
+            raise RuntimeError(f"empty chapter body: {ref.url}")
+        return Chapter(title=title or ref.title, paragraphs=paragraphs)
+
+    return await retry_async(ref.title, fetch)
 
 
-async def crawl_chapter_with_navigation(fetcher: Fetcher, ref: ChapterRef) -> Chapter | None:
-    for attempt in range(5):
-        try:
-            title, paragraphs = parse_chapter(await fetcher.get_html(ref.url))
-            if not paragraphs:
-                return None
-            return Chapter(title=title or ref.title, paragraphs=paragraphs)
-        except Exception as exc:
-            if attempt == 4:
-                raise
-            print(
-                f"[!] navigation failed for {ref.title}: {exc}; retrying ({attempt + 2}/5)",
-                file=sys.stderr,
-            )
-            await asyncio.sleep(1.0 * (attempt + 1))
-    return None
+async def crawl_chapter_with_navigation(fetcher: Fetcher, ref: ChapterRef) -> Chapter:
+    async def fetch() -> Chapter:
+        title, paragraphs = parse_chapter(await fetcher.get_html(ref.url))
+        if not paragraphs:
+            raise RuntimeError(f"empty chapter body: {ref.url}")
+        return Chapter(title=title or ref.title, paragraphs=paragraphs)
+
+    return await retry_async(ref.title, fetch)
 
 
 async def crawl_chapters(
@@ -380,31 +365,14 @@ async def crawl_chapters(
     *,
     concurrency: int = 4,
 ) -> list[Chapter]:
-    if not refs:
-        return []
-
-    limit = max(1, concurrency)
-    total = len(refs)
-    if limit == 1:
-        chapters: list[Chapter] = []
-        for index, ref in enumerate(refs):
-            print(f"[+] [{index + 1}/{total}] {ref.title}", file=sys.stderr)
-            chapter = await crawl_chapter_with_navigation(fetcher, ref)
-            if chapter:
-                chapters.append(chapter)
-        return chapters
-
-    semaphore = asyncio.Semaphore(limit)
-
-    async def fetch_one(index: int, ref: ChapterRef) -> Chapter | None:
-        async with semaphore:
-            print(f"[+] [{index + 1}/{total}] {ref.title}", file=sys.stderr)
-            return await crawl_chapter(fetcher, ref)
-
-    chapters = await asyncio.gather(
-        *(fetch_one(index, ref) for index, ref in enumerate(refs))
+    return await crawl_items(
+        refs,
+        lambda ref: crawl_chapter(fetcher, ref),
+        fallback_one=lambda ref: crawl_chapter_with_navigation(fetcher, ref),
+        concurrency=concurrency,
+        item_name="chapter",
+        fallback_label="serial navigation fallback",
     )
-    return [chapter for chapter in chapters if chapter is not None]
 
 
 def build_epub(meta: BookMeta, volumes: list[Volume], out_path: Path) -> None:

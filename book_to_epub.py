@@ -23,6 +23,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--parser", choices=parser_names, help="Force a parser for ids or ambiguous URLs")
     p.add_argument("--delay", type=float, default=None, help="Seconds to wait between requests")
     p.add_argument(
+        "--concurrency",
+        type=int,
+        default=None,
+        help="Maximum chapter fetch concurrency where supported",
+    )
+    p.add_argument(
         "--headless",
         action="store_true",
         help="Run browser-backed parsers headless where supported",
@@ -43,7 +49,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[+] using parser: {spec.name}", file=sys.stderr)
         out_path = spec.run(
             args.target,
-            ParserOptions(output=args.output, delay=args.delay, headless=args.headless),
+            ParserOptions(
+                output=args.output,
+                delay=args.delay,
+                headless=args.headless,
+                concurrency=args.concurrency,
+            ),
         )
     except Exception as exc:
         print(f"[!] {exc}", file=sys.stderr)
