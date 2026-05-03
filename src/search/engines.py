@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import os
 import re
 from dataclasses import dataclass
 from urllib.parse import quote_plus, unquote, urlparse
@@ -9,18 +8,12 @@ from urllib.parse import quote_plus, unquote, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from src.runtime.env import load_project_env
-
-
-load_project_env()
-
 BING_SEARCH_URL = "https://www.bing.com/search"
 DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
+DUCKDUCKGO_LITE_URL = "https://lite.duckduckgo.com/lite/"
 GOOGLE_SEARCH_URL = "https://www.google.com/search"
-TAVILY_SEARCH_URL = "https://api.tavily.com/search"
-YAHOO_SEARCH_URL = "https://search.yahoo.com/search"
 SEARCH_TIMEOUT = 20
-DEFAULT_ENGINES = ("tavily", "duckduckgo", "yahoo", "bing", "google")
+DEFAULT_ENGINES = ("duckduckgo", "google")
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
@@ -45,8 +38,7 @@ def site_search(
 ) -> list[WebSearchResult]:
     """Search for pages on one site, returning only canonical URLs under path_prefix.
 
-    API-backed engines are used when their environment variables are configured.
-    Public result-page scraping remains as a best-effort fallback.
+    Public result-page scraping is best-effort and may be rate-limited.
     """
     session = requests.Session()
     session.headers.update({"User-Agent": UA})
@@ -80,6 +72,30 @@ def site_search(
     return results
 
 
+def web_search(
+    query: str,
+    *,
+    limit: int = 10,
+    engines: tuple[str, ...] = ("duckduckgo", "google"),
+) -> list[WebSearchResult]:
+    """Run a broad web search without site filtering."""
+    session = requests.Session()
+    session.headers.update({"User-Agent": UA})
+    results: list[WebSearchResult] = []
+    seen: set[str] = set()
+
+    for engine in engines:
+        items = _web_search_engine(session, engine, query, limit=limit)
+        for item in items:
+            if item.url in seen:
+                continue
+            seen.add(item.url)
+            results.append(item)
+            if len(results) >= limit:
+                return results
+    return results
+
+
 def canonical_site_url(url: str, *, site: str, path_prefix: str = "") -> str | None:
     url = html.unescape(unquote(url))
     parsed = urlparse(url)
@@ -106,18 +122,8 @@ def _search_engine(
     path_prefix: str,
     limit: int,
 ) -> list[WebSearchResult]:
-    if engine == "tavily":
-        return _tavily_search(session, query, site=site, limit=limit)
     if engine == "duckduckgo":
         return _duckduckgo_search(
-            session,
-            query,
-            site=site,
-            path_prefix=path_prefix,
-            limit=limit,
-        )
-    if engine == "yahoo":
-        return _yahoo_search(
             session,
             query,
             site=site,
@@ -143,6 +149,20 @@ def _search_engine(
     raise ValueError(f"unknown search engine: {engine}")
 
 
+def _web_search_engine(
+    session: requests.Session,
+    engine: str,
+    query: str,
+    *,
+    limit: int,
+) -> list[WebSearchResult]:
+    if engine == "duckduckgo":
+        return _duckduckgo_web_search(session, query, limit=limit)
+    if engine == "google":
+        return _google_web_search(session, query, limit=limit)
+    raise ValueError(f"unknown search engine: {engine}")
+
+
 def _site_query(query: str, *, site: str, path_prefix: str = "") -> str:
     scoped_site = site.rstrip("/")
     if path_prefix:
@@ -151,11 +171,11 @@ def _site_query(query: str, *, site: str, path_prefix: str = "") -> str:
 
 
 def _search_query_variants(query: str, *, site: str, path_prefix: str = "") -> tuple[str, ...]:
-    variants = [_site_query(query, site=site, path_prefix=path_prefix)]
     site_hint = site.replace("www.", "")
-    variants.append(f"{query} {site_hint}")
+    variants = [f"{query} {site_hint}"]
     if path_prefix:
         variants.append(f"{query} {site_hint}{path_prefix}")
+    variants.append(_site_query(query, site=site, path_prefix=path_prefix))
 
     deduped: list[str] = []
     seen: set[str] = set()
@@ -167,61 +187,34 @@ def _search_query_variants(query: str, *, site: str, path_prefix: str = "") -> t
     return tuple(deduped)
 
 
-def _tavily_search(
-    session: requests.Session,
-    query: str,
-    *,
-    site: str,
-    limit: int,
-) -> list[WebSearchResult]:
-    api_key = os.environ.get("TAVILY_API_KEY")
-    if not api_key:
-        return []
-
-    try:
-        response = session.post(
-            TAVILY_SEARCH_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "query": query,
-                "include_domains": [site],
-                "max_results": max(limit, 1),
-                "search_depth": "basic",
-            },
-            timeout=SEARCH_TIMEOUT,
-        )
-        response.raise_for_status()
-    except Exception:
-        return []
-
-    data = _json_response(response)
-    if not data:
-        return []
-    items: list[WebSearchResult] = []
-    for item in data.get("results", []):
-        url = str(item.get("url") or "")
-        if not url:
-            continue
-        items.append(
-            WebSearchResult(
-                title=str(item.get("title") or ""),
-                url=url,
-                description=str(item.get("content") or ""),
-                engine="tavily",
-            )
-        )
-    return items[:limit]
-
-
 def _json_response(response: requests.Response) -> dict:
     try:
         data = response.json()
     except ValueError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _duckduckgo_web_search(
+    session: requests.Session,
+    query: str,
+    *,
+    limit: int,
+) -> list[WebSearchResult]:
+    for url in (DUCKDUCKGO_HTML_URL, DUCKDUCKGO_LITE_URL):
+        try:
+            response = session.get(
+                url,
+                params={"q": query},
+                timeout=SEARCH_TIMEOUT,
+            )
+            response.raise_for_status()
+        except Exception:
+            continue
+        items = _duckduckgo_items(response.text)
+        if items:
+            return items[:limit]
+    return []
 
 
 def _duckduckgo_search(
@@ -235,17 +228,7 @@ def _duckduckgo_search(
     items: list[WebSearchResult] = []
     seen: set[str] = set()
     for search_query in _search_query_variants(query, site=site, path_prefix=path_prefix):
-        try:
-            response = session.get(
-                DUCKDUCKGO_HTML_URL,
-                params={"q": search_query},
-                timeout=SEARCH_TIMEOUT,
-            )
-            response.raise_for_status()
-        except Exception:
-            continue
-
-        for item in _duckduckgo_items(response.text):
+        for item in _duckduckgo_web_search(session, search_query, limit=limit):
             if item.url in seen:
                 continue
             seen.add(item.url)
@@ -288,70 +271,6 @@ def _duckduckgo_result_url(href: str) -> str | None:
     if href.startswith("http"):
         return href
     return None
-
-
-def _yahoo_search(
-    session: requests.Session,
-    query: str,
-    *,
-    site: str,
-    path_prefix: str,
-    limit: int,
-) -> list[WebSearchResult]:
-    items: list[WebSearchResult] = []
-    seen: set[str] = set()
-    for search_query in _search_query_variants(query, site=site, path_prefix=path_prefix):
-        try:
-            response = session.get(
-                YAHOO_SEARCH_URL,
-                params={"p": search_query},
-                timeout=SEARCH_TIMEOUT,
-            )
-            response.raise_for_status()
-        except Exception:
-            continue
-
-        for item in _yahoo_items(response.text):
-            if item.url in seen:
-                continue
-            seen.add(item.url)
-            items.append(item)
-            if len(items) >= limit:
-                return items
-    return items
-
-
-def _yahoo_items(html_text: str) -> list[WebSearchResult]:
-    soup = BeautifulSoup(html_text, "lxml")
-    items: list[WebSearchResult] = []
-    for a in soup.find_all("a", href=True):
-        href = _yahoo_result_url(a["href"])
-        if not href:
-            continue
-        title = a.get_text(" ", strip=True)
-        if not title:
-            continue
-        items.append(
-            WebSearchResult(
-                title=title,
-                url=href,
-                description="",
-                engine="yahoo",
-            )
-        )
-    return items
-
-
-def _yahoo_result_url(href: str) -> str | None:
-    if not href.startswith("http"):
-        return None
-    parsed = urlparse(href)
-    if parsed.netloc == "r.search.yahoo.com":
-        match = re.search(r"/RU=([^/]+)", parsed.path)
-        if match:
-            return unquote(match.group(1))
-        return None
-    return href
 
 
 def _first_query_value(query: str, key: str) -> str:
@@ -436,6 +355,25 @@ def _google_search(
 ) -> list[WebSearchResult]:
     site_query = _site_query(query, site=site, path_prefix=path_prefix)
     url = f"{GOOGLE_SEARCH_URL}?q={quote_plus(site_query)}&hl=zh-CN&num={limit}"
+    return _google_items(session, url, limit=limit)
+
+
+def _google_web_search(
+    session: requests.Session,
+    query: str,
+    *,
+    limit: int,
+) -> list[WebSearchResult]:
+    url = f"{GOOGLE_SEARCH_URL}?q={quote_plus(query)}&hl=zh-CN&num={limit}"
+    return _google_items(session, url, limit=limit)
+
+
+def _google_items(
+    session: requests.Session,
+    url: str,
+    *,
+    limit: int,
+) -> list[WebSearchResult]:
     try:
         response = session.get(url, timeout=SEARCH_TIMEOUT)
         response.raise_for_status()

@@ -81,21 +81,15 @@ BOOKLIB_BROWSER_PATH="/path/to/chromium" uv run book-to-epub --search "全球高
 ```
 
 - Browser-backed providers may pause on Cloudflare verification.
-- `xfxs` native search currently returns a 404 page, so its search uses external site-search fallback when available. For better xfxs coverage, configure one or more API-backed search engines:
+- `xfxs` native search currently returns a 404 page, so its search uses external site-search fallback when available.
 
 ```bash
 cp .env.example .env
 ```
 
-Then edit `.env` and fill in whichever keys you use:
-
-```text
-TAVILY_API_KEY=...
-```
-
 `.env` is ignored by git. Values already exported in your shell take priority over `.env`.
 
-`src.search.engines.site_search()` tries Tavily, then raw Bing/Google result-page fallbacks. All results are still filtered back to the provider's canonical URL pattern.
+`src.search.engines.site_search()` tries DuckDuckGo and raw Google result-page fallbacks. Browser-backed providers can also use the same third-party engines through Chromium when raw search pages throttle. All results are still filtered back to the provider's canonical URL pattern.
 - Generated EPUB files belong in `epub/` and should not be treated as source code.
 
 ## Development Layout

@@ -57,7 +57,7 @@ def search_books(query: str, *, limit: int = 10) -> list[SearchResult]: ...
 def preview_book(result: SearchResult) -> BookPreview: ...
 ```
 
-Prefer native site search. If unavailable, use `src.search.engines.site_search()` and filter results back to canonical provider book URLs. The shared helper supports optional API-backed search through `TAVILY_API_KEY`, then falls back to raw Bing/Google result pages. Preview should be lightweight: parse metadata and table-of-contents pages, but do not fetch all chapter bodies before the user chooses a result.
+Prefer native site search. If unavailable, use `src.search.engines.site_search()` and filter results back to canonical provider book URLs. The shared helper uses no-key DuckDuckGo and raw Google result-page fallbacks. Preview should be lightweight: parse metadata and table-of-contents pages, but do not fetch all chapter bodies before the user chooses a result.
 
 ## Testing Guidelines
 

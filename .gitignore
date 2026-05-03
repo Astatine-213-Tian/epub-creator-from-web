@@ -6,3 +6,6 @@ __pycache__/
 .python-version
 
 *.egg-info/
+.env
+.env.*
+!.env.example
