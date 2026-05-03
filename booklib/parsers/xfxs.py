@@ -424,22 +424,44 @@ _PAGE_BREAK_RE = re.compile(
     r"|为您提供.{0,30}的小说"
     r"|继续阅读请点击下一?页"
 )
+_PARAGRAPH_INDENT_RE = re.compile(r"^[\xa0　]{2,}")
 
 
-def _extract_chapter_paragraphs(html: str) -> tuple[list[str], str | None, str | None]:
-    """Return (paragraphs, page_title, next_page_url_if_same_chapter)."""
+def _append_chapter_paragraphs(
+    paragraphs: list[str],
+    paras: list[str],
+    *,
+    first_is_continuation: bool,
+) -> None:
+    if not paras:
+        return
+    if paragraphs and first_is_continuation:
+        paragraphs[-1] = paragraphs[-1].rstrip() + paras[0].lstrip()
+        paragraphs.extend(paras[1:])
+    else:
+        paragraphs.extend(paras)
+
+
+def _extract_chapter_paragraphs(html: str) -> tuple[list[str], bool, str | None, str | None]:
+    """Return (paragraphs, first_is_continuation, title, next_page_url).
+
+    xfxs marks real paragraph starts with leading whitespace. When a paginated
+    subpage starts without that indentation, its first text chunk continues the
+    previous page's final paragraph and should be joined during append.
+    """
     soup = BeautifulSoup(html, "lxml")
     page_title = soup.title.string.strip() if soup.title and soup.title.string else None
     content = soup.find(id="chaptercontent")
     paragraphs: list[str] = []
+    first_is_continuation = False
     if content:
         # The site uses raw text with leading 4-space / fullwidth indent and
         # newline separators — split on blank lines to get paragraphs.
         for br in content.find_all("br"):
             br.replace_with("\n")
         text = content.get_text("\n")
-        for chunk in re.split(r"\n+", text):
-            chunk = chunk.strip("　 \t\xa0")
+        for raw_chunk in re.split(r"\n+", text):
+            chunk = raw_chunk.strip("　 \t\xa0")
             # Strip the in-content nav garbage some pages embed.
             if not chunk:
                 continue
@@ -447,6 +469,8 @@ def _extract_chapter_paragraphs(html: str) -> tuple[list[str], str | None, str |
                 continue
             if _PAGE_BREAK_RE.search(chunk):
                 continue
+            if not paragraphs:
+                first_is_continuation = not _PARAGRAPH_INDENT_RE.match(raw_chunk)
             paragraphs.append(chunk)
 
     # Find next-page link (next within same chapter — `<id>_<n>.html`).
@@ -454,7 +478,7 @@ def _extract_chapter_paragraphs(html: str) -> tuple[list[str], str | None, str |
     next_a = soup.find("a", id="next_url")
     if next_a and next_a.get("href"):
         next_url = next_a["href"]
-    return paragraphs, page_title, next_url
+    return paragraphs, first_is_continuation, page_title, next_url
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +500,7 @@ async def crawl_chapter(
     while url and url not in visited:
         visited.add(url)
         paras: list[str] = []
+        first_is_continuation = False
         page_title: str | None = None
         next_url: str | None = None
         for attempt in range(5):
@@ -484,7 +509,7 @@ async def crawl_chapter(
                     html = await fetcher.get_html(url)
                 else:
                     html = await fetcher.fetch_html(url)
-                paras, page_title, next_url = _extract_chapter_paragraphs(html)
+                paras, first_is_continuation, page_title, next_url = _extract_chapter_paragraphs(html)
                 if paras:
                     break
                 if attempt == 4:
@@ -511,7 +536,12 @@ async def crawl_chapter(
             if ref.title in heading or heading.startswith(("第", "Chapter")):
                 # Replace heading with a cleaner version we already have.
                 paras = paras[1:]
-        paragraphs.extend(paras)
+                first_is_continuation = False
+        _append_chapter_paragraphs(
+            paragraphs,
+            paras,
+            first_is_continuation=first_is_continuation,
+        )
 
         if not next_url:
             break
