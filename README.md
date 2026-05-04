@@ -8,27 +8,9 @@ Scrape supported web novel sites and build EPUB files through one command-line e
 uv sync
 ```
 
-List supported providers:
-
-```bash
-uv run book-to-epub --list-parsers
-```
-
-## Parse A Known Book URL
-
-Pass a supported book URL directly:
-
-```bash
-uv run book-to-epub "https://www.mangguoshufang.com/1/2574/info.html" -o epub/book.epub
-uv run book-to-epub "http://jrkywsy.blog.fc2.com/blog-entry-938.html" -o epub/book.epub
-```
-
-For provider-specific IDs, force the provider:
-
-```bash
-uv run book-to-epub 2574 --parser mgsf -o epub/book.epub
-uv run book-to-epub doupocangqiong --parser quanben -o epub/book.epub
-```
+Browser-backed providers require a Chromium-compatible browser. Install Chromium,
+Google Chrome, or Playwright-managed Chromium; set `BOOKLIB_BROWSER_PATH` if the
+browser is not discoverable automatically.
 
 ## Search And Choose A Version
 
@@ -58,6 +40,28 @@ Automatically choose the top ranked result:
 
 ```bash
 uv run book-to-epub --search "全球高考" --first -o epub/book.epub
+```
+
+## Parse A Known Book URL
+
+Pass a supported book URL directly:
+
+```bash
+uv run book-to-epub "https://www.mangguoshufang.com/1/2574/info.html" -o epub/book.epub
+uv run book-to-epub "http://jrkywsy.blog.fc2.com/blog-entry-938.html" -o epub/book.epub
+```
+
+List supported providers when you need to choose one explicitly:
+
+```bash
+uv run book-to-epub --list-parsers
+```
+
+For provider-specific IDs, force the provider:
+
+```bash
+uv run book-to-epub 2574 --parser mgsf -o epub/book.epub
+uv run book-to-epub doupocangqiong --parser quanben -o epub/book.epub
 ```
 
 ## Ranking
