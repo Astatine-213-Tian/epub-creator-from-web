@@ -34,7 +34,7 @@ class ParserSpec:
 
 
 def default_output_path(title: str) -> Path:
-    out_dir = Path(__file__).resolve().parent.parent / "epub"
+    out_dir = Path(__file__).resolve().parents[2] / "epub"
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / f"{title or 'book'}.epub"
 
