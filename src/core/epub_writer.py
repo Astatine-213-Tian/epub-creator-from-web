@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 from pathlib import Path
 from typing import Iterable
 
@@ -25,13 +26,35 @@ p  { text-indent: 2em; margin: 0.3em 0; }
 .intro p { text-indent: 0; }
 """
 
+COMMA_SPACE_RE = re.compile(r"([，,])[\t ]+")
+COMMA_PARAGRAPH_BREAK_RE = re.compile(r"([，,])\s*</p>\s*<p>\s*")
+
 
 def escape_text(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+def normalize_comma_spacing(text: str) -> str:
+    return COMMA_SPACE_RE.sub(r"\1", text)
+
+
+def normalize_comma_html_breaks(value: str) -> str:
+    return COMMA_PARAGRAPH_BREAK_RE.sub(r"\1", normalize_comma_spacing(value))
+
+
+def normalize_paragraphs(paragraphs: Iterable[str]) -> list[str]:
+    normalized: list[str] = []
+    for paragraph in paragraphs:
+        paragraph = normalize_comma_spacing(paragraph)
+        if normalized and normalized[-1].rstrip().endswith(("，", ",")):
+            normalized[-1] = normalized[-1].rstrip() + paragraph.lstrip()
+        else:
+            normalized.append(paragraph)
+    return normalized
+
+
 def render_paragraphs(paragraphs: Iterable[str]) -> str:
-    return "\n".join(f"<p>{escape_text(paragraph)}</p>" for paragraph in paragraphs)
+    return "\n".join(f"<p>{escape_text(paragraph)}</p>" for paragraph in normalize_paragraphs(paragraphs))
 
 
 def cover_extension(cover_mime: str) -> str:
@@ -75,6 +98,8 @@ def write_epub(
 
     if intro_paragraphs is not None:
         intro_html = render_paragraphs(intro_paragraphs)
+    else:
+        intro_html = normalize_comma_html_breaks(intro_html)
 
     intro_body = (
         HTML_HEAD.format(title="简介")
