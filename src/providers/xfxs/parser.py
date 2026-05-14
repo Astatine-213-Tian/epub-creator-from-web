@@ -41,7 +41,9 @@ CHAPTER_RE = re.compile(r"/goreadbook/(\d+)/(\d+)(?:_(\d+))?\.html$")
 BAD_TOC_TITLE_RE = re.compile(r"[”」』]|。")
 
 INTRO_REVIEW_HEADING_RE = re.compile(
-    r"^(?:[^，。！？；\n]{0,40})?(?:(?:作品)?简评|编辑评价|强推奖章)\s*[:：】）)]?$"
+    r"^(?:[^，。！？；\n]{0,40})?(?:(?:作品)?简评|编辑评价|强推奖章)"
+    r"(?:\s*[:：】）)]?|[^\s，。！？；\n]*\.(?:gif|jpe?g|png|webp))?$",
+    re.IGNORECASE,
 )
 
 # Volume + chapter markers (kept for forward-compat — this book has none).
@@ -271,7 +273,7 @@ def _normalized_text_parts(paragraphs: list[str]) -> set[str]:
 
 
 def _chapter_repeats_intro(chapter: Chapter, intro_paragraphs: list[str]) -> bool:
-    if not chapter.title.strip().startswith("第0章"):
+    if not re.match(r"^\s*第\s*[0零〇]\s*章", chapter.title):
         return False
     metadata_markers = ("文案", "内容标签", "搜索关键字", "一句话简介", "立意")
     marker_hits = sum(
