@@ -1,0 +1,3 @@
+display_name: EPUB Reformatter
+short_description: Repair EPUB TOC, nav, spine, and title formatting.
+default_prompt: Reformat and validate an EPUB in this project.
