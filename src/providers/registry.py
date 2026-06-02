@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
 
+from src.core.output import default_output_path as core_default_output_path
+from src.core.output import resolve_output_path
 
 ParserRunner = Callable[[str, "ParserOptions"], Path]
 
@@ -33,16 +35,12 @@ class ParserSpec:
         return any(host == domain or host.endswith(f".{domain}") for domain in self.domains)
 
 
-def default_output_path(title: str) -> Path:
-    out_dir = Path(__file__).resolve().parents[2] / "epub"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    return out_dir / f"{title or 'book'}.epub"
+def default_output_path(title: str, author: str = "") -> Path:
+    return core_default_output_path(title, author)
 
 
-def resolve_output(options: ParserOptions, title: str) -> Path:
-    out_path = options.output or default_output_path(title)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    return out_path
+def resolve_output(options: ParserOptions, title: str, author: str = "") -> Path:
+    return resolve_output_path(options.output, title, author)
 
 
 def run_towasakata(target: str, options: ParserOptions) -> Path:
@@ -67,7 +65,7 @@ def run_towasakata(target: str, options: ParserOptions) -> Path:
             chapter.title = cc.convert(chapter.title)
             chapter.paragraphs = [cc.convert(line) for line in chapter.paragraphs]
 
-    out_path = resolve_output(options, title or "book")
+    out_path = resolve_output(options, title or "book", author)
     parser.build_epub(title or "未命名", author, volumes, intro_simplified, out_path)
     return out_path
 
@@ -76,7 +74,7 @@ def run_jrkywsy(target: str, options: ParserOptions) -> Path:
     from src.providers.jrkywsy import parser
 
     meta, volumes = parser.crawl_book(target)
-    out_path = resolve_output(options, meta.title)
+    out_path = resolve_output(options, meta.title, meta.author)
     parser.build_epub(meta, volumes, out_path)
     return out_path
 
@@ -88,7 +86,7 @@ def run_mgsf(target: str, options: ParserOptions) -> Path:
     book_url = parser._resolve_book_url(target)
     meta, volumes = parser.crawl_book(book_url, delay=delay)
 
-    out_path = resolve_output(options, meta.title)
+    out_path = resolve_output(options, meta.title, meta.author)
     parser.build_epub(meta, volumes, out_path)
     return out_path
 
@@ -108,7 +106,7 @@ def run_xfxs(target: str, options: ParserOptions) -> Path:
         )
     )
 
-    out_path = resolve_output(options, meta.title)
+    out_path = resolve_output(options, meta.title, meta.author)
     parser.build_epub(meta, volumes, out_path)
     return out_path
 
@@ -128,7 +126,7 @@ def run_pili45(target: str, options: ParserOptions) -> Path:
         )
     )
 
-    out_path = resolve_output(options, meta.title)
+    out_path = resolve_output(options, meta.title, meta.author)
     parser.build_epub(meta, volumes, out_path)
     return out_path
 
@@ -145,7 +143,41 @@ def run_quanben(target: str, options: ParserOptions) -> Path:
         concurrency=concurrency,
     )
 
-    out_path = resolve_output(options, meta.title)
+    out_path = resolve_output(options, meta.title, meta.author)
+    parser.build_epub(meta, volumes, out_path)
+    return out_path
+
+
+def run_zhenhun(target: str, options: ParserOptions) -> Path:
+    from src.providers.zhenhun import parser
+
+    delay = options.delay if options.delay is not None else 0.4
+    concurrency = options.concurrency if options.concurrency is not None else 4
+    book_url = parser._resolve_book_url(target)
+    meta, volumes = parser.crawl_book(
+        book_url,
+        delay=delay,
+        concurrency=concurrency,
+    )
+
+    out_path = resolve_output(options, meta.title, meta.author)
+    parser.build_epub(meta, volumes, out_path)
+    return out_path
+
+
+def run_ibusread(target: str, options: ParserOptions) -> Path:
+    from src.providers.ibusread import parser
+
+    delay = options.delay if options.delay is not None else 0.25
+    concurrency = options.concurrency if options.concurrency is not None else 4
+    book_url = parser._resolve_book_url(target)
+    meta, volumes = parser.crawl_book(
+        book_url,
+        delay=delay,
+        concurrency=concurrency,
+    )
+
+    out_path = resolve_output(options, meta.title, meta.author)
     parser.build_epub(meta, volumes, out_path)
     return out_path
 
@@ -177,8 +209,8 @@ PARSERS: tuple[ParserSpec, ...] = (
     ),
     ParserSpec(
         name="pili45",
-        domains=("pili45.com",),
-        description="pili45.com novels through browser-backed zendriver",
+        domains=("pili45.com", "pilishuwu.com"),
+        description="pili45.com / pilishuwu.com novels through browser-backed zendriver",
         run=run_pili45,
     ),
     ParserSpec(
@@ -186,6 +218,18 @@ PARSERS: tuple[ParserSpec, ...] = (
         domains=("quanben.io",),
         description="quanben.io novels",
         run=run_quanben,
+    ),
+    ParserSpec(
+        name="zhenhun",
+        domains=("zhenhunxiaoshuo.com",),
+        description="zhenhunxiaoshuo.com WordPress category novels",
+        run=run_zhenhun,
+    ),
+    ParserSpec(
+        name="ibusread",
+        domains=("ibusread.com",),
+        description="ibusread.com API-backed novels",
+        run=run_ibusread,
     ),
 )
 

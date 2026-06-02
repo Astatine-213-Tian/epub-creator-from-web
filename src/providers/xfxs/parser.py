@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup
 import zendriver as zd
 
 from src import Chapter, Volume, write_epub
+from src.core.output import resolve_output_path
 from src.fetch.browser import resolve_browser_executable
 from src.fetch.parallel import crawl_items
 
@@ -265,11 +266,15 @@ def _clean_intro_paragraphs(text: str) -> list[str]:
 def _normalized_text_parts(paragraphs: list[str]) -> set[str]:
     parts: set[str] = set()
     for paragraph in paragraphs:
-        text = re.sub(r"\s+", "", paragraph)
-        text = re.sub(r"[，。！？、；：:,.!?;《》〈〉“”\"'‘’\[\]【】（）()\-—_·┃|]", "", text)
+        text = _normalized_text_part(paragraph)
         if len(text) >= 8:
             parts.add(text)
     return parts
+
+
+def _normalized_text_part(paragraph: str) -> str:
+    text = re.sub(r"\s+", "", paragraph)
+    return re.sub(r"[，。！？、；：:,.!?;《》〈〉“”\"'‘’\[\]【】（）()\-—_·┃|]", "", text)
 
 
 def _chapter_repeats_intro(chapter: Chapter, intro_paragraphs: list[str]) -> bool:
@@ -292,14 +297,38 @@ def _chapter_repeats_intro(chapter: Chapter, intro_paragraphs: list[str]) -> boo
     return repeated / len(intro_parts) >= 0.6
 
 
+def _trim_repeated_intro_prefix(chapter: Chapter, intro_paragraphs: list[str]) -> list[str]:
+    intro_parts = [_normalized_text_part(paragraph) for paragraph in intro_paragraphs]
+    chapter_paragraphs = list(chapter.paragraphs)
+    intro_index = 0
+    trim_until = 0
+    for index, paragraph in enumerate(chapter_paragraphs):
+        chapter_part = _normalized_text_part(paragraph)
+        while intro_index < len(intro_parts) and not intro_parts[intro_index]:
+            intro_index += 1
+        if intro_index >= len(intro_parts):
+            break
+        if chapter_part == intro_parts[intro_index]:
+            trim_until = index + 1
+            intro_index += 1
+            continue
+        break
+    return chapter_paragraphs[trim_until:]
+
+
 def _drop_repeated_intro_chapter(volumes: list[Volume], meta: BookMeta) -> None:
     for volume in volumes:
         if not volume.chapters:
             continue
         first = volume.chapters[0]
         if _chapter_repeats_intro(first, meta.intro_paragraphs):
-            print(f"[+] dropping duplicated intro chapter: {first.title}", file=sys.stderr)
-            del volume.chapters[0]
+            trimmed = _trim_repeated_intro_prefix(first, meta.intro_paragraphs)
+            if trimmed:
+                print(f"[+] trimming duplicated intro prefix: {first.title}", file=sys.stderr)
+                first.paragraphs = trimmed
+            else:
+                print(f"[+] dropping duplicated intro chapter: {first.title}", file=sys.stderr)
+                del volume.chapters[0]
         return
 
 
@@ -712,13 +741,7 @@ def main(argv: list[str] | None = None) -> int:
     n_chap = sum(len(v.chapters) for v in volumes)
     print(f"[+] crawled {n_chap} chapter(s)", file=sys.stderr)
 
-    if args.output:
-        out_path = Path(args.output)
-    else:
-        out_dir = Path(__file__).resolve().parents[3] / "epub"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / f"{meta.title}.epub"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = resolve_output_path(args.output, meta.title, meta.author)
 
     build_epub(meta, volumes, out_path)
     print(f"[+] wrote {out_path}", file=sys.stderr)

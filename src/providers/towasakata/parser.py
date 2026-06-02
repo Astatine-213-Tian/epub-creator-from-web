@@ -28,6 +28,7 @@ from opencc import OpenCC
 
 from src import Chapter, Volume, write_epub
 from src.core.epub_writer import escape_text
+from src.core.output import resolve_output_path
 
 
 UA = (
@@ -441,13 +442,7 @@ def main(argv: list[str] | None = None) -> int:
     n_chaps = sum(len(v.chapters) for v in volumes)
     print(f"[+] {n_vols} named volume(s), {n_chaps} chapter(s)", file=sys.stderr)
 
-    if args.output:
-        out_path = Path(args.output)
-    else:
-        out_dir = Path(__file__).resolve().parents[3] / "epub"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / f"{title or 'book'}.epub"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = resolve_output_path(args.output, title or "book", author)
     build_epub(
         title=title or "未命名",
         author=author,

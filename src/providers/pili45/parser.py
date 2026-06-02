@@ -28,14 +28,16 @@ from bs4 import BeautifulSoup
 import zendriver as zd
 
 from src import Chapter, Volume, write_epub
+from src.core.output import resolve_output_path
 from src.fetch.browser import resolve_browser_executable
 from src.fetch.parallel import crawl_items, retry_async
 
 
-HOST = "https://www.pili45.com"
+DEFAULT_HOST = "https://www.pili45.com"
 
 INFO_RE = re.compile(r"^/(\d+)/(\d+)/info\.html$")
 CHAPTER_RE = re.compile(r"^/(\d+)/(\d+)/read/(\d+)\.html$")
+CONTENT_SECTION_RE = re.compile(r"^\s*(\d{1,4})\s*$")
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +154,12 @@ def _clean_text(s: str) -> str:
     return re.sub(r"[\s\xa0　]+", " ", s).strip()
 
 
-def parse_info(html: str, cat_id: str, book_id: str) -> BookMeta:
+def _origin(url: str) -> str:
+    parsed = urlparse(url)
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def parse_info(html: str, cat_id: str, book_id: str, *, host: str = DEFAULT_HOST) -> BookMeta:
     soup = BeautifulSoup(html, "lxml")
     title = ""
     author = ""
@@ -176,7 +183,7 @@ def parse_info(html: str, cat_id: str, book_id: str) -> BookMeta:
             status = _clean_text(status_span.get_text())
         img = cover_div.find("img")
         if img and img.get("src") and "nocover" not in img["src"]:
-            cover_url = urljoin(HOST, img["src"])
+            cover_url = urljoin(host, img["src"])
 
     intro = soup.find("p", class_="works-intro-short")
     intro_paragraphs: list[str] = []
@@ -208,7 +215,13 @@ def parse_info(html: str, cat_id: str, book_id: str) -> BookMeta:
     )
 
 
-def parse_toc(html: str, cat_id: str, book_id: str) -> tuple[list[ChapterRef], str | None]:
+def parse_toc(
+    html: str,
+    cat_id: str,
+    book_id: str,
+    *,
+    host: str = DEFAULT_HOST,
+) -> tuple[list[ChapterRef], str | None]:
     soup = BeautifulSoup(html, "lxml")
     container = (
         soup.find(class_="works-chapter-list-con")
@@ -232,7 +245,7 @@ def parse_toc(html: str, cat_id: str, book_id: str) -> tuple[list[ChapterRef], s
         refs.append(
             ChapterRef(
                 title=title,
-                url=urljoin(HOST, a["href"]),
+                url=urljoin(host, a["href"]),
                 chapter_id=chapter_id,
             )
         )
@@ -240,7 +253,7 @@ def parse_toc(html: str, cat_id: str, book_id: str) -> tuple[list[ChapterRef], s
     next_url: str | None = None
     for a in soup.find_all("a", href=True):
         if "下一页" in _clean_text(a.get_text()) and "/menu/" in a["href"]:
-            next_url = urljoin(HOST, a["href"])
+            next_url = urljoin(host, a["href"])
             break
     return refs, next_url
 
@@ -268,10 +281,13 @@ def parse_chapter(html: str) -> tuple[str, list[str]]:
         for tag in content.find_all(["script", "style", "iframe", "ins"]):
             tag.decompose()
         for p in content.find_all("p"):
-            text = _clean_text(p.get_text())
-            if not text or text == "0" or _BOILERPLATE_RE.search(text):
-                continue
-            paragraphs.append(text)
+            for br in p.find_all("br"):
+                br.replace_with("\n")
+            for chunk in re.split(r"\n+", p.get_text("\n")):
+                text = _clean_text(chunk)
+                if not text or text == "0" or _BOILERPLATE_RE.search(text):
+                    continue
+                paragraphs.append(text)
         if not paragraphs:
             for br in content.find_all("br"):
                 br.replace_with("\n")
@@ -280,6 +296,71 @@ def parse_chapter(html: str) -> tuple[str, list[str]]:
                 if text and not _BOILERPLATE_RE.search(text):
                     paragraphs.append(text)
     return title, paragraphs
+
+
+def split_content_sections(chapters: list[Chapter]) -> list[Chapter]:
+    sections: list[tuple[int, list[str]]] = []
+    preface: list[str] = []
+    passthrough: list[Chapter] = []
+
+    for chapter in chapters:
+        current_number: int | None = None
+        current_paragraphs: list[str] = []
+        current_preface: list[str] = []
+        found_marker = False
+
+        for paragraph in chapter.paragraphs:
+            marker = CONTENT_SECTION_RE.match(paragraph)
+            if marker:
+                found_marker = True
+                if current_number is None and current_preface:
+                    preface.extend(current_preface)
+                if current_number is not None and current_paragraphs:
+                    sections.append((current_number, current_paragraphs))
+                current_number = int(marker.group(1))
+                current_paragraphs = []
+                continue
+            if current_number is not None:
+                current_paragraphs.append(paragraph)
+            else:
+                current_preface.append(paragraph)
+
+        if current_number is not None and current_paragraphs:
+            sections.append((current_number, current_paragraphs))
+        elif not found_marker:
+            passthrough.append(chapter)
+
+    if not sections:
+        return chapters
+
+    sections.sort(key=lambda item: item[0])
+    merged: dict[int, list[str]] = {}
+    split_chapters: list[Chapter] = []
+    for number, paragraphs in sections:
+        if number in merged:
+            print(f"[!] duplicate content section {number}; merging paragraphs", file=sys.stderr)
+            merged[number].extend(paragraphs)
+        else:
+            merged[number] = list(paragraphs)
+
+    numbers = [number for number, _paragraphs in sections]
+    missing = sorted(set(range(min(numbers), max(numbers) + 1)) - set(merged))
+    if missing:
+        print(f"[!] missing content section number(s): {', '.join(map(str, missing))}", file=sys.stderr)
+
+    if preface:
+        split_chapters.append(Chapter(title="序", paragraphs=preface))
+    split_chapters.extend(
+        Chapter(title=f"第{number}节", paragraphs=paragraphs)
+        for number, paragraphs in sorted(merged.items())
+    )
+
+    if passthrough:
+        print(
+            f"[!] {len(passthrough)} source chapter(s) had no content section markers; appending after numbered sections",
+            file=sys.stderr,
+        )
+    return split_chapters + passthrough
 
 
 # ---------------------------------------------------------------------------
@@ -298,14 +379,15 @@ async def crawl_book(
     if not m:
         raise ValueError(f"not a /<cat>/<id>/info.html URL: {book_url}")
     cat_id, book_id = m.group(1), m.group(2)
+    host = _origin(book_url)
 
     fetcher = Fetcher(headless=headless, delay=delay)
     await fetcher.start()
     try:
-        info_url = urljoin(HOST, f"/{cat_id}/{book_id}/info.html")
+        info_url = urljoin(host, f"/{cat_id}/{book_id}/info.html")
         print(f"[+] fetching info {info_url}", file=sys.stderr)
         info_html = await fetcher.get_html(info_url)
-        meta = parse_info(info_html, cat_id, book_id)
+        meta = parse_info(info_html, cat_id, book_id, host=host)
         print(f"[+] book: {meta.title} / {meta.author}", file=sys.stderr)
 
         if meta.cover_url:
@@ -323,17 +405,18 @@ async def crawl_book(
                 print(f"[!] cover fetch failed: {e}", file=sys.stderr)
 
         refs: list[ChapterRef] = []
-        menu_url: str | None = urljoin(HOST, f"/{cat_id}/{book_id}/menu/1.html")
+        menu_url: str | None = urljoin(host, f"/{cat_id}/{book_id}/menu/1.html")
         while menu_url:
             print(f"[+] fetching menu {menu_url}", file=sys.stderr)
             page_refs, next_url = parse_toc(
-                await fetcher.get_html(menu_url), cat_id, book_id
+                await fetcher.get_html(menu_url), cat_id, book_id, host=host
             )
             refs.extend(page_refs)
             menu_url = next_url
         print(f"[+] {len(refs)} chapters discovered", file=sys.stderr)
 
         chapters = await crawl_chapters(fetcher, refs, concurrency=concurrency)
+        chapters = split_content_sections(chapters)
         return meta, [Volume(title="", chapters=chapters)]
     finally:
         await fetcher.stop()
@@ -395,11 +478,15 @@ def build_epub(meta: BookMeta, volumes: list[Volume], out_path: Path) -> None:
 
 def _resolve_book_url(arg: str) -> str:
     if arg.startswith("http"):
+        parsed = urlparse(arg)
+        m = CHAPTER_RE.match(parsed.path)
+        if m:
+            return f"{parsed.scheme}://{parsed.netloc}/{m.group(1)}/{m.group(2)}/info.html"
         return arg
     if "/" in arg:
         cat, bid = arg.split("/", 1)
-        return f"{HOST}/{cat}/{bid}/info.html"
-    return f"{HOST}/5/{arg}/info.html"
+        return f"{DEFAULT_HOST}/{cat}/{bid}/info.html"
+    return f"{DEFAULT_HOST}/5/{arg}/info.html"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -429,13 +516,7 @@ def main(argv: list[str] | None = None) -> int:
     n_chap = sum(len(v.chapters) for v in volumes)
     print(f"[+] crawled {n_chap} chapter(s)", file=sys.stderr)
 
-    if args.output:
-        out_path = Path(args.output)
-    else:
-        out_dir = Path(__file__).resolve().parents[3] / "epub"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / f"{meta.title}.epub"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = resolve_output_path(args.output, meta.title, meta.author)
 
     build_epub(meta, volumes, out_path)
     print(f"[+] wrote {out_path}", file=sys.stderr)

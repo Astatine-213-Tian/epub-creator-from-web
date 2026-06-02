@@ -27,6 +27,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from src import Chapter, Volume, write_epub
+from src.core.output import resolve_output_path
 
 
 HOST = "https://www.mangguoshufang.com"
@@ -396,13 +397,7 @@ def main(argv: list[str] | None = None) -> int:
     n_vol = sum(1 for v in volumes if v.title)
     print(f"[+] {n_vol} named volume(s), {n_chap} chapter(s)", file=sys.stderr)
 
-    if args.output:
-        out_path = Path(args.output)
-    else:
-        out_dir = Path(__file__).resolve().parents[3] / "epub"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / f"{meta.title}.epub"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = resolve_output_path(args.output, meta.title, meta.author)
 
     build_epub(meta, volumes, out_path)
     print(f"[+] wrote {out_path}", file=sys.stderr)

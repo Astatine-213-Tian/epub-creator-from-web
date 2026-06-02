@@ -51,6 +51,10 @@ uv run book-to-epub "https://www.mangguoshufang.com/1/2574/info.html" -o epub/bo
 uv run book-to-epub "http://jrkywsy.blog.fc2.com/blog-entry-938.html" -o epub/book.epub
 ```
 
+When `-o/--output` is omitted, the generated file is written under the author
+folder, for example `epub/非天夜翔/书名.epub`. Existing author folders are reused.
+An explicit `-o/--output` path still overrides this default.
+
 List supported providers when you need to choose one explicitly:
 
 ```bash
@@ -87,7 +91,7 @@ BOOKLIB_BROWSER_PATH="/path/to/chromium" uv run book-to-epub --search "全球高
 - Browser-backed providers may pause on Cloudflare verification.
 - `xfxs` native search currently returns a 404 page, so its search uses external site-search fallback when available.
 `src.search.engines.site_search()` tries DuckDuckGo and raw Google result-page fallbacks. Browser-backed providers can also use the same third-party engines through Chromium when raw search pages throttle. All results are still filtered back to the provider's canonical URL pattern.
-- Generated EPUB files belong in `epub/` and should not be treated as source code.
+- Generated EPUB files belong in `epub/<author>/` by default and should not be treated as source code.
 
 ## Development Layout
 
