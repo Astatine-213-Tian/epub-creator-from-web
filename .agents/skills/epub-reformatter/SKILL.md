@@ -19,7 +19,7 @@ Patch EPUB archives directly and keep every reader-visible surface in sync:
 - affected chapter XHTML files
 - `EPUB/content.opf` manifest/spine when adding, deleting, splitting, merging, or moving reading-order files
 
-Always make a temporary backup before archive surgery, rewrite to a temporary archive, replace atomically, then validate. Delete backup files when the user asks for cleanup.
+Before archive surgery, make one overwriteable temp backup per target EPUB under `/private/tmp/epub-creator-from-web-codex-backups/<relative path under epub/>` (for example `/private/tmp/epub-creator-from-web-codex-backups/非天夜翔/锦衣卫.epub`), never beside the EPUB; rewrite to a temporary archive, replace atomically, then validate.
 
 ## Workflow
 

@@ -118,6 +118,10 @@ class ChapterRef:
 
 
 def _clean(s: str) -> str:
+    # Some mgsf chapter pages use a private-use glyph as a visual indent.
+    # It renders as excessive paragraph padding in EPUB readers, so remove it
+    # before the normal whitespace pass.
+    s = s.replace("\ue788", "")
     return re.sub(r"[\s 　]+", " ", s).strip()
 
 
