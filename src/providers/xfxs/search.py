@@ -21,7 +21,16 @@ DUCKDUCKGO_SEARCH_URL = "https://duckduckgo.com/"
 GOOGLE_SEARCH_URL = "https://www.google.com/search"
 
 
-def search_books(query: str, *, limit: int = 10) -> list[SearchResult]:
+def search_books(
+    query: str,
+    *,
+    limit: int = 10,
+    author: str | None = None,
+) -> list[SearchResult]:
+    if author:
+        PROGRESS.provider_detail("xfxs", f"using author page for {author}")
+        return _search_author_pages(query, limit=limit, author=author)
+
     # The live xfxs search form currently posts to /search/ but returns a 404
     # page. Use a site-scoped external search and keep only canonical book URLs.
     results: list[SearchResult] = []
@@ -60,7 +69,17 @@ def search_books(query: str, *, limit: int = 10) -> list[SearchResult]:
     return results
 
 
-async def search_books_with_browser(query: str, *, limit: int = 10, browser) -> list[SearchResult]:
+async def search_books_with_browser(
+    query: str,
+    *,
+    limit: int = 10,
+    browser,
+    author: str | None = None,
+) -> list[SearchResult]:
+    if author:
+        PROGRESS.provider_detail("xfxs", f"using author page for {author}")
+        return _search_author_pages(query, limit=limit, author=author)
+
     results: list[SearchResult] = []
     seen_urls: set[str] = set()
     for item in await _browser_external_search(query, browser=browser, limit=limit):
@@ -153,8 +172,13 @@ def _parse_result_title(title: str) -> tuple[str, str]:
     return title or "未命名", author
 
 
-def _search_author_pages(query: str, *, limit: int) -> list[SearchResult]:
-    authors = _discover_author_candidates(query)
+def _search_author_pages(
+    query: str,
+    *,
+    limit: int,
+    author: str | None = None,
+) -> list[SearchResult]:
+    authors = [author.strip()] if author and author.strip() else _discover_author_candidates(query)
     if not authors:
         return []
 

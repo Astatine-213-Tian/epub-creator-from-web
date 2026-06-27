@@ -15,7 +15,7 @@ from . import parser
 CATALOG_TITLE_RE = re.compile(r"^(目錄|目录)(?:\b|[-（(]|$)", flags=re.I)
 
 
-def search_books(query: str, *, limit: int = 10) -> list[SearchResult]:
+def search_books(query: str, *, limit: int = 10, author: str | None = None) -> list[SearchResult]:
     session = requests.Session()
     search_query = OpenCC("s2t").convert(query)
     url = f"http://{parser.BLOG_HOST}/?q={quote(search_query)}"

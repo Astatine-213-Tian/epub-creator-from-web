@@ -8,7 +8,7 @@ from src.search import BookPreview, SearchResult
 from . import parser
 
 
-def search_books(query: str, *, limit: int = 10) -> list[SearchResult]:
+def search_books(query: str, *, limit: int = 10, author: str | None = None) -> list[SearchResult]:
     fetcher = parser.Fetcher(delay=0.1)
     url = f"{parser.HOST}/index.php?c=book&a=search&keywords={quote(query)}"
     soup = BeautifulSoup(fetcher.get_html(url), "lxml")

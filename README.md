@@ -34,6 +34,7 @@ Limit search to one provider:
 ```bash
 uv run book-to-epub --search "斗破苍穹" --parser quanben
 uv run book-to-epub --search "魔道祖师" --parser mgsf --limit 3
+uv run book-to-epub --search "锦衣卫" --parser xfxs --author 非天夜翔
 ```
 
 Automatically choose the top ranked result:
@@ -89,7 +90,7 @@ BOOKLIB_BROWSER_PATH="/path/to/chromium" uv run book-to-epub --search "全球高
 ```
 
 - Browser-backed providers may pause on Cloudflare verification.
-- `xfxs` native search currently returns a 404 page, so its search uses external site-search fallback when available.
+- `xfxs` native search currently returns a 404 page. When `--author <name>` is supplied, xfxs searches the fixed author page `/a/<GBK-encoded-author>.html` first and skips external site-search for that provider. Without an author hint, xfxs uses external site-search fallback when available.
 `src.search.engines.site_search()` tries DuckDuckGo and raw Google result-page fallbacks. Browser-backed providers can also use the same third-party engines through Chromium when raw search pages throttle. All results are still filtered back to the provider's canonical URL pattern.
 - Generated EPUB files belong in `epub/<author>/` by default and should not be treated as source code.
 

@@ -40,7 +40,13 @@ class BookPreview:
 
 
 class SearchModule(Protocol):
-    def search_books(self, query: str, *, limit: int = 10) -> list[SearchResult]:
+    def search_books(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        author: str | None = None,
+    ) -> list[SearchResult]:
         ...
 
     def preview_book(self, result: SearchResult) -> BookPreview:
@@ -131,6 +137,7 @@ def search_all(
     query: str,
     *,
     parser_name: str | None = None,
+    author: str | None = None,
     limit_per_provider: int = 10,
     verbose: bool = False,
     debug: bool = False,
@@ -183,6 +190,7 @@ def search_all(
             thread_jobs=thread_jobs,
             browser_jobs=browser_jobs,
             limit_per_provider=limit_per_provider,
+            author=author,
             progress=progress,
             on_outcome=record_search_outcome,
         )
@@ -204,6 +212,7 @@ async def _run_search_jobs(
     thread_jobs: list[tuple[int, str, SearchModule]],
     browser_jobs: list[tuple[int, str, SearchModule]],
     limit_per_provider: int,
+    author: str | None,
     progress: ProgressLogger,
     on_outcome: Callable[[SearchJobOutcome], None],
 ) -> None:
@@ -226,6 +235,7 @@ async def _run_search_jobs(
                                 module,
                                 query,
                                 limit_per_provider,
+                                author,
                             ),
                             order=order,
                             name=name,
@@ -246,6 +256,7 @@ async def _run_search_jobs(
                                 module,
                                 query,
                                 limit_per_provider,
+                                author,
                                 browser,
                             ),
                             order=order,
@@ -271,11 +282,12 @@ async def _run_thread_search(
     module: SearchModule,
     query: str,
     limit_per_provider: int,
+    author: str | None,
 ) -> SearchJobOutcome:
     try:
         results = await loop.run_in_executor(
             executor,
-            partial(module.search_books, query, limit=limit_per_provider),
+            partial(module.search_books, query, limit=limit_per_provider, author=author),
         )
     except Exception as exc:  # noqa: BLE001
         return SearchJobOutcome(order=order, name=name, error=exc)
@@ -304,11 +316,17 @@ async def _run_browser_tab_search(
     module: SearchModule,
     query: str,
     limit_per_provider: int,
+    author: str | None,
     browser: Any,
 ) -> SearchJobOutcome:
     try:
         search_with_browser = getattr(module, "search_books_with_browser")
-        results = await search_with_browser(query, limit=limit_per_provider, browser=browser)
+        results = await search_with_browser(
+            query,
+            limit=limit_per_provider,
+            author=author,
+            browser=browser,
+        )
     except Exception as exc:  # noqa: BLE001
         return SearchJobOutcome(order=order, name=name, error=exc)
     return SearchJobOutcome(order=order, name=name, results=results)

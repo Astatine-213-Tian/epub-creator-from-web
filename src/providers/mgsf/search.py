@@ -14,12 +14,18 @@ from . import parser
 PROGRESS = ProgressLogger()
 
 
-def search_books(query: str, *, limit: int = 10) -> list[SearchResult]:
+def search_books(query: str, *, limit: int = 10, author: str | None = None) -> list[SearchResult]:
     url = f"{parser.HOST}/search/1/{quote(query)}/1.html"
     return _parse_search_html(_get_search_html(url), limit=limit)
 
 
-async def search_books_with_browser(query: str, *, limit: int = 10, browser) -> list[SearchResult]:
+async def search_books_with_browser(
+    query: str,
+    *,
+    limit: int = 10,
+    browser,
+    author: str | None = None,
+) -> list[SearchResult]:
     url = f"{parser.HOST}/search/1/{quote(query)}/1.html"
     PROGRESS.provider_detail("mgsf", f"browser fetching {url}")
     tab = await browser.get(url, new_tab=True)

@@ -24,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-o", "--output", type=Path, default=None)
     p.add_argument("--parser", choices=parser_names, help="Force a parser for ids or ambiguous URLs")
     p.add_argument("--search", help="Search supported providers, preview matches, then choose one to parse")
+    p.add_argument("--author", help="With --search, pass an author hint to providers that support it")
     p.add_argument("--limit", type=int, default=10, help="Maximum search results/previews to show")
     p.add_argument("--first", action="store_true", help="With --search, choose the top ranked result")
     p.add_argument("--delay", type=float, default=None, help="Seconds to wait between requests")
@@ -62,13 +63,18 @@ def main(argv: list[str] | None = None) -> int:
         progress.info(f"selected {selected.parser}: {selected.title} ({selected.url})")
         return 0
 
+    if args.author and not args.search:
+        p.error("--author can only be used with --search")
+
     if args.search:
         scope = f" with parser {args.parser}" if args.parser else ""
+        author_scope = f" / author {args.author!r}" if args.author else ""
         progress.section("Search")
-        progress.info(f"Query: {args.search!r}{scope}")
+        progress.info(f"Query: {args.search!r}{author_scope}{scope}")
         results = search_all(
             args.search,
             parser_name=args.parser,
+            author=args.author,
             limit_per_provider=max(1, args.limit),
             verbose=True,
             debug=args.verbose,
