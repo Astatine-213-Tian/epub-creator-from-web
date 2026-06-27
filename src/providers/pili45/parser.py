@@ -33,7 +33,8 @@ from src.fetch.browser import resolve_browser_executable
 from src.fetch.parallel import crawl_items, retry_async
 
 
-DEFAULT_HOST = "https://www.pili45.com"
+HOST = "https://www.pili45.com"
+DEFAULT_HOST = HOST
 
 INFO_RE = re.compile(r"^/(\d+)/(\d+)/info\.html$")
 CHAPTER_RE = re.compile(r"^/(\d+)/(\d+)/read/(\d+)\.html$")
