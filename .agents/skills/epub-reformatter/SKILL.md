@@ -4,8 +4,9 @@ description: >
   Repair and normalize generated EPUB files in this project. Use when Codex needs
   to patch EPUB archives for Chinese novel formatting issues: volume/fanwai/houji
   TOC hierarchy, nav.xhtml and toc.ncx sync, spine ordering, duplicate intro or
-  volume marker cleanup, chapter title normalization, author/book-name title
-  cleanup, and validation of files under the project epub/ directory.
+  volume marker cleanup, decorative ending marker cleanup and centering, chapter
+  title normalization, author/book-name title cleanup, and validation of files
+  under the project epub/ directory.
 ---
 
 # EPUB Reformatter
@@ -75,6 +76,7 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
 - When the user asks for comma cleanup in the book content, normalize prose too: replace ASCII commas with Chinese commas when the comma is adjacent to Chinese characters or Chinese quotation/bracket punctuation, for example `说道,“` -> `说道，“` and `躺,迟小多` -> `躺，迟小多`.
 - Collapse repeated Chinese commas such as `，，` to a single `，`.
 - In fanwai chapter titles, remove the current book title if it repeats, for example `相见欢番外...` -> `番外...`. Preserve other referenced book names in crossover titles.
+- Prettify standalone decorative ending markers when the boundary is obvious: insert middle dots between the book, volume, or section title and terminal words such as `终`, `完`, `正文完`, or `全文完`. Restore missing volume-title separators when the source collapsed them, for example `卷四羽觞醉月终` -> `卷四·羽觞醉月·终`. Normalize marker wrappers made from any number of ASCII hyphens to exactly `——` on each side, for example `--相见欢终--` -> `——相见欢·终——` and `-----卷四羽觞醉月终-----` -> `——卷四·羽觞醉月·终——`. Preserve existing correct separators, for example `——卷四·羽觞醉月·终——`. Center the marker paragraph in the chapter XHTML, using the book's existing centered paragraph style if available or a minimal `text-align: center` style if not. Patch body text only unless the marker also appears in `nav.xhtml` or `toc.ncx`. If the intended boundary is ambiguous, confirm before changing it.
 
 ## Numbering Repairs
 
