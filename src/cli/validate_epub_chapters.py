@@ -12,7 +12,8 @@ from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
 
-CHAPTER_RE = re.compile(r"^\s*第\s*([0-9]+|[零〇一二两三四五六七八九十百千]+)\s*([章回])")
+CHINESE_CHAPTER_RE = re.compile(r"^\s*第\s*([0-9]+|[零〇一二两三四五六七八九十百千]+)\s*([章回])")
+ENGLISH_CHAPTER_RE = re.compile(r"^\s*Chapter\s+([0-9]+)\b", re.IGNORECASE)
 SPACE_RE = re.compile(r"\s+")
 CHINESE_DIGITS = {
     "零": 0,
@@ -72,10 +73,15 @@ def parse_number(value: str) -> int:
 
 
 def chapter_from_title(source: str, href: str, title: str) -> ChapterRef | None:
-    match = CHAPTER_RE.search(title)
-    if not match:
-        return None
-    number_text, unit = match.groups()
+    match = CHINESE_CHAPTER_RE.search(title)
+    if match:
+        number_text, unit = match.groups()
+    else:
+        english_match = ENGLISH_CHAPTER_RE.search(title)
+        if not english_match:
+            return None
+        number_text = english_match.group(1)
+        unit = "Chapter"
     return ChapterRef(
         source=source,
         href=href,
@@ -164,6 +170,18 @@ def format_ref(ref: ChapterRef) -> str:
     return f"{ref.href}: {ref.title}"
 
 
+def format_number(ref: ChapterRef) -> str:
+    if ref.unit == "Chapter":
+        return f"Chapter {ref.number_text}"
+    return f"第{ref.number}{ref.unit}"
+
+
+def format_expected_number(unit: str, number: int) -> str:
+    if unit == "Chapter":
+        return f"Chapter {number}"
+    return f"第{number}{unit}"
+
+
 def validate_sequence(entries: list[ChapterRef]) -> list[str]:
     issues: list[str] = []
     by_unit: dict[str, list[ChapterRef]] = {}
@@ -177,7 +195,8 @@ def validate_sequence(entries: list[ChapterRef]) -> list[str]:
         for number, duplicates in seen.items():
             if len(duplicates) > 1:
                 refs = "; ".join(format_ref(entry) for entry in duplicates)
-                issues.append(f"duplicate 第{number}{unit}: {refs}")
+                label = format_number(duplicates[0])
+                issues.append(f"duplicate {label}: {refs}")
 
         previous = unit_entries[0]
         for current in unit_entries[1:]:
@@ -188,7 +207,7 @@ def validate_sequence(entries: list[ChapterRef]) -> list[str]:
             if current.number != expected:
                 issues.append(
                     f"number gap/order issue before {format_ref(current)}: "
-                    f"previous 第{previous.number}{unit}, expected 第{expected}{unit}"
+                    f"previous {format_number(previous)}, expected {format_expected_number(unit, expected)}"
                 )
             previous = current
     return issues
@@ -212,8 +231,8 @@ def validate_cross_references(
         elif (nav_entry.number, nav_entry.unit) != (ncx_entry.number, ncx_entry.unit):
             issues.append(
                 f"nav/ncx number mismatch for {nav_entry.href}: "
-                f"nav 第{nav_entry.number}{nav_entry.unit}, "
-                f"ncx 第{ncx_entry.number}{ncx_entry.unit}"
+                f"nav {format_number(nav_entry)}, "
+                f"ncx {format_number(ncx_entry)}"
             )
 
         document_entry = find_document_chapter(epub, nav_entry.href)
@@ -222,8 +241,8 @@ def validate_cross_references(
         elif (nav_entry.number, nav_entry.unit) != (document_entry.number, document_entry.unit):
             issues.append(
                 f"nav/document number mismatch for {nav_entry.href}: "
-                f"nav 第{nav_entry.number}{nav_entry.unit}, "
-                f"document 第{document_entry.number}{document_entry.unit}"
+                f"nav {format_number(nav_entry)}, "
+                f"document {format_number(document_entry)}"
             )
 
     nav_hrefs = {entry.href for entry in nav_entries}
@@ -260,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
         "paths",
         nargs="*",
         type=Path,
-        default=[Path("epub")],
+        default=[Path("books")],
         help="EPUB files or directories containing EPUB files",
     )
     args = parser.parse_args(argv)

@@ -1,4 +1,6 @@
-epub/
+books/
+generated/
+.serena/
 __pycache__/
 *.pyc
 .DS_Store

@@ -1,0 +1,643 @@
+{
+  "title": "永恒之门",
+  "author": "顾雪柔",
+  "terms": {
+    "Eternal Gate": {
+      "zh": "永恒之门",
+      "note": "book title and worldbuilding term"
+    },
+    "Zion": {
+      "zh": "锡安",
+      "note": "comment-confirmed"
+    },
+    "Tetsu": {
+      "zh": "闪哲",
+      "note": "comment-confirmed; avoid 铁子 except joke contexts"
+    },
+    "Oracle": {
+      "zh": "神谕者",
+      "note": "comment suggests 神谕者 over 祭司"
+    },
+    "the Oracle": {
+      "zh": "神谕者",
+      "note": "title/role"
+    },
+    "false god": {
+      "zh": "伪神",
+      "note": "comment-suggested and thematically important"
+    },
+    "Whispermaw": {
+      "zh": "魔喉",
+      "note": "comment usage 魔喉; god name"
+    },
+    "Rao": {
+      "zh": "饶",
+      "note": "country name; Kingdom of Rao -> 饶国"
+    },
+    "Kingdom of Rao": {
+      "zh": "饶国",
+      "note": "country name"
+    },
+    "Maple Palace": {
+      "zh": "枫宫",
+      "note": "setting"
+    },
+    "Divine Court": {
+      "zh": "神庭",
+      "note": "institution/place in Maple Palace"
+    },
+    "Academy": {
+      "zh": "学院",
+      "note": "institution; use 占星学院 when astrologer context is explicit"
+    },
+    "Springvale": {
+      "zh": "春谷",
+      "note": "place name"
+    },
+    "Springvale City": {
+      "zh": "春谷城",
+      "note": "capital/city"
+    },
+    "Chamon": {
+      "zh": "夏蒙",
+      "note": "comment-proposed transliteration"
+    },
+    "Mongsih": {
+      "zh": "蒙西赫",
+      "note": "provisional transliteration"
+    },
+    "House Mongsih": {
+      "zh": "蒙西赫家族",
+      "note": "noble house"
+    },
+    "Gran": {
+      "zh": "格兰",
+      "note": "provisional transliteration"
+    },
+    "Juan": {
+      "zh": "胡安",
+      "note": "provisional transliteration"
+    },
+    "Kando": {
+      "zh": "坎多",
+      "note": "provisional transliteration"
+    },
+    "Grand Scholar Kando": {
+      "zh": "大学士坎多",
+      "note": "title + name"
+    },
+    "Laurent": {
+      "zh": "洛朗",
+      "note": "provisional transliteration"
+    },
+    "Grand General Laurent": {
+      "zh": "大将军洛朗",
+      "note": "title + name"
+    },
+    "Great Blizzard": {
+      "zh": "大暴雪",
+      "note": "comment usage"
+    },
+    "Supreme Creator": {
+      "zh": "至高造物主",
+      "note": "deity"
+    },
+    "God of Souls": {
+      "zh": "灵魂之神",
+      "note": "deity/title"
+    },
+    "Legionsoul": {
+      "zh": "军魂",
+      "note": "provisional deity name"
+    },
+    "Aeonflare": {
+      "zh": "永焰",
+      "note": "provisional deity name"
+    },
+    "Choros": {
+      "zh": "科洛斯",
+      "note": "comment-proposed transliteration"
+    },
+    "Sea Nation": {
+      "zh": "海国",
+      "note": "setting"
+    },
+    "Narrow Sea": {
+      "zh": "狭海",
+      "note": "setting"
+    },
+    "Tidecrest City": {
+      "zh": "潮冠城",
+      "note": "provisional city name"
+    },
+    "Whispering Wall": {
+      "zh": "低语墙",
+      "note": "setting"
+    },
+    "God-Slayer": {
+      "zh": "弑神者",
+      "note": "title/figure"
+    },
+    "The God-Slayer": {
+      "zh": "弑神者",
+      "note": "title/figure"
+    },
+    "The Fallen Priest": {
+      "zh": "堕落祭司",
+      "note": "provisional title"
+    },
+    "Fire-Bearing Warrior": {
+      "zh": "持火武士",
+      "note": "provisional title"
+    },
+    "Himmelfeld": {
+      "zh": "希梅尔费尔德",
+      "note": "provisional place name"
+    },
+    "Risk": {
+      "zh": "Risk",
+      "note": "author friend; keep as name unless source context says otherwise"
+    },
+    "Via Lactea Press Inc.": {
+      "zh": "Via Lactea Press Inc.",
+      "note": "publisher/author account; keep official name"
+    },
+    "King of Sinners": {
+      "zh": "罪王",
+      "note": "称号性质明确，和堕落祭司并列，后文可能重复出现。",
+      "confidence": "high",
+      "source_chunk": "01_001"
+    },
+    "Sacred Flame": {
+      "zh": "圣焰",
+      "note": "宗教核心概念，需固定译名以保持经文语气。",
+      "confidence": "high",
+      "source_chunk": "01_001"
+    },
+    "Judgement": {
+      "zh": "审判",
+      "note": "末世预言语境中的宗教术语，和长夜搭配。",
+      "confidence": "high",
+      "source_chunk": "01_001"
+    },
+    "The Scripture of Blazing Flame": {
+      "zh": "《炽焰经》",
+      "note": "典籍标题，需统一书名号与译名。",
+      "confidence": "medium",
+      "source_chunk": "01_001"
+    },
+    "Divine Words": {
+      "zh": "神言",
+      "note": "指至高造物主被弑后碎裂的神圣力量载体，具有世界观含义。",
+      "confidence": "medium",
+      "source_chunk": "01_001"
+    },
+    "Gu Xue Rou": {
+      "zh": "顾雪柔",
+      "note": "作者名在输入元数据中已有中文形式，应保持一致。",
+      "confidence": "high",
+      "source_chunk": "02_001"
+    },
+    "God-Slaying War": {
+      "zh": "弑神之战",
+      "note": "核心历史事件名，首段即出现，需固定译法并与“弑神者”术语保持一致。",
+      "confidence": "high",
+      "source_chunk": "03_001"
+    },
+    "Mirror Lake": {
+      "zh": "镜湖",
+      "note": "地点名，直译自然，符合幻想地名风格。",
+      "confidence": "medium",
+      "source_chunk": "03_001"
+    },
+    "Mount Hinterwild": {
+      "zh": "后野山",
+      "note": "地点名，Hinterwild含偏远荒野意象，译作后野山可保留地貌与荒僻感。",
+      "confidence": "medium",
+      "source_chunk": "03_001"
+    },
+    "Hinterwild Plains": {
+      "zh": "亨特荒原",
+      "note": "地名，指Mirror Lake所在山脚附近的辽阔平原，需与Mount Hinterwild保持同源。",
+      "confidence": "medium",
+      "source_chunk": "03_002"
+    },
+    "regent": {
+      "zh": "摄政王",
+      "note": "评论说明国王为神明摄政，国家名义主人是伪神魔喉，此处应用摄政王。",
+      "confidence": "high",
+      "source_chunk": "03_002"
+    },
+    "heretic": {
+      "zh": "异端",
+      "note": "宗教语境中用于指违背正统信仰者，与锡安的神谕者身份和后文伪神设定相配。",
+      "confidence": "medium",
+      "source_chunk": "03_003"
+    },
+    "royal quarter": {
+      "zh": "王室居所",
+      "note": "指枫宫中属于王室起居活动的区域，译为王室居所比直译更自然。",
+      "confidence": "medium",
+      "source_chunk": "03_003"
+    },
+    "brand": {
+      "zh": "烙印",
+      "note": "奴隶身份标记刻在手臂上，后文多次指认，应固定为烙印。",
+      "confidence": "high",
+      "source_chunk": "03_003"
+    },
+    "sling": {
+      "zh": "投石索",
+      "note": "年轻奴隶用于将包纸石子送到窗边的工具，后续可能反复出现。",
+      "confidence": "medium",
+      "source_chunk": "03_004"
+    },
+    "slave pits": {
+      "zh": "奴隶坑",
+      "note": "城墙外处置奴隶尸体的地点，带有世界观色彩，可作为固定地点/制度用语。",
+      "confidence": "medium",
+      "source_chunk": "03_004"
+    },
+    "suluo root": {
+      "zh": "苏罗根",
+      "note": "药材名在本段首次出现，需固定译名以便后续保持一致。",
+      "confidence": "medium",
+      "source_chunk": "03_005"
+    },
+    "meditation chamber": {
+      "zh": "冥想室",
+      "note": "神谕者活动场所反复出现，属于世界观空间名，可纳入术语统一。",
+      "confidence": "high",
+      "source_chunk": "03_005"
+    },
+    "grand astrologer": {
+      "zh": "大占星师",
+      "note": "预言选中锡安的人物称谓，带有制度色彩，后文可能反复出现。",
+      "confidence": "medium",
+      "source_chunk": "03_005"
+    },
+    "Old Quarter": {
+      "zh": "旧城区",
+      "note": "春谷城内区域名称，适合作为固定地名保留。",
+      "confidence": "high",
+      "source_chunk": "03_006"
+    },
+    "palace guard barracks": {
+      "zh": "王宫卫队营房",
+      "note": "机构与地点结合的场景名词，后文可能反复出现。",
+      "confidence": "medium",
+      "source_chunk": "03_006"
+    },
+    "divine allocution": {
+      "zh": "神明降言",
+      "note": "用于区别普通“神谕”与神明亲自说出的具体话语，适合本段宗教世界观语境。",
+      "confidence": "medium",
+      "source_chunk": "04_001"
+    },
+    "steward": {
+      "zh": "总管",
+      "note": "神庭内负责杂务和传话的管理者，中文语境中“总管”自然贴合宫廷职务。",
+      "confidence": "high",
+      "source_chunk": "04_001"
+    },
+    "snowfall line": {
+      "zh": "雪线",
+      "note": "贯穿大暴雪预言的地理与灾厄概念，需保持一致。",
+      "confidence": "high",
+      "source_chunk": "04_002"
+    },
+    "Great Convocation of Stars": {
+      "zh": "群星大议会",
+      "note": "夏蒙身世相关组织名，后续可能重复出现。",
+      "confidence": "medium",
+      "source_chunk": "04_002"
+    },
+    "Northeastern Lakes": {
+      "zh": "东北湖区",
+      "note": "地域名，用于描述夏蒙的族裔外貌特征。",
+      "confidence": "medium",
+      "source_chunk": "04_002"
+    },
+    "the Accursed One": {
+      "zh": "受诅者",
+      "note": "敌对者对夏蒙的称呼，带贬义与宗教污名。",
+      "confidence": "high",
+      "source_chunk": "04_002"
+    },
+    "Nameless": {
+      "zh": "无名",
+      "note": "人物代号，需后续统一。",
+      "confidence": "high",
+      "source_chunk": "04_003"
+    },
+    "Lady Kelan": {
+      "zh": "克兰夫人",
+      "note": "前任摄政王姓名与称谓首次出现。",
+      "confidence": "medium",
+      "source_chunk": "04_003"
+    },
+    "Battle of Long River": {
+      "zh": "长河之战",
+      "note": "历史战役名，需固定译法。",
+      "confidence": "medium",
+      "source_chunk": "04_003"
+    },
+    "Echo Mountain range": {
+      "zh": "回声山脉",
+      "note": "地名，需后续统一。",
+      "confidence": "medium",
+      "source_chunk": "04_003"
+    },
+    "God of Time": {
+      "zh": "时间之神",
+      "note": "与“灵魂之神”并列的神职称号，评论中也明确提到望潮神明为时间之神。",
+      "confidence": "high",
+      "source_chunk": "04_004"
+    },
+    "Northern United Tribes": {
+      "zh": "北方联合部族",
+      "note": "邻国名称，后续可能持续出现。",
+      "confidence": "medium",
+      "source_chunk": "04_004"
+    },
+    "King of Sea Dragons": {
+      "zh": "海龙王",
+      "note": "神话叙述中的龙族君王称号，适合作为专名统一。",
+      "confidence": "medium",
+      "source_chunk": "04_004"
+    },
+    "Five Divine Words": {
+      "zh": "五大神言",
+      "note": "由至高造物主创世权能碎裂而成的关键世界观术语。",
+      "confidence": "medium",
+      "source_chunk": "04_004"
+    },
+    "The Gran Lover": {
+      "zh": "格兰情人",
+      "note": "书名，Gran 已有译名为“格兰”，需固定书名译法。",
+      "confidence": "medium",
+      "source_chunk": "04_005"
+    },
+    "astrologer": {
+      "zh": "星象师",
+      "note": "夏蒙身份称谓，需与后文保持一致。",
+      "confidence": "medium",
+      "source_chunk": "04_005"
+    },
+    "Regent": {
+      "zh": "摄政",
+      "note": "本段多次用于称呼蒙西赫的政治身份，需与后文官职体系保持一致。",
+      "confidence": "medium",
+      "source_chunk": "05_001"
+    },
+    "crushing": {
+      "zh": "碾刑",
+      "note": "春谷城特有处刑方式，后文可能反复出现，应固定术语。",
+      "confidence": "high",
+      "source_chunk": "05_001"
+    },
+    "spring hunt": {
+      "zh": "春猎",
+      "note": "贵族与官员在暮春进行的狩猎活动，中文语境中用词自然且简洁。",
+      "confidence": "high",
+      "source_chunk": "05_001"
+    },
+    "floral wreath": {
+      "zh": "花环",
+      "note": "反复出现的情感信物，可作为后续章节统一译名。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "scout hawks": {
+      "zh": "侦察鹰",
+      "note": "用于搜捕场景的世界观称谓，建议统一。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "priest’s robe": {
+      "zh": "祭司袍",
+      "note": "锡安身份服饰称谓，后文可能复现。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "bell tower": {
+      "zh": "钟楼",
+      "note": "处刑场景中的地点名，后续若作为固定场景出现可保持一致。",
+      "confidence": "medium",
+      "source_chunk": "05_005"
+    },
+    "Spring Hunt": {
+      "zh": "春猎",
+      "note": "本章活动名称，反复出现的王廷仪式与狩猎背景术语，宜固定译法。",
+      "confidence": "high",
+      "source_chunk": "06_001"
+    },
+    "scholars": {
+      "zh": "学士",
+      "note": "与武士、王族、奴隶并列的饶国阶层或职官群体，建议统一称谓。",
+      "confidence": "medium",
+      "source_chunk": "06_001"
+    },
+    "warriors": {
+      "zh": "武士",
+      "note": "春谷狩猎与军政场景中的身份群体，需与普通士兵区分。",
+      "confidence": "medium",
+      "source_chunk": "06_001"
+    },
+    "faith": {
+      "zh": "信仰",
+      "note": "魔喉力量来源的核心世界观术语，需保持一致。",
+      "confidence": "high",
+      "source_chunk": "06_001"
+    },
+    "forged allocutions": {
+      "zh": "伪造神谕",
+      "note": "与锡安借神名发布话语的上下文一致，可作为神职相关固定说法。",
+      "confidence": "medium",
+      "source_chunk": "06_002"
+    },
+    "East Wing": {
+      "zh": "东翼楼",
+      "note": "宫殿方位建筑名，需要保持后文传递视线位置的一致性。",
+      "confidence": "medium",
+      "source_chunk": "06_002"
+    },
+    "meditation room": {
+      "zh": "静思室",
+      "note": "用于宗教/宫廷场景，比直译冥想室更贴合中文叙事语感。",
+      "confidence": "medium",
+      "source_chunk": "06_002"
+    },
+    "A Secret Tryst": {
+      "zh": "幽会",
+      "note": "chapter title term capturing the clandestine romantic meeting in this section",
+      "confidence": "medium",
+      "source_chunk": "06_003"
+    },
+    "first barrier": {
+      "zh": "第一道屏障",
+      "note": "此处兼具身体与灵魂防线的双关，应保持含混感。",
+      "confidence": "medium",
+      "source_chunk": "06_004"
+    },
+    "masculine musk": {
+      "zh": "男性气息",
+      "note": "后文气味描写中的固定感觉词，较“麝香”更自然克制。",
+      "confidence": "medium",
+      "source_chunk": "06_004"
+    },
+    "night watch": {
+      "zh": "夜巡卫兵",
+      "note": "本段多次涉及春谷城夜间巡逻守卫，可作为后续一致译名。",
+      "confidence": "medium",
+      "source_chunk": "06_005"
+    },
+    "guard barracks": {
+      "zh": "卫兵营房",
+      "note": "地点名词，关系到潜行路线和场景调度。",
+      "confidence": "medium",
+      "source_chunk": "06_005"
+    },
+    "dry well": {
+      "zh": "枯井",
+      "note": "后文场景地标，适合统一译名。",
+      "confidence": "high",
+      "source_chunk": "06_005"
+    },
+    "dawn star": {
+      "zh": "晨星",
+      "note": "带有时间与意象功能，适合作为稳定译法。",
+      "confidence": "medium",
+      "source_chunk": "06_006"
+    },
+    "divine altar": {
+      "zh": "神坛",
+      "note": "与魔喉信仰场景相关的宗教设施，后续可能复现。",
+      "confidence": "medium",
+      "source_chunk": "06_006"
+    },
+    "Knighthood of the Divine Court": {
+      "zh": "神庭骑士团",
+      "note": "历史制度名，多次作为被废除与拟重建的武装组织出现。",
+      "confidence": "high",
+      "source_chunk": "07_001"
+    },
+    "House Leth": {
+      "zh": "莱斯家族",
+      "note": "被灭门的摄政家族名，后续若再出现需保持一致。",
+      "confidence": "medium",
+      "source_chunk": "07_001"
+    },
+    "clergy": {
+      "zh": "神职人员",
+      "note": "指神庭体系中的宗教职务群体，与骑士、仆役区分。",
+      "confidence": "high",
+      "source_chunk": "07_001"
+    },
+    "freeman": {
+      "zh": "自由民",
+      "note": "身份制度相关称谓，后续可能反复出现。",
+      "confidence": "high",
+      "source_chunk": "07_002"
+    },
+    "autumn hunt": {
+      "zh": "秋猎",
+      "note": "宫廷和贵族活动名称，适合作为固定译法。",
+      "confidence": "high",
+      "source_chunk": "07_002"
+    },
+    "underground river cavern": {
+      "zh": "地下河洞窟",
+      "note": "重要私会地点，需要统一场景译名。",
+      "confidence": "medium",
+      "source_chunk": "07_002"
+    },
+    "patrol": {
+      "zh": "巡逻队",
+      "note": "宫廷守卫相关称谓，保持前后一致。",
+      "confidence": "medium",
+      "source_chunk": "07_002"
+    },
+    "Divine Word": {
+      "zh": "神言",
+      "note": "世界观宗教术语，出现在魔喉相关符文中，后续应保持统一。",
+      "confidence": "high",
+      "source_chunk": "07_003"
+    },
+    "kassan stone": {
+      "zh": "卡桑石",
+      "note": "特殊石材名，按音译处理，便于后续统一。",
+      "confidence": "medium",
+      "source_chunk": "07_003"
+    },
+    "Howling County": {
+      "zh": "嚎风郡",
+      "note": "地名，结合 howling 的风声意象译为嚎风郡。",
+      "confidence": "medium",
+      "source_chunk": "07_003"
+    },
+    "Falling Star Lake": {
+      "zh": "坠星湖",
+      "note": "地名首次出现，应固定译名以便后续统一。",
+      "confidence": "medium",
+      "source_chunk": "07_004"
+    },
+    "palace astrologer": {
+      "zh": "宫廷占星师",
+      "note": "夏蒙的职务称谓，后文可能反复出现。",
+      "confidence": "high",
+      "source_chunk": "07_004"
+    },
+    "personal attendant": {
+      "zh": "贴身侍从",
+      "note": "闪哲在胡安身边的身份称谓，区别于普通仆役。",
+      "confidence": "medium",
+      "source_chunk": "07_004"
+    },
+    "sanctuary": {
+      "zh": "圣所",
+      "note": "大暴雪临近时锡安要带闪哲前往的避难/宗教空间，需与普通避难处区分。",
+      "confidence": "medium",
+      "source_chunk": "07_005"
+    },
+    "slave brand": {
+      "zh": "奴隶烙印",
+      "note": "闪哲左臂身份标记，后文与刻名、烙印意象相关。",
+      "confidence": "high",
+      "source_chunk": "07_005"
+    },
+    "Oracle's chair": {
+      "zh": "神谕者之座",
+      "note": "与神谕者身份和仪式权力相关，比普通椅子更具象征性。",
+      "confidence": "medium",
+      "source_chunk": "07_005"
+    },
+    "Falling Star Mountain": {
+      "zh": "坠星山",
+      "note": "地名，与既有术语“Falling Star Lake/坠星湖”的译法保持一致。",
+      "confidence": "medium",
+      "source_chunk": "05_003"
+    },
+    "soap pods": {
+      "zh": "皂荚",
+      "note": "植物性清洁香气，符合上下文与中文常用译法。",
+      "confidence": "high",
+      "source_chunk": "05_003"
+    },
+    "moon-wheel flowers": {
+      "zh": "月轮花",
+      "note": "幻想植物名，直译保留意象与花名质感。",
+      "confidence": "medium",
+      "source_chunk": "05_003"
+    }
+  },
+  "style_notes": [
+    "Use concise literary Chinese with Feitian-like rhythm: concrete verbs, clean clause flow, sparse modern slang.",
+    "For scenery and appearance, prefer vivid but controlled diction: 春风、月色、霜雪、眉眼、眸光、身形 etc. Do not over-floridly expand.",
+    "Keep English names/terms consistent with glossary, and preserve ambiguity when comments identify possible foreshadowing."
+  ],
+  "translation_run": {
+    "method": "crawl snapshot + reusable chunked Codex translation with local glossary, Patreon comments, and local vector references",
+    "glossary_path": "book_specs/eternal_gate/glossary.json"
+  }
+}

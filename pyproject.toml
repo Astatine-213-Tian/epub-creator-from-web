@@ -20,6 +20,8 @@ dependencies = [
 
 [project.scripts]
 book-to-epub = "src.cli.main:main"
+book-crawl = "src.cli.crawl:main"
+book-translate = "src.cli.translate:main"
 
 [tool.setuptools.packages.find]
 include = ["src*"]

@@ -182,6 +182,26 @@ def run_ibusread(target: str, options: ParserOptions) -> Path:
     return out_path
 
 
+def run_patreon(target: str, options: ParserOptions) -> Path:
+    from src.providers.patreon import parser
+
+    delay = options.delay if options.delay is not None else 0.4
+    concurrency = options.concurrency if options.concurrency is not None else 2
+    book_url = parser._resolve_book_url(target)
+    meta, volumes = asyncio.run(
+        parser.crawl_book(
+            book_url,
+            headless=options.headless,
+            delay=delay,
+            concurrency=concurrency,
+        )
+    )
+
+    out_path = resolve_output(options, meta.title, meta.author)
+    parser.build_epub(meta, volumes, out_path)
+    return out_path
+
+
 PARSERS: tuple[ParserSpec, ...] = (
     ParserSpec(
         name="towasakata",
@@ -230,6 +250,12 @@ PARSERS: tuple[ParserSpec, ...] = (
         domains=("ibusread.com",),
         description="ibusread.com API-backed novels",
         run=run_ibusread,
+    ),
+    ParserSpec(
+        name="patreon",
+        domains=("patreon.com",),
+        description="patreon.com collections through authenticated browser profile",
+        run=run_patreon,
     ),
 )
 

@@ -24,10 +24,12 @@ h2 { font-size: 1.3em; text-align: center; margin: 1em 0 0.4em; }
 h3 { font-size: 1.1em; margin: 0.8em 0 0.3em; }
 p  { text-indent: 2em; margin: 0.3em 0; }
 .intro p { text-indent: 0; }
+.scene-break { text-indent: 0; text-align: center; margin: 1em 0; }
 """
 
 COMMA_SPACE_RE = re.compile(r"([，,])[\t ]+")
 COMMA_PARAGRAPH_BREAK_RE = re.compile(r"([，,])\s*</p>\s*<p>\s*")
+SCENE_BREAK_RE = re.compile(r"^(?:\*\s*){3,}$")
 
 
 def escape_text(text: str) -> str:
@@ -42,19 +44,45 @@ def normalize_comma_html_breaks(value: str) -> str:
     return COMMA_PARAGRAPH_BREAK_RE.sub(r"\1", normalize_comma_spacing(value))
 
 
+def is_scene_break_text(text: str) -> bool:
+    return bool(SCENE_BREAK_RE.fullmatch(text.strip()))
+
+
+def render_scene_break() -> str:
+    return '<p class="scene-break">***</p>'
+
+
 def normalize_paragraphs(paragraphs: Iterable[str]) -> list[str]:
     normalized: list[str] = []
     for paragraph in paragraphs:
         paragraph = normalize_comma_spacing(paragraph)
-        if normalized and normalized[-1].rstrip().endswith(("，", ",")):
+        if is_scene_break_text(paragraph):
+            normalized.append("***")
+        elif (
+            normalized
+            and not is_scene_break_text(normalized[-1])
+            and normalized[-1].rstrip().endswith(("，", ","))
+        ):
             normalized[-1] = normalized[-1].rstrip() + paragraph.lstrip()
         else:
             normalized.append(paragraph)
     return normalized
 
 
+def render_paragraph(paragraph: str) -> str:
+    if is_scene_break_text(paragraph):
+        return render_scene_break()
+    return f"<p>{escape_text(paragraph)}</p>"
+
+
 def render_paragraphs(paragraphs: Iterable[str]) -> str:
-    return "\n".join(f"<p>{escape_text(paragraph)}</p>" for paragraph in normalize_paragraphs(paragraphs))
+    return "\n".join(render_paragraph(paragraph) for paragraph in normalize_paragraphs(paragraphs))
+
+
+def render_chapter_body(chapter: Chapter) -> str:
+    if chapter.html_blocks is not None:
+        return "\n".join(chapter.html_blocks)
+    return render_paragraphs(chapter.paragraphs)
 
 
 def cover_extension(cover_mime: str) -> str:
@@ -124,7 +152,7 @@ def write_epub(
             content = (
                 HTML_HEAD.format(title=escape_text(chapter.title))
                 + f"<h2>{escape_text(chapter.title)}</h2>"
-                + render_paragraphs(chapter.paragraphs)
+                + render_chapter_body(chapter)
                 + HTML_TAIL
             )
             chapter_item = epub.EpubHtml(

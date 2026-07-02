@@ -19,7 +19,7 @@ def repo_root() -> Path:
 
 
 def default_output_path(title: str, author: str = "") -> Path:
-    out_dir = repo_root() / "epub"
+    out_dir = repo_root() / "books"
     if author.strip():
         out_dir = out_dir / safe_path_name(author, "Unknown Author")
     out_dir.mkdir(parents=True, exist_ok=True)

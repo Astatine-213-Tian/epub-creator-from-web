@@ -1,0 +1,1 @@
+"""Patreon collection provider."""

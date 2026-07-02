@@ -1,0 +1,40 @@
+{
+  "title": "永恒之门",
+  "author": "顾雪柔",
+  "style_name": "非天夜翔/顾雪柔",
+  "glossary_path": "book_specs/eternal_gate/glossary.json",
+  "run_dir": "generated/translation_runs/eternal_gate",
+  "reference_books": [
+    "books/顾雪柔/乱世为王.epub",
+    "books/非天夜翔/相见欢.epub",
+    "books/非天夜翔/天宝伏妖录.epub",
+    "books/非天夜翔/定海浮生录.epub",
+    "books/非天夜翔/山有木兮.epub",
+    "books/非天夜翔/天地白驹.epub",
+    "books/非天夜翔/骑士之歌.epub",
+    "books/非天夜翔/锦衣卫.epub"
+  ],
+  "index": {
+    "corpus_path": "generated/vector_indexes/eternal_gate/corpus.json",
+    "vectors_path": "generated/vector_indexes/eternal_gate/vectors.npy",
+    "metadata_path": "generated/vector_indexes/eternal_gate/metadata.json",
+    "model": "intfloat/multilingual-e5-small",
+    "batch_size": 64,
+    "query_batch_size": 64,
+    "passage_prefix": "passage: ",
+    "query_prefix": "query: ",
+    "float16": true
+  },
+  "translation": {
+    "chunk_size": 30,
+    "context_paragraphs": 5,
+    "comment_char_budget": 14000,
+    "top_k": 18,
+    "refs_per_paragraph": 3,
+    "reference_bank_size": 48,
+    "max_refs_per_book": 10
+  },
+  "codex": {
+    "model": null
+  }
+}

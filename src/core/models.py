@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 class Chapter:
     title: str
     paragraphs: list[str] = field(default_factory=list)
+    html_blocks: list[str] | None = None
 
 
 @dataclass
