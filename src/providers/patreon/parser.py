@@ -496,7 +496,15 @@ def _inline_html(value: Any) -> str:
     if not value:
         return ""
     if isinstance(value, list):
-        return "".join(_inline_html(item) for item in value)
+        fragments: list[str] = []
+        for item in value:
+            fragment = _inline_html(item)
+            if not fragment:
+                continue
+            if fragments and _needs_inline_space(fragments[-1], fragment):
+                fragments.append(" ")
+            fragments.append(fragment)
+        return "".join(fragments)
     if not isinstance(value, dict):
         return ""
 
@@ -507,6 +515,20 @@ def _inline_html(value: Any) -> str:
     if node_type == "hard_break":
         return "<br/>"
     return _inline_html(value.get("content"))
+
+
+def _visible_text_fragment(html: str) -> str:
+    return BeautifulSoup(html, "html.parser").get_text()
+
+
+def _needs_inline_space(left: str, right: str) -> bool:
+    left_text = _visible_text_fragment(left)
+    right_text = _visible_text_fragment(right)
+    if not left_text or not right_text:
+        return False
+    if left_text[-1].isspace() or right_text[0].isspace():
+        return False
+    return bool(re.match(r"[\w“‘\"']", right_text[0], flags=re.UNICODE))
 
 
 def _apply_text_marks(text: str, marks: list[Any]) -> str:

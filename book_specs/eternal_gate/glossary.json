@@ -15,12 +15,12 @@
       "note": "comment-confirmed; avoid 铁子 except joke contexts"
     },
     "Oracle": {
-      "zh": "神谕者",
-      "note": "comment suggests 神谕者 over 祭司"
+      "zh": "司命",
+      "note": "user-provided canonical title"
     },
     "the Oracle": {
-      "zh": "神谕者",
-      "note": "title/role"
+      "zh": "司命",
+      "note": "user-provided canonical title"
     },
     "false god": {
       "zh": "伪神",
@@ -51,24 +51,24 @@
       "note": "institution; use 占星学院 when astrologer context is explicit"
     },
     "Springvale": {
-      "zh": "春谷",
-      "note": "place name"
+      "zh": "春泽",
+      "note": "user-provided canonical name"
     },
     "Springvale City": {
-      "zh": "春谷城",
-      "note": "capital/city"
+      "zh": "春泽城",
+      "note": "derived from user-provided Springvale -> 春泽"
     },
     "Chamon": {
-      "zh": "夏蒙",
-      "note": "comment-proposed transliteration"
+      "zh": "车文",
+      "note": "user-provided canonical name"
     },
     "Mongsih": {
-      "zh": "蒙西赫",
-      "note": "provisional transliteration"
+      "zh": "蒙汜",
+      "note": "user-provided canonical name"
     },
     "House Mongsih": {
-      "zh": "蒙西赫家族",
-      "note": "noble house"
+      "zh": "蒙汜家族",
+      "note": "derived from user-provided Mongsih -> 蒙汜"
     },
     "Gran": {
       "zh": "格兰",
@@ -87,12 +87,12 @@
       "note": "title + name"
     },
     "Laurent": {
-      "zh": "洛朗",
-      "note": "provisional transliteration"
+      "zh": "隆让",
+      "note": "user-provided canonical name"
     },
     "Grand General Laurent": {
-      "zh": "大将军洛朗",
-      "note": "title + name"
+      "zh": "大将军隆让",
+      "note": "derived from user-provided Laurent -> 隆让"
     },
     "Great Blizzard": {
       "zh": "大暴雪",
@@ -107,16 +107,16 @@
       "note": "deity/title"
     },
     "Legionsoul": {
-      "zh": "军魂",
-      "note": "provisional deity name"
+      "zh": "俱灵",
+      "note": "user-provided canonical deity name"
     },
     "Aeonflare": {
-      "zh": "永焰",
-      "note": "provisional deity name"
+      "zh": "刹那",
+      "note": "user-provided canonical deity name"
     },
     "Choros": {
-      "zh": "科洛斯",
-      "note": "comment-proposed transliteration"
+      "zh": "绰罗斯",
+      "note": "user-provided canonical deity/name"
     },
     "Sea Nation": {
       "zh": "海国",
@@ -230,7 +230,7 @@
     },
     "heretic": {
       "zh": "异端",
-      "note": "宗教语境中用于指违背正统信仰者，与锡安的神谕者身份和后文伪神设定相配。",
+      "note": "宗教语境中用于指违背正统信仰者，与锡安的司命身份和后文伪神设定相配。",
       "confidence": "medium",
       "source_chunk": "03_003"
     },
@@ -266,7 +266,7 @@
     },
     "meditation chamber": {
       "zh": "冥想室",
-      "note": "神谕者活动场所反复出现，属于世界观空间名，可纳入术语统一。",
+      "note": "司命活动场所反复出现，属于世界观空间名，可纳入术语统一。",
       "confidence": "high",
       "source_chunk": "03_005"
     },
@@ -278,7 +278,7 @@
     },
     "Old Quarter": {
       "zh": "旧城区",
-      "note": "春谷城内区域名称，适合作为固定地名保留。",
+      "note": "春泽城内区域名称，适合作为固定地名保留。",
       "confidence": "high",
       "source_chunk": "03_006"
     },
@@ -308,19 +308,19 @@
     },
     "Great Convocation of Stars": {
       "zh": "群星大议会",
-      "note": "夏蒙身世相关组织名，后续可能重复出现。",
+      "note": "车文身世相关组织名，后续可能重复出现。",
       "confidence": "medium",
       "source_chunk": "04_002"
     },
     "Northeastern Lakes": {
       "zh": "东北湖区",
-      "note": "地域名，用于描述夏蒙的族裔外貌特征。",
+      "note": "地域名，用于描述车文的族裔外貌特征。",
       "confidence": "medium",
       "source_chunk": "04_002"
     },
     "the Accursed One": {
       "zh": "受诅者",
-      "note": "敌对者对夏蒙的称呼，带贬义与宗教污名。",
+      "note": "敌对者对车文的称呼，带贬义与宗教污名。",
       "confidence": "high",
       "source_chunk": "04_002"
     },
@@ -380,19 +380,19 @@
     },
     "astrologer": {
       "zh": "星象师",
-      "note": "夏蒙身份称谓，需与后文保持一致。",
+      "note": "车文身份称谓，需与后文保持一致。",
       "confidence": "medium",
       "source_chunk": "04_005"
     },
     "Regent": {
       "zh": "摄政",
-      "note": "本段多次用于称呼蒙西赫的政治身份，需与后文官职体系保持一致。",
+      "note": "本段多次用于称呼蒙汜的政治身份，需与后文官职体系保持一致。",
       "confidence": "medium",
       "source_chunk": "05_001"
     },
     "crushing": {
       "zh": "碾刑",
-      "note": "春谷城特有处刑方式，后文可能反复出现，应固定术语。",
+      "note": "春泽城特有处刑方式，后文可能反复出现，应固定术语。",
       "confidence": "high",
       "source_chunk": "05_001"
     },
@@ -440,7 +440,7 @@
     },
     "warriors": {
       "zh": "武士",
-      "note": "春谷狩猎与军政场景中的身份群体，需与普通士兵区分。",
+      "note": "春泽狩猎与军政场景中的身份群体，需与普通士兵区分。",
       "confidence": "medium",
       "source_chunk": "06_001"
     },
@@ -488,7 +488,7 @@
     },
     "night watch": {
       "zh": "夜巡卫兵",
-      "note": "本段多次涉及春谷城夜间巡逻守卫，可作为后续一致译名。",
+      "note": "本段多次涉及春泽城夜间巡逻守卫，可作为后续一致译名。",
       "confidence": "medium",
       "source_chunk": "06_005"
     },
@@ -584,7 +584,7 @@
     },
     "palace astrologer": {
       "zh": "宫廷占星师",
-      "note": "夏蒙的职务称谓，后文可能反复出现。",
+      "note": "车文的职务称谓，后文可能反复出现。",
       "confidence": "high",
       "source_chunk": "07_004"
     },
@@ -607,8 +607,8 @@
       "source_chunk": "07_005"
     },
     "Oracle's chair": {
-      "zh": "神谕者之座",
-      "note": "与神谕者身份和仪式权力相关，比普通椅子更具象征性。",
+      "zh": "司命之座",
+      "note": "derived from user-provided Oracle -> 司命",
       "confidence": "medium",
       "source_chunk": "07_005"
     },
