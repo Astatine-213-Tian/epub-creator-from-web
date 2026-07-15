@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import re
+import statistics
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -20,15 +21,15 @@ MALFORMED_PLACEHOLDER_RE = re.compile(
 )
 RESIDUE_RE = re.compile(
     r"作者有话要说|作者的话|晋江文学城|jjwxc|请收藏|霸王票|营养液加更|"
-    r"最新网址|返回目录|手机阅读|https?://|www\.",
+    r"最新网址|返回目录|手机阅读|这个段落是图片段落|请访问正确的网站|"
+    r"原版未篡改内容请移至|关闭广告拦截功能|退出浏览器阅读模式|"
+    r"https?://|www\.",
     re.I,
 )
 PLACEHOLDERS = ("<CONTENT>", "<TERM>", "<NAME>", "<PLACE>", "<ORG>", "<NUM>", "<LATIN>")
 VIEWS = (
     "clean",
     "train_global_masked",
-    "entity_masked",
-    "entity_masked_v2",
     "entity_masked_v3",
     "topic_distorted",
     "structure_only",
@@ -78,8 +79,6 @@ def chunk_paths(dataset_root: Path) -> dict[str, Path]:
     return {
         "clean": dataset_root / "unmasked" / "chunks.clean.jsonl",
         "train_global_masked": dataset_root / "masked" / "chunks.train_global_masked.jsonl",
-        "entity_masked": dataset_root / "masked" / "chunks.entity_masked.jsonl",
-        "entity_masked_v2": dataset_root / "masked" / "chunks.entity_masked_v2.jsonl",
         "entity_masked_v3": dataset_root / "masked" / "chunks.entity_masked_v3.jsonl",
         "topic_distorted": dataset_root / "masked" / "chunks.topic_distorted.jsonl",
         "structure_only": dataset_root / "masked" / "chunks.structure_only.jsonl",
@@ -103,7 +102,12 @@ def load_clean_meta(path: Path) -> list[ChunkMeta]:
     return records
 
 
-def view_stats(view: str, path: Path) -> dict[str, Any]:
+def view_stats(
+    view: str,
+    path: Path,
+    *,
+    clean_natural_mou: dict[str, int] | None = None,
+) -> dict[str, Any]:
     stats: dict[str, Any] = {
         "path": str(path),
         "rows": 0,
@@ -119,6 +123,9 @@ def view_stats(view: str, path: Path) -> dict[str, Any]:
         "placeholder_counts": Counter(),
         "generic_wen": 0,
         "generic_mou": 0,
+        "_mask_density_by_split": defaultdict(Counter),
+        "_mask_density_by_author": defaultdict(Counter),
+        "_mask_density_by_book": defaultdict(Counter),
     }
     for item in jsonl_records(path):
         text = str(item["text"])
@@ -139,14 +146,57 @@ def view_stats(view: str, path: Path) -> dict[str, Any]:
         if view in {"topic_distorted", "structure_only"}:
             stats["generic_wen"] += text.count("文")
         if view in {"train_global_masked", "entity_masked_v3"}:
-            stats["generic_mou"] += text.count("某")
+            chunk_id = str(item["chunk_id"])
+            mask_count = max(
+                text.count("某") - (clean_natural_mou or {}).get(chunk_id, 0),
+                0,
+            )
+            clean_cjk = int(item["chunk_clean_cjk_count"])
+            stats["generic_mou"] += mask_count
+            density_groups = (
+                ("_mask_density_by_split", str(item["split"])),
+                ("_mask_density_by_author", str(item["author"])),
+                (
+                    "_mask_density_by_book",
+                    f"{item['author']} / {item['title']}",
+                ),
+            )
+            for group_name, group_key in density_groups:
+                bucket = stats[group_name][group_key]
+                bucket["rows"] += 1
+                bucket["clean_cjk"] += clean_cjk
+                bucket["mask_chars"] += mask_count
     stats["author_count"] = len(stats["authors"])
     stats["book_count"] = len(stats["books"])
     stats["authors"] = dict(stats["authors"])
     stats["books"] = len(stats["books"])
     stats["splits"] = dict(stats["splits"])
     stats["placeholder_counts"] = dict(stats["placeholder_counts"])
+    for private_name, public_name in (
+        ("_mask_density_by_split", "mask_density_by_split"),
+        ("_mask_density_by_author", "mask_density_by_author"),
+        ("_mask_density_by_book", "mask_density_by_book"),
+    ):
+        groups = stats.pop(private_name)
+        stats[public_name] = {
+            key: {
+                "rows": int(values["rows"]),
+                "clean_cjk": int(values["clean_cjk"]),
+                "mask_chars": int(values["mask_chars"]),
+                "mask_chars_per_1k_cjk": per_1k(
+                    int(values["mask_chars"]), int(values["clean_cjk"])
+                ),
+            }
+            for key, values in sorted(groups.items())
+        }
     return stats
+
+
+def load_clean_natural_mou(path: Path) -> dict[str, int]:
+    return {
+        str(item["chunk_id"]): str(item["text"]).count("某")
+        for item in jsonl_records(path)
+    }
 
 
 def stable_pick(records: list[ChunkMeta], seed: str) -> ChunkMeta | None:
@@ -204,33 +254,66 @@ def load_sample_views(paths: dict[str, Path], sample_ids: set[str]) -> dict[str,
     return samples
 
 
-def load_mask_plan(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
+def load_mask_plan(
+    path: Path,
+) -> tuple[dict[tuple[str, str], dict[str, Any]], list[str], dict[str, Any]]:
     if not path.exists():
-        return {}
+        return {}, [], {}
     payload = json.loads(path.read_text(encoding="utf-8"))
     plan: dict[tuple[str, str], dict[str, Any]] = {}
     for item in payload.get("books", []):
         plan[(str(item.get("author") or ""), str(item.get("title") or ""))] = item
-    return plan
+    global_terms = [
+        str(term)
+        for term in payload.get("global_terms", {}).get("entity_terms_v2", [])
+    ]
+    return plan, global_terms, payload
 
 
-def sample_flags(sample: dict[str, dict[str, Any]], mask_info: dict[str, Any]) -> list[str]:
+def sample_flags(
+    sample: dict[str, dict[str, Any]],
+    mask_info: dict[str, Any],
+    global_terms: list[str],
+) -> list[str]:
     flags: list[str] = []
     clean = sample.get("clean", {})
-    entity = sample.get("entity_masked_v3") or sample.get("entity_masked_v2") or sample.get("entity_masked", {})
+    selected = sample.get("train_global_masked", {})
+    entity = sample.get("entity_masked_v3", {})
     topic = sample.get("topic_distorted", {})
     structure = sample.get("structure_only", {})
     clean_text = str(clean.get("text") or "")
+    selected_text = str(selected.get("text") or "")
     entity_text = str(entity.get("text") or "")
     topic_text = str(topic.get("text") or "")
     structure_text = str(structure.get("text") or "")
     clean_cjk = max(cjk_len(clean_text), 1)
+    clean_natural_mou = clean_text.count("某")
+    selected_mask_count = max(
+        selected_text.count("某") - clean_natural_mou,
+        0,
+    )
+    entity_mask_count = max(entity_text.count("某") - clean_natural_mou, 0)
+    remaining_global_terms = [
+        term for term in global_terms if term and term in selected_text
+    ]
+    if remaining_global_terms:
+        flags.append(
+            "fail: sampled train-global mask terms still visible: "
+            + ", ".join(remaining_global_terms[:8])
+        )
+    selected_visible_ratio = (
+        cjk_len(selected_text) - selected_mask_count
+    ) / clean_cjk
+    if selected_visible_ratio > 0.995:
+        flags.append("review: train_global_masked keeps almost all CJK content")
     entity_terms = [str(term) for term in mask_info.get("entity_terms_v2", []) or mask_info.get("entity_terms", [])]
     remaining_terms = [term for term in entity_terms[:80] if term and term in entity_text]
     if remaining_terms:
         flags.append("review: sampled entity mask terms still visible: " + ", ".join(remaining_terms[:8]))
-    entity_ratio = cjk_len(entity_text) / clean_cjk
-    if entity_ratio > 0.98:
+    entity_visible_ratio = (
+        cjk_len(entity_text) - entity_mask_count
+    ) / clean_cjk
+    if entity_visible_ratio > 0.98:
         flags.append("review: entity_masked keeps almost all CJK content")
     if "<TERM>" in entity_text:
         flags.append("review: current entity mask still contains literal <TERM> markers")
@@ -254,6 +337,8 @@ def write_report(
     samples: list[ChunkMeta],
     sample_views: dict[str, dict[str, dict[str, Any]]],
     mask_plan: dict[tuple[str, str], dict[str, Any]],
+    global_terms: list[str],
+    masking_policy: str,
     excerpt_chars: int,
 ) -> None:
     clean_rows = stats["clean"]["rows"]
@@ -264,6 +349,7 @@ def write_report(
         "",
         "## Executive Summary",
         "",
+        f"- Masking policy: `{masking_policy}`; fixed global vocabulary: {len(global_terms):,} terms.",
     ]
     row_counts = {view: stats[view]["rows"] for view in VIEWS}
     residue_hits = sum(int(stats[view]["residue_hit_chunks"]) for view in VIEWS)
@@ -274,7 +360,7 @@ def write_report(
             f"- {'PASS' if same_rows else 'FAIL'}: all views have matching row counts ({clean_rows:,} expected).",
             f"- {'PASS' if residue_hits == 0 else 'REVIEW'}: known scrape and author-note residue hit chunks: {residue_hits}.",
             f"- {'PASS' if malformed == 0 else 'REVIEW'}: malformed placeholder chunks: {malformed}.",
-            "- REVIEW: `entity_masked` should be checked by human samples because heuristic CJK n-gram masking can over-mask ordinary phrases.",
+            "- REVIEW: `train_global_masked` should be checked by human samples and density breakdowns because heuristic CJK n-gram masking can over-mask ordinary phrases.",
             "- REVIEW: `topic_distorted` and `structure_only` are diagnostic views, not readable training text.",
         ]
     )
@@ -316,36 +402,80 @@ def write_report(
             f"{splits.get('test', 0):,} | {splits.get('proxy_transfer', 0):,} |"
         )
 
+    selected_density = stats["train_global_masked"]
+    lines.extend(["", "## Selected Mask Density", ""])
+    lines.append(
+        "The selected train-global representation preserves mask length, so density is "
+        "reported as masked `某` characters per 1,000 clean CJK characters."
+    )
+    lines.extend(["", "### By Split", ""])
+    lines.append("| Split | Rows | Clean CJK | Masked CJK | 某/1k CJK |")
+    lines.append("| --- | ---: | ---: | ---: | ---: |")
+    for label, values in selected_density["mask_density_by_split"].items():
+        lines.append(
+            f"| {label} | {values['rows']:,} | {values['clean_cjk']:,} | "
+            f"{values['mask_chars']:,} | {values['mask_chars_per_1k_cjk']:.1f} |"
+        )
+
+    for group_key, heading, display_count in (
+        ("mask_density_by_author", "Authors", 10),
+        ("mask_density_by_book", "Books", 12),
+    ):
+        values_by_label = selected_density[group_key]
+        ordered = sorted(
+            values_by_label.items(),
+            key=lambda item: (-item[1]["mask_chars_per_1k_cjk"], item[0]),
+        )
+        densities = [item[1]["mask_chars_per_1k_cjk"] for item in ordered]
+        lines.extend(["", f"### By {heading}", ""])
+        if densities:
+            lines.append(
+                f"Range {min(densities):.1f}-{max(densities):.1f}; "
+                f"median {statistics.median(densities):.1f} masked characters per 1,000 CJK."
+            )
+            lines.append("")
+        lines.append(f"| {heading[:-1]} | Rows | Clean CJK | Masked CJK | 某/1k CJK |")
+        lines.append("| --- | ---: | ---: | ---: | ---: |")
+        for label, values in ordered[:display_count]:
+            lines.append(
+                f"| {label} | {values['rows']:,} | {values['clean_cjk']:,} | "
+                f"{values['mask_chars']:,} | {values['mask_chars_per_1k_cjk']:.1f} |"
+            )
+        lines.append("")
+        lines.append(
+            f"The JSON statistics retain all {len(ordered)} {heading.lower()}; "
+            f"the table shows the {min(display_count, len(ordered))} highest-density cases."
+        )
+
     lines.extend(["", "## Human QA Samples", ""])
     for sample_index, meta in enumerate(samples, start=1):
         sample = sample_views.get(meta.chunk_id, {})
         clean = sample.get("clean", {})
-        entity = sample.get("entity_masked", {})
-        entity_v2 = sample.get("entity_masked_v2", {})
+        selected = sample.get("train_global_masked", {})
         entity_v3 = sample.get("entity_masked_v3", {})
         topic = sample.get("topic_distorted", {})
         structure = sample.get("structure_only", {})
         mask_info = mask_plan.get((meta.author, meta.title), {})
-        flags = sample_flags(sample, mask_info)
+        flags = sample_flags(sample, mask_info, global_terms)
         clean_text = str(clean.get("text") or "")
-        entity_text = str(entity.get("text") or "")
-        entity_v2_text = str(entity_v2.get("text") or "")
+        selected_text = str(selected.get("text") or "")
         entity_v3_text = str(entity_v3.get("text") or "")
         topic_text = str(topic.get("text") or "")
         structure_text = str(structure.get("text") or "")
         clean_cjk = max(cjk_len(clean_text), 1)
+        selected_mask_count = max(
+            selected_text.count("某") - clean_text.count("某"),
+            0,
+        )
         lines.extend(
             [
                 f"### Sample {sample_index}: {meta.author} / {meta.title} / {meta.split} / chunk {meta.chunk_index}",
                 "",
                 f"- chunk_id: `{meta.chunk_id}`",
                 f"- clean CJK: {cjk_len(clean_text):,}",
-                f"- entity v1 CJK retention: {pct(cjk_len(entity_text) / clean_cjk)}",
-                f"- entity v2 CJK retention: {pct(cjk_len(entity_v2_text) / clean_cjk)}",
-                f"- entity v3 CJK retention: {pct(cjk_len(entity_v3_text) / clean_cjk)}",
-                f"- entity v1 markers: `<CONTENT>` {entity_text.count('<CONTENT>')}, `<NUM>` {entity_text.count('<NUM>')}, `<LATIN>` {entity_text.count('<LATIN>')}",
-                f"- entity v2 markers: `<TERM>` {entity_v2_text.count('<TERM>')}, `<NUM>` {entity_v2_text.count('<NUM>')}, `<LATIN>` {entity_v2_text.count('<LATIN>')}",
-                f"- entity v3 markers: `某` {entity_v3_text.count('某')}, `<NUM>` {entity_v3_text.count('<NUM>')}, `<LATIN>` {entity_v3_text.count('<LATIN>')}",
+                f"- train-global masked share: {pct(selected_mask_count / clean_cjk)}",
+                f"- book-local diagnostic masked share: {pct(max(entity_v3_text.count('某') - clean_text.count('某'), 0) / clean_cjk)}",
+                f"- entity v3 inserted masks: `某` {max(entity_v3_text.count('某') - clean_text.count('某'), 0)}, `<NUM>` {entity_v3_text.count('<NUM>')}, `<LATIN>` {entity_v3_text.count('<LATIN>')}",
                 f"- topic visible non-generic CJK ratio: {pct((cjk_len(topic_text) - topic_text.count('文')) / clean_cjk)}",
                 f"- structure non-generic CJK chars: {sum(1 for char in CJK_RE.findall(structure_text) if char != '文')}",
                 f"- flags: {'; '.join(flags)}",
@@ -353,8 +483,7 @@ def write_report(
                 "| View | Excerpt |",
                 "| --- | --- |",
                 f"| clean | {markdown_inline_excerpt(clean_text, excerpt_chars)} |",
-                f"| entity_masked | {markdown_inline_excerpt(entity_text, excerpt_chars)} |",
-                f"| entity_masked_v2 | {markdown_inline_excerpt(entity_v2_text, excerpt_chars)} |",
+                f"| train_global_masked | {markdown_inline_excerpt(selected_text, excerpt_chars)} |",
                 f"| entity_masked_v3 | {markdown_inline_excerpt(entity_v3_text, excerpt_chars)} |",
                 f"| topic_distorted | {markdown_inline_excerpt(topic_text, excerpt_chars)} |",
                 f"| structure_only | {markdown_inline_excerpt(structure_text, excerpt_chars)} |",
@@ -367,7 +496,8 @@ def write_report(
             "## Interpretation Notes",
             "",
             "- `clean` is the upper-bound diagnostic view and should not be treated as content-controlled style evidence.",
-            "- `entity_masked` is the first candidate style-meter view because it removes book-specific terms while preserving readable syntax.",
+            "- `train_global_masked` is the selected style-meter view: its vocabulary is fit on training books only and the same fixed transform is applied to every split.",
+            "- `entity_masked_v3` is a more aggressive book-local diagnostic view, not the selected attribution representation.",
             "- `topic_distorted` tests whether signal survives mostly through punctuation, function words, dialogue shape, and sentence rhythm.",
             "- `structure_only` is a stress test. It should preserve punctuation and layout, but it is not intended for production scoring by itself.",
             "",
@@ -402,8 +532,17 @@ def main() -> int:
     clean_meta = load_clean_meta(paths["clean"])
     samples = select_samples(clean_meta, target_author=args.target_author, sample_count=args.sample_count)
     sample_views = load_sample_views(paths, {item.chunk_id for item in samples})
-    mask_plan = load_mask_plan(args.dataset_root / "masked" / "mask_terms.json")
-    stats = {view: view_stats(view, path) for view, path in paths.items()}
+    mask_plan_path = args.dataset_root / "masked" / "mask_terms.json"
+    mask_plan, global_terms, mask_plan_payload = load_mask_plan(mask_plan_path)
+    clean_natural_mou = load_clean_natural_mou(paths["clean"])
+    stats = {
+        view: view_stats(
+            view,
+            path,
+            clean_natural_mou=clean_natural_mou,
+        )
+        for view, path in paths.items()
+    }
 
     write_report(
         output_path=args.output,
@@ -413,6 +552,8 @@ def main() -> int:
         samples=samples,
         sample_views=sample_views,
         mask_plan=mask_plan,
+        global_terms=global_terms,
+        masking_policy=str(mask_plan_payload.get("masking_policy") or "unknown"),
         excerpt_chars=args.excerpt_chars,
     )
     args.stats_output.parent.mkdir(parents=True, exist_ok=True)
@@ -421,6 +562,10 @@ def main() -> int:
             {
                 "dataset_root": str(args.dataset_root),
                 "report": str(args.output),
+                "mask_plan": str(mask_plan_path),
+                "mask_plan_sha256": hashlib.sha256(mask_plan_path.read_bytes()).hexdigest(),
+                "masking_policy": mask_plan_payload.get("masking_policy"),
+                "global_mask_term_count": len(global_terms),
                 "stats": stats,
                 "sample_chunk_ids": [item.chunk_id for item in samples],
             },

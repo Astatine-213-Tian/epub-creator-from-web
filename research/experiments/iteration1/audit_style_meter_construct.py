@@ -7,13 +7,15 @@ import hashlib
 import html
 import json
 import re
-import sys
+import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
 import joblib
 import numpy as np
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from sklearn.preprocessing import normalize
 
 
 from experiments.shared.paths import RESEARCH_ROOT
@@ -24,7 +26,6 @@ REPO_ROOT = RESEARCH_ROOT
 from workflows.benchmark_author_style import (  # noqa: E402
     FUNCTION_CHARS,
     FUNCTION_WORDS,
-    PUNCT_CHARS,
 )
 
 
@@ -70,6 +71,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=300)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--evaluation-summary", type=Path)
+    parser.add_argument(
+        "--ablation-splits",
+        default="",
+        help=(
+            "Optional comma-separated splits for frozen-model grouped-feature "
+            "ablation, for example dev,test."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -130,15 +139,16 @@ def surface_category(
     known_terms: set[str],
 ) -> str:
     cjk = "".join(CJK_RE.findall(feature))
-    punctuation = any(char in PUNCT_CHARS for char in feature)
     if PLACEHOLDER_RE.search(feature):
         return "mask_artifact"
     if matches_known_mask_term(feature, known_terms):
         return "known_entity_or_topic_fragment"
     if any(term in feature for term in SPEECH_OR_BEAT_TERMS):
         return "dialogue_structure"
-    if not cjk and punctuation:
+    if not cjk and is_punctuation_only(feature):
         return "punctuation_only"
+    if not cjk and is_punctuation_or_symbol_only(feature):
+        return "source_format_symbol"
     if cjk and all(char in FUNCTION_CHARS for char in cjk):
         return "function_grammar"
     if any(term == cjk or term in feature for term in GENERAL_DISCOURSE_TERMS):
@@ -153,6 +163,91 @@ def surface_category(
 
 def safe_div(numerator: float, denominator: float) -> float:
     return numerator / denominator if denominator else 0.0
+
+
+def cjk_core(feature: str) -> str:
+    return "".join(CJK_RE.findall(feature))
+
+
+def is_punctuation_only(feature: str) -> bool:
+    return bool(feature) and all(
+        unicodedata.category(char).startswith("P") for char in feature
+    )
+
+
+def is_punctuation_or_symbol_only(feature: str) -> bool:
+    return bool(feature) and all(
+        unicodedata.category(char).startswith(("P", "S")) for char in feature
+    )
+
+
+def is_cjk_core_with_punctuation(feature: str, core: str) -> bool:
+    return cjk_core(feature) == core and all(
+        CJK_RE.fullmatch(char) or unicodedata.category(char).startswith("P")
+        for char in feature
+    )
+
+
+def interpretation_group_key(feature: str) -> str:
+    if is_punctuation_only(feature):
+        return "pure_punctuation"
+    if is_punctuation_or_symbol_only(feature) and not cjk_core(feature):
+        return "source_format_symbols"
+    core = cjk_core(feature)
+    if core and is_cjk_core_with_punctuation(feature, core):
+        return f"cjk_core:{core}"
+    return f"exact:{feature}"
+
+
+def build_interpretation_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        grouped[interpretation_group_key(str(row["feature"]))].append(row)
+
+    output: list[dict[str, Any]] = []
+    for key, members in grouped.items():
+        ordered = sorted(
+            members,
+            key=lambda row: (-float(row["coefficient"]), int(row["rank"])),
+        )
+        strongest = ordered[0]
+        core = key.removeprefix("cjk_core:") if key.startswith("cjk_core:") else ""
+        if key == "pure_punctuation":
+            label = "纯标点（合并）"
+        elif key == "source_format_symbols":
+            label = "格式符号（合并）"
+        elif core:
+            label = core
+        else:
+            label = str(strongest["feature"])
+        category_mass: Counter[str] = Counter()
+        for row in ordered:
+            category_mass[str(row["category"])] += float(row["coefficient"])
+        output.append(
+            {
+                "group_key": key,
+                "label": label,
+                "member_count": len(ordered),
+                "strongest_feature": str(strongest["feature"]),
+                "strongest_coefficient": float(strongest["coefficient"]),
+                "positive_coefficient_mass": sum(
+                    float(row["coefficient"]) for row in ordered
+                ),
+                "examples": " / ".join(str(row["feature"]) for row in ordered[:5]),
+                "dominant_category": category_mass.most_common(1)[0][0],
+                "categories": ";".join(sorted(category_mass)),
+            }
+        )
+    output.sort(
+        key=lambda row: (
+            -float(row["strongest_coefficient"]),
+            -float(row["positive_coefficient_mass"]),
+            str(row["group_key"]),
+        )
+    )
+    for rank, row in enumerate(output, start=1):
+        row["group_rank"] = rank
+    return output
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -293,6 +388,78 @@ def write_top_features_svg(
     path.write_text("\n".join(elements) + "\n", encoding="utf-8")
 
 
+def write_grouped_features_svg(
+    path: Path, rows: list[dict[str, Any]], *, limit: int = 18
+) -> None:
+    selected = rows[:limit]
+    width = 1280
+    left = 250
+    right = 360
+    top = 126
+    row_height = 38
+    height = top + row_height * len(selected) + 76
+    chart_width = width - left - right
+    max_weight = max(
+        (float(row["strongest_coefficient"]) for row in selected), default=1.0
+    )
+    colors = {
+        "dialogue_structure": "#0072b2",
+        "punctuation_only": "#c44e52",
+        "source_format_symbol": "#8c564b",
+        "function_grammar": "#009e73",
+        "general_discourse": "#6a994e",
+        "mask_artifact": "#c44e52",
+        "known_entity_or_topic_fragment": "#d55e00",
+        "low_book_dispersion_lexical": "#e69f00",
+        "recurrent_lexical_ambiguous": "#8172b2",
+    }
+    elements = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<rect width="100%" height="100%" fill="#ffffff"/>',
+        '<g font-family="Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif">',
+        '<text x="32" y="40" font-size="25" font-weight="700" fill="#17202a">非天夜翔：权重最高的相邻字符片段家族</text>',
+        '<text x="32" y="70" font-size="15" fill="#4d5966">同一汉字核心的二至四字窗口合为一行；横条取家族中最强单项权重，避免重复相加夸大影响</text>',
+        '<text x="32" y="99" font-size="13" fill="#697784">纯标点单列为来源／排版敏感诊断，不解释为作者写作规则</text>',
+    ]
+    for index, row in enumerate(selected):
+        y = top + index * row_height
+        category = str(row["dominant_category"])
+        if row["group_key"] == "pure_punctuation":
+            color = "#c44e52"
+        elif row["group_key"] == "source_format_symbols":
+            color = "#8c564b"
+        else:
+            color = colors.get(category, "#7f8c8d")
+        coefficient = float(row["strongest_coefficient"])
+        bar_width = chart_width * safe_div(coefficient, max_weight)
+        label = html.escape(str(row["label"]))
+        examples = str(row["examples"])
+        if len(examples) > 34:
+            examples = examples[:33] + "…"
+        detail = html.escape(f"{row['member_count']} 项：{examples}")
+        if index % 2:
+            elements.append(
+                f'<rect x="24" y="{y - 4}" width="1232" height="34" fill="#f7f8f9"/>'
+            )
+        elements.extend(
+            [
+                f'<text x="45" y="{y + 20}" font-size="12" fill="#7a858f">{index + 1}</text>',
+                f'<text x="225" y="{y + 20}" text-anchor="end" font-size="15" font-weight="600" fill="#26323d">{label}</text>',
+                f'<rect x="{left}" y="{y + 3}" width="{bar_width:.2f}" height="22" rx="2" fill="{color}" opacity="0.88"/>',
+                f'<text x="{left + bar_width + 8:.2f}" y="{y + 20}" font-size="13" font-weight="600" fill="#26323d">{coefficient:.2f}</text>',
+                f'<text x="1248" y="{y + 20}" text-anchor="end" font-size="11" fill="#5f6b75">{detail}</text>',
+            ]
+        )
+    elements.extend(
+        [
+            f'<text x="32" y="{height - 27}" font-size="12" fill="#697784">这是一张解释图，不改变冻结分类器；完整原始系数仍保留在审计 CSV 中。</text>',
+            "</g>",
+            "</svg>",
+        ]
+    )
+    path.write_text("\n".join(elements) + "\n", encoding="utf-8")
+
+
 def evaluation_context(path: Path | None) -> dict[str, Any] | None:
     if path is None:
         return None
@@ -315,12 +482,167 @@ def evaluation_context(path: Path | None) -> dict[str, Any] | None:
     }
 
 
+def parse_ablation_splits(value: str) -> tuple[str, ...]:
+    splits = tuple(dict.fromkeys(part.strip() for part in value.split(",") if part.strip()))
+    if "train" in splits:
+        raise ValueError("train is not allowed as a grouped-feature ablation split")
+    return splits
+
+
+def prediction_metrics(
+    classifier: Any,
+    matrix: Any,
+    labels: list[str],
+    *,
+    target_author: str,
+) -> dict[str, float | int]:
+    truth = np.asarray(labels)
+    predictions = classifier.predict(matrix)
+    target_truth = truth == target_author
+    target_predictions = predictions == target_author
+    true_positive = int(np.sum(target_truth & target_predictions))
+    false_positive = int(np.sum(~target_truth & target_predictions))
+    false_negative = int(np.sum(target_truth & ~target_predictions))
+    precision = safe_div(true_positive, true_positive + false_positive)
+    recall = safe_div(true_positive, true_positive + false_negative)
+    f1 = safe_div(2.0 * precision * recall, precision + recall)
+
+    class_labels = [str(value) for value in classifier.classes_]
+    target_index = class_labels.index(target_author)
+    scores = classifier.decision_function(matrix)
+    target_scores = scores[:, target_index]
+    other_scores = np.delete(scores, target_index, axis=1)
+    target_margin = target_scores - np.max(other_scores, axis=1)
+    return {
+        "rows": len(labels),
+        "accuracy": float(accuracy_score(truth, predictions)),
+        "balanced_accuracy": float(balanced_accuracy_score(truth, predictions)),
+        "target_precision": precision,
+        "target_recall": recall,
+        "target_f1": f1,
+        "target_true_positive": true_positive,
+        "target_false_positive": false_positive,
+        "target_false_negative": false_negative,
+        "target_mean_margin": float(np.mean(target_margin[target_truth])),
+        "comparison_mean_target_margin": float(np.mean(target_margin[~target_truth])),
+    }
+
+
+def zero_columns_and_renormalize(matrix: Any, columns: np.ndarray) -> Any:
+    ablated = matrix.copy().tocsr()
+    if len(columns):
+        remove = np.isin(ablated.indices, columns)
+        ablated.data[remove] = 0.0
+        ablated.eliminate_zeros()
+        normalize(ablated, norm="l2", copy=False)
+    return ablated
+
+
+def run_group_ablation(
+    vectorizer: Any,
+    classifier: Any,
+    rows_by_split: dict[str, list[tuple[str, str]]],
+    *,
+    target_author: str,
+) -> dict[str, Any]:
+    features = [str(value) for value in vectorizer.get_feature_names_out()]
+    shuo_columns = np.asarray(
+        [
+            index
+            for index, feature in enumerate(features)
+            if is_cjk_core_with_punctuation(feature, "说")
+        ],
+        dtype=np.int64,
+    )
+    punctuation_columns = np.asarray(
+        [
+            index
+            for index, feature in enumerate(features)
+            if is_punctuation_only(feature)
+        ],
+        dtype=np.int64,
+    )
+    source_format_columns = np.asarray(
+        [
+            index
+            for index, feature in enumerate(features)
+            if is_punctuation_or_symbol_only(feature)
+            and not is_punctuation_only(feature)
+            and not cjk_core(feature)
+        ],
+        dtype=np.int64,
+    )
+    groups = {
+        "shuo_punctuation_family": shuo_columns,
+        "pure_punctuation_family": punctuation_columns,
+        "source_format_symbol_family": source_format_columns,
+        "shuo_and_pure_punctuation": np.union1d(
+            shuo_columns, punctuation_columns
+        ),
+        "all_audited_surface_families": np.union1d(
+            np.union1d(shuo_columns, punctuation_columns), source_format_columns
+        ),
+    }
+    output: dict[str, Any] = {
+        "schema_version": 1,
+        "method": (
+            "zero every frozen TF-IDF column in the registered family, then "
+            "L2-renormalize without refitting the classifier"
+        ),
+        "scope": "post_hoc_frozen_model_sensitivity_not_new_model_selection",
+        "feature_groups": {
+            name: {
+                "feature_count": int(len(columns)),
+                "examples": [features[index] for index in columns[:20]],
+            }
+            for name, columns in groups.items()
+        },
+        "splits": {},
+    }
+
+    for split, records in rows_by_split.items():
+        texts = [text for text, _ in records]
+        labels = [label for _, label in records]
+        matrix = vectorizer.transform(texts).tocsr()
+        baseline = prediction_metrics(
+            classifier, matrix, labels, target_author=target_author
+        )
+        ablations: dict[str, Any] = {}
+        for name, columns in groups.items():
+            ablated_matrix = zero_columns_and_renormalize(matrix, columns)
+            metrics = prediction_metrics(
+                classifier,
+                ablated_matrix,
+                labels,
+                target_author=target_author,
+            )
+            metrics["accuracy_delta"] = float(metrics["accuracy"]) - float(
+                baseline["accuracy"]
+            )
+            metrics["balanced_accuracy_delta"] = float(
+                metrics["balanced_accuracy"]
+            ) - float(baseline["balanced_accuracy"])
+            metrics["target_f1_delta"] = float(metrics["target_f1"]) - float(
+                baseline["target_f1"]
+            )
+            metrics["target_mean_margin_delta"] = float(
+                metrics["target_mean_margin"]
+            ) - float(baseline["target_mean_margin"])
+            ablations[name] = metrics
+        output["splits"][split] = {
+            "baseline": baseline,
+            "ablations": ablations,
+        }
+    return output
+
+
 def main() -> None:
     args = parse_args()
     scorer_dir = args.scorer_dir.expanduser().resolve()
     dataset_path = args.dataset.expanduser().resolve()
     mask_terms_path = args.mask_terms.expanduser().resolve()
     output_dir = args.output_dir.expanduser().resolve()
+    ablation_splits = parse_ablation_splits(args.ablation_splits)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     config = read_json(scorer_dir / "scorer_config.json")
@@ -351,15 +673,22 @@ def main() -> None:
     target_feature_books: dict[str, set[str]] = defaultdict(set)
     comparison_feature_books: dict[str, set[str]] = defaultdict(set)
     comparison_feature_authors: dict[str, set[str]] = defaultdict(set)
+    ablation_rows: dict[str, list[tuple[str, str]]] = {
+        split: [] for split in ablation_splits
+    }
     target_chunks = 0
     comparison_chunks = 0
 
     for row in iter_jsonl(dataset_path):
-        if row.get("split") != "train":
-            continue
+        split = str(row.get("split", ""))
         author = str(row["author"])
+        raw_text = str(row["text"])
+        if split in ablation_rows:
+            ablation_rows[split].append((raw_text, author))
+        if split != "train":
+            continue
         title = str(row["title"])
-        text = WHITESPACE_RE.sub("", str(row["text"]))
+        text = WHITESPACE_RE.sub("", raw_text)
         hits = {feature for feature in selected_set if feature in text}
         if author == args.target_author:
             target_chunks += 1
@@ -403,6 +732,26 @@ def main() -> None:
                 "comparison_author_hits": len(comparison_feature_authors[feature]),
             }
         )
+    interpretation_groups = build_interpretation_groups(rows)
+
+    missing_ablation_splits = [
+        split for split, records in ablation_rows.items() if not records
+    ]
+    if missing_ablation_splits:
+        raise ValueError(
+            "requested ablation splits are absent from the dataset: "
+            + ", ".join(missing_ablation_splits)
+        )
+    group_ablation = (
+        run_group_ablation(
+            vectorizer,
+            classifier,
+            ablation_rows,
+            target_author=args.target_author,
+        )
+        if ablation_rows
+        else None
+    )
 
     category_counts: Counter[str] = Counter()
     category_mass: Counter[str] = Counter()
@@ -423,6 +772,7 @@ def main() -> None:
 
     risky_categories = {
         "mask_artifact",
+        "source_format_symbol",
         "known_entity_or_topic_fragment",
         "low_book_dispersion_lexical",
     }
@@ -464,6 +814,8 @@ def main() -> None:
             "risky_features_top_50": risky_top_50,
             "risky_positive_weight_share_top_k": safe_div(risky_mass, total_mass),
             "category_summary": category_rows,
+            "interpretation_groups": interpretation_groups,
+            "group_ablation": group_ablation,
         },
         "interpretation": (
             "Book-disjoint attribution accuracy demonstrates predictive signal, "
@@ -476,9 +828,47 @@ def main() -> None:
     }
 
     write_csv(output_dir / "target_positive_features.csv", rows)
+    write_csv(
+        output_dir / "target_positive_feature_groups.csv", interpretation_groups
+    )
     write_csv(output_dir / "category_summary.csv", category_rows)
     write_svg(output_dir / "category_weight_mass.svg", category_rows)
     write_top_features_svg(output_dir / "top_positive_features.svg", rows)
+    write_grouped_features_svg(
+        output_dir / "top_positive_feature_groups.svg", interpretation_groups
+    )
+    if group_ablation is not None:
+        (output_dir / "group_ablation.json").write_text(
+            json.dumps(group_ablation, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        ablation_csv_rows: list[dict[str, Any]] = []
+        for split, split_payload in group_ablation["splits"].items():
+            baseline = split_payload["baseline"]
+            ablation_csv_rows.append(
+                {
+                    "split": split,
+                    "variant": "baseline",
+                    "feature_count": 0,
+                    **baseline,
+                    "accuracy_delta": 0.0,
+                    "balanced_accuracy_delta": 0.0,
+                    "target_f1_delta": 0.0,
+                    "target_mean_margin_delta": 0.0,
+                }
+            )
+            for name, metrics in split_payload["ablations"].items():
+                ablation_csv_rows.append(
+                    {
+                        "split": split,
+                        "variant": name,
+                        "feature_count": group_ablation["feature_groups"][name][
+                            "feature_count"
+                        ],
+                        **metrics,
+                    }
+                )
+        write_csv(output_dir / "group_ablation.csv", ablation_csv_rows)
     (output_dir / "audit.json").write_text(
         json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -504,13 +894,40 @@ def main() -> None:
         f"- Risk-flagged features among top 50: **{risky_top_50}/50**",
         f"- Risk-flagged positive-weight share in top {len(rows)}: **{safe_div(risky_mass, total_mass):.1%}**",
         "",
-        "![Highest-weight target features](top_positive_features.svg)",
+        "## Punctuation-Grouped Interpretation",
+        "",
+        "Exact 2-4 character windows overlap. For interpretation, rows sharing the",
+        "same Chinese-character core and differing only in punctuation are grouped.",
+        "Punctuation-only and symbol-only rows are kept in separate source/formatting-",
+        "sensitive families. The chart ranks each group by its strongest constituent",
+        "coefficient rather than summing correlated weights. This grouping does not",
+        "alter the frozen classifier.",
+        "",
+        "![Grouped highest-weight target features](top_positive_feature_groups.svg)",
+        "",
+        "| Group | Members in top-k | Strongest raw feature | Strongest weight | Examples |",
+        "| --- | ---: | --- | ---: | --- |",
+    ]
+    for row in interpretation_groups[:20]:
+        examples = str(row["examples"]).replace("|", "\\|")
+        report_lines.append(
+            f"| {row['label']} | {row['member_count']} | "
+            f"`{row['strongest_feature']}` | "
+            f"{float(row['strongest_coefficient']):.3f} | `{examples}` |"
+        )
+    report_lines.extend(
+        [
+        "",
+        "### Raw exact features",
+        "",
+        "![Ungrouped highest-weight target features](top_positive_features.svg)",
         "",
         "![Positive feature weight by category](category_weight_mass.svg)",
         "",
         "| Diagnostic category | Features | Feature share | Positive-weight share |",
         "| --- | ---: | ---: | ---: |",
-    ]
+        ]
+    )
     for row in category_rows:
         report_lines.append(
             f"| `{row['category']}` | {row['feature_count']} | "
@@ -532,6 +949,70 @@ def main() -> None:
             f"`{row['category']}` | {row['target_book_hits']}/{len(target_books)} | "
             f"{row['comparison_author_hits']}/{len(comparison_authors)} |"
         )
+    if group_ablation is not None:
+        report_lines.extend(
+            [
+                "",
+                "## Frozen-Model Group Ablation",
+                "",
+                "This post-hoc sensitivity check removes every column in a registered",
+                "feature family, L2-renormalizes the remaining frozen TF-IDF vector, and",
+                "scores it with the unchanged classifier. It is not a refitted model or a",
+                "new untouched benchmark.",
+                "",
+                "| Split | Variant | Removed features | Accuracy | Delta | Balanced | Target F1 | Target-margin delta |",
+                "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for split, split_payload in group_ablation["splits"].items():
+            baseline = split_payload["baseline"]
+            report_lines.append(
+                f"| {split} | baseline | 0 | {float(baseline['accuracy']):.1%} | "
+                f"+0.0pp | {float(baseline['balanced_accuracy']):.1%} | "
+                f"{float(baseline['target_f1']):.1%} | +0.000 |"
+            )
+            for name, metrics in split_payload["ablations"].items():
+                feature_count = group_ablation["feature_groups"][name]["feature_count"]
+                report_lines.append(
+                    f"| {split} | `{name}` | {feature_count} | "
+                    f"{float(metrics['accuracy']):.1%} | "
+                    f"{float(metrics['accuracy_delta']) * 100:+.1f}pp | "
+                    f"{float(metrics['balanced_accuracy']):.1%} | "
+                    f"{float(metrics['target_f1']):.1%} | "
+                    f"{float(metrics['target_mean_margin_delta']):+.3f} |"
+                )
+        test_payload = group_ablation["splits"].get("test")
+        if test_payload:
+            baseline = test_payload["baseline"]
+            shuo = test_payload["ablations"]["shuo_punctuation_family"]
+            punctuation_only = test_payload["ablations"]["pure_punctuation_family"]
+            source_symbols = test_payload["ablations"]["source_format_symbol_family"]
+            report_lines.extend(
+                [
+                    "",
+                    "### What the ablation says",
+                    "",
+                    f"- The operationally defined `说 + punctuation` family contains "
+                    f"{group_ablation['feature_groups']['shuo_punctuation_family']['feature_count']} "
+                    "fitted columns. Removing it changes test accuracy by "
+                    f"{float(shuo['accuracy_delta']) * 100:+.2f}pp and changes target "
+                    f"false positives from {baseline['target_false_positive']} to "
+                    f"{shuo['target_false_positive']}. Its repeated raw rows are overlapping "
+                    "same-core variants and should not be read as independent cues.",
+                    f"- Removing {group_ablation['feature_groups']['pure_punctuation_family']['feature_count']} "
+                    "punctuation-only columns changes test accuracy by "
+                    f"{float(punctuation_only['accuracy_delta']) * 100:+.2f}pp. This shows "
+                    "predictive sensitivity, but does not distinguish author punctuation habits "
+                    "from edition/provider formatting.",
+                    f"- Removing {group_ablation['feature_groups']['source_format_symbol_family']['feature_count']} "
+                    "symbol-only formatting columns changes test accuracy by "
+                    f"{float(source_symbols['accuracy_delta']) * 100:+.2f}pp. These columns are "
+                    "treated as source-format risk, not author-style evidence.",
+                    "- This is a frozen-model sensitivity test. A separately trained "
+                    "punctuation-normalized model would be required to estimate recoverable "
+                    "accuracy without those features.",
+                ]
+            )
     report_lines.extend(
         [
             "",
@@ -568,11 +1049,17 @@ def main() -> None:
             f"  --mask-terms {mask_terms_path.relative_to(REPO_ROOT)} \\",
             f"  --target-author {args.target_author} \\",
             f"  --top-k {len(rows)} \\",
+            *(
+                [f"  --ablation-splits {','.join(ablation_splits)} \\"]
+                if ablation_splits
+                else []
+            ),
             f"  --output-dir {output_dir.relative_to(REPO_ROOT)}",
             "```",
             "",
             "The category rules are deterministic diagnostics rather than gold linguistic",
-            "annotations. The full feature table is `target_positive_features.csv`.",
+            "annotations. Raw rows are in `target_positive_features.csv`; the grouped",
+            "interpretation is in `target_positive_feature_groups.csv`.",
         ]
     )
     (output_dir / "report.md").write_text(

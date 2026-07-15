@@ -8,7 +8,7 @@ import os
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 import ahocorasick
 
@@ -39,7 +39,9 @@ URL_RE = re.compile(r"https?://|www\.|\.com|\.net|\.org", re.I)
 BOILERPLATE_RE = re.compile(
     r"晋江文学城|jjwxc|请收藏|收藏此文章|霸王票|手机阅读|"
     r"最新网址|返回目录|书友群|盗文|防盗|点击下一章|上一章|下一章|"
-    r"本书由|整理制作|TXT下载|电子书|更多精彩|营养液加更|感谢.*营养液"
+    r"本书由|整理制作|TXT下载|电子书|更多精彩|营养液加更|感谢.*营养液|"
+    r"这个段落是图片段落|请访问正确的网站|原版未篡改内容请移至|"
+    r"关闭广告拦截功能|退出浏览器阅读模式"
 )
 INLINE_AD_RE = re.compile(
     r"您下载的文件由.*?(?:更多好看小说哦！|更多好看小说哦!|$)"
@@ -62,7 +64,7 @@ SYSTEMIC_REPLACEMENT_MIN_HITS = 10
 SYSTEMIC_REPLACEMENT_MIN_LINES = 5
 PUNCTUATION_NORMALIZATION_VERSION = "canonical_zh_v1"
 CROSS_BOOK_DECONTAMINATION_VERSION = "exact_passage_shingles_v1"
-MASKING_POLICY_VERSION = "train_fit_global_label_blind_local_v1"
+MASKING_POLICY_VERSION = "train_fit_global_label_blind_local_v2"
 
 ASCII_ELLIPSIS_RE = re.compile(r"\.{2,}")
 UNICODE_ELLIPSIS_RE = re.compile(r"…+")
@@ -121,8 +123,18 @@ MAX_ENTITY_TERMS_PER_BOOK = 240
 MAX_ENTITY_V2_TERMS_PER_BOOK = 800
 MAX_TOPIC_TERMS_PER_BOOK = 640
 MAX_GLOBAL_ENTITY_V2_TERMS = 12_000
+MAX_GLOBAL_CONCENTRATION_RESCUE_TERMS = 4_000
 MASK_NGRAM_MIN_N = 2
 MASK_NGRAM_MAX_N = 5
+MASK_RESCUE_MAX_N = 3
+MASK_RESCUE_MIN_BOOK_COUNT = 20
+MASK_RESCUE_MAX_DOCUMENT_FREQUENCY = 4
+MASK_RESCUE_MAX_AUTHOR_FREQUENCY = 2
+MASK_RESCUE_MIN_DOMINANT_BOOK_SHARE = 0.80
+MASK_RESCUE_HIGH_CONCENTRATION_SHARE = 0.95
+MASK_RESCUE_HIGH_CONCENTRATION_MIN_BOOK_COUNT = 100
+MASK_RESCUE_MIN_COMPONENT_CONDITIONAL_SHARE = 0.50
+MASK_NESTED_EXTENSION_MIN_COVERAGE = 0.95
 CROSS_BOOK_DUPLICATE_RULES = ((1, 80), (2, 100), (3, 120))
 
 MASK_TERM_STOP_CHARS = set(
@@ -131,6 +143,9 @@ MASK_TERM_STOP_CHARS = set(
     "电力里如水化高自理起小物现实加都两体制机当使点从业本去把性好应开它"
     "合还因由其些然前外天那与关各重新线内正心反你看又么但向道此只没给被"
     "很最才并已让"
+)
+MASK_RESCUE_BOUNDARY_CHARS = set(
+    "的地得了着过说道问答喊叫想看见听向和与在把被给从到为是有将让又也都就才还却而"
 )
 FUNCTION_STYLE_CHARS = set(
     "的一是在不了有和人这中为上个我以要他时来用们到地于出就对成会可也能下过"
@@ -371,8 +386,11 @@ def chunk_text(text: str, *, target_cjk: int = CHUNK_TARGET_CJK, min_cjk: int = 
     return [chunk for chunk in chunks if chunk]
 
 
-def cjk_ngrams(text: str) -> Counter[str]:
-    counts: Counter[str] = Counter()
+def mask_candidate_ngram_counts(
+    text: str,
+) -> tuple[Counter[str], Counter[str]]:
+    standard: Counter[str] = Counter()
+    rescue: Counter[str] = Counter()
     for match in CJK_RUN_RE.finditer(text):
         run = match.group(0)
         for size in range(MASK_NGRAM_MIN_N, MASK_NGRAM_MAX_N + 1):
@@ -381,6 +399,40 @@ def cjk_ngrams(text: str) -> Counter[str]:
             for index in range(0, len(run) - size + 1):
                 term = run[index:index + size]
                 if is_mask_candidate(term):
+                    standard[term] += 1
+                elif is_concentration_rescue_candidate(term):
+                    rescue[term] += 1
+    return standard, rescue
+
+
+def cjk_ngrams(text: str) -> Counter[str]:
+    standard, _ = mask_candidate_ngram_counts(text)
+    return standard
+
+
+def concentration_rescue_ngrams(text: str) -> Counter[str]:
+    """Count high-frequency content candidates rejected by the broad stop list."""
+    _, rescue = mask_candidate_ngram_counts(text)
+    return rescue
+
+
+def count_selected_terms(
+    text: str,
+    candidate_terms: set[str],
+) -> Counter[str]:
+    """Count every occurrence of a bounded candidate vocabulary in one book."""
+    counts: Counter[str] = Counter()
+    candidate_lengths = sorted({len(term) for term in candidate_terms})
+    if not candidate_lengths:
+        return counts
+    for match in CJK_RUN_RE.finditer(text):
+        run = match.group(0)
+        for size in candidate_lengths:
+            if len(run) < size:
+                continue
+            for index in range(0, len(run) - size + 1):
+                term = run[index:index + size]
+                if term in candidate_terms:
                     counts[term] += 1
     return counts
 
@@ -391,6 +443,17 @@ def is_mask_candidate(term: str) -> bool:
         and bool(CJK_RUN_RE.fullmatch(term))
         and len(set(term)) > 1
         and not any(char in MASK_TERM_STOP_CHARS for char in term)
+    )
+
+
+def is_concentration_rescue_candidate(term: str) -> bool:
+    return (
+        MASK_NGRAM_MIN_N <= len(term) <= MASK_RESCUE_MAX_N
+        and bool(CJK_RUN_RE.fullmatch(term))
+        and len(set(term)) > 1
+        and any(char in MASK_TERM_STOP_CHARS for char in term)
+        and term[0] not in MASK_RESCUE_BOUNDARY_CHARS
+        and term[-1] not in MASK_RESCUE_BOUNDARY_CHARS
     )
 
 
@@ -405,6 +468,55 @@ def title_mask_terms(title: str) -> set[str]:
                 if len(set(term)) > 1:
                     terms.add(term)
     return terms
+
+
+def canonicalize_nested_mask_terms(
+    terms: Iterable[str],
+    counts: Mapping[str, int],
+    *,
+    extension_min_coverage: float = MASK_NESTED_EXTENSION_MIN_COVERAGE,
+) -> tuple[list[str], dict[str, int]]:
+    """Keep entity cores while dropping low-coverage name-plus-context terms."""
+    active = set(terms)
+    input_term_count = len(active)
+    removed_extensions: set[str] = set()
+    removed_subterms: set[str] = set()
+    for term in sorted(
+        active,
+        key=lambda item: (-len(item), -int(counts.get(item, 0)), item),
+    ):
+        if term not in active or int(counts.get(term, 0)) <= 0:
+            continue
+        observed_nested = {
+            term[index:index + size]
+            for size in range(MASK_NGRAM_MIN_N, len(term))
+            for index in range(0, len(term) - size + 1)
+            if int(counts.get(term[index:index + size], 0)) > 0
+        }
+        if not observed_nested:
+            continue
+        term_count = int(counts[term])
+        max_subterm_count = max(
+            int(counts[candidate]) for candidate in observed_nested
+        )
+        if term_count / max_subterm_count < extension_min_coverage:
+            active.remove(term)
+            removed_extensions.add(term)
+            continue
+        for candidate in observed_nested:
+            if (
+                candidate in active
+                and term_count / int(counts[candidate]) >= extension_min_coverage
+            ):
+                active.remove(candidate)
+                removed_subterms.add(candidate)
+
+    return sorted(active, key=lambda item: (-len(item), item)), {
+        "input_term_count": input_term_count,
+        "output_term_count": len(active),
+        "removed_context_extension_count": len(removed_extensions),
+        "removed_near_equivalent_subterm_count": len(removed_subterms),
+    }
 
 
 def record_key(record: dict[str, Any]) -> str:
@@ -435,7 +547,8 @@ def ranked_local_terms(
         seen.add(term)
         if len(terms) >= limit:
             break
-    return sorted(terms, key=lambda item: (-len(item), item))
+    canonical_terms, _ = canonicalize_nested_mask_terms(terms, counts)
+    return canonical_terms
 
 
 def select_mask_terms(
@@ -455,14 +568,24 @@ def select_mask_terms(
     document_frequency: Counter[str] = Counter()
     term_authors: dict[str, set[str]] = defaultdict(set)
     total_frequency: Counter[str] = Counter()
+    rescue_seed_terms: set[str] = set()
+    rescue_max_book_frequency: Counter[str] = Counter()
+    rescue_dominant_book: dict[str, str] = {}
     for record in fit_records:
         text_path = Path(str(record["clean_txt_path"]))
         if not text_path.exists():
             continue
+        text = read_text(text_path)
+        standard_counts, raw_rescue_counts = mask_candidate_ngram_counts(text)
         counts = Counter({
             term: count
-            for term, count in cjk_ngrams(read_text(text_path)).items()
+            for term, count in standard_counts.items()
             if count >= MASK_NGRAM_MIN_COUNT
+        })
+        rescue_seed_counts = Counter({
+            term: count
+            for term, count in raw_rescue_counts.items()
+            if count >= MASK_RESCUE_MIN_BOOK_COUNT
         })
         key = record_key(record)
         fit_book_counts[key] = counts
@@ -470,6 +593,30 @@ def select_mask_terms(
         total_frequency.update(counts)
         for term in counts:
             term_authors[term].add(str(record["author"]))
+        rescue_seed_terms.update(rescue_seed_counts)
+        for term, count in rescue_seed_counts.items():
+            if count > rescue_max_book_frequency[term]:
+                rescue_max_book_frequency[term] = count
+                rescue_dominant_book[term] = key
+
+    # The support threshold only seeds plausible rescue terms. Their spread and
+    # concentration must include every occurrence in every fit book; otherwise
+    # 19 occurrences in many books would be silently ignored while 20 in one
+    # book could make an ordinary phrase look book-specific.
+    rescue_document_frequency: Counter[str] = Counter()
+    rescue_term_authors: dict[str, set[str]] = defaultdict(set)
+    rescue_total_frequency: Counter[str] = Counter()
+    for record in fit_records:
+        text_path = Path(str(record["clean_txt_path"]))
+        if not text_path.exists():
+            continue
+        rescue_counts = count_selected_terms(
+            read_text(text_path), rescue_seed_terms
+        )
+        rescue_document_frequency.update(rescue_counts.keys())
+        rescue_total_frequency.update(rescue_counts)
+        for term in rescue_counts:
+            rescue_term_authors[term].add(str(record["author"]))
 
     book_count = max(len(fit_book_counts), 1)
     entity_max_df = max(3, book_count // 20)
@@ -488,7 +635,86 @@ def select_mask_terms(
             term,
         ),
     )[:MAX_GLOBAL_ENTITY_V2_TERMS]
-    global_entity_terms = sorted(global_entity_terms, key=lambda item: (-len(item), item))
+    concentration_candidates = []
+    for term, total in rescue_total_frequency.items():
+        dominant_share = rescue_max_book_frequency[term] / total
+        limited_spread = (
+            rescue_document_frequency[term] <= MASK_RESCUE_MAX_DOCUMENT_FREQUENCY
+            and len(rescue_term_authors[term]) <= MASK_RESCUE_MAX_AUTHOR_FREQUENCY
+        )
+        collision_tolerant_concentration = (
+            dominant_share >= MASK_RESCUE_HIGH_CONCENTRATION_SHARE
+            and rescue_max_book_frequency[term]
+            >= MASK_RESCUE_HIGH_CONCENTRATION_MIN_BOOK_COUNT
+        )
+        if (
+            dominant_share >= MASK_RESCUE_MIN_DOMINANT_BOOK_SHARE
+            and (limited_spread or collision_tolerant_concentration)
+        ):
+            concentration_candidates.append(term)
+
+    fit_records_by_key = {record_key(record): record for record in fit_records}
+    dominant_book_char_counts: dict[str, Counter[str]] = {}
+    component_conditional_rejections: list[str] = []
+    rescue_candidates: list[str] = []
+    for term in concentration_candidates:
+        if len(term) != 2:
+            rescue_candidates.append(term)
+            continue
+        dominant_key = rescue_dominant_book[term]
+        if dominant_key not in dominant_book_char_counts:
+            dominant_record = fit_records_by_key[dominant_key]
+            dominant_text = read_text(Path(str(dominant_record["clean_txt_path"])))
+            dominant_book_char_counts[dominant_key] = Counter(
+                CJK_RE.findall(dominant_text)
+            )
+        char_counts = dominant_book_char_counts[dominant_key]
+        dominant_count = rescue_max_book_frequency[term]
+        component_conditional_share = max(
+            dominant_count / char_counts[char]
+            for char in term
+            if char_counts[char]
+        )
+        if (
+            component_conditional_share
+            >= MASK_RESCUE_MIN_COMPONENT_CONDITIONAL_SHARE
+        ):
+            rescue_candidates.append(term)
+        else:
+            component_conditional_rejections.append(term)
+    concentration_rescue_terms = sorted(
+        rescue_candidates,
+        key=lambda term: (
+            -(rescue_total_frequency[term] * len(term)),
+            -len(term),
+            term,
+        ),
+    )[:MAX_GLOBAL_CONCENTRATION_RESCUE_TERMS]
+    raw_global_entity_terms = set(global_entity_terms) | set(
+        concentration_rescue_terms
+    )
+    global_count_terms = set(raw_global_entity_terms)
+    for term in raw_global_entity_terms:
+        global_count_terms.update(
+            term[index:index + size]
+            for size in range(MASK_NGRAM_MIN_N, len(term))
+            for index in range(0, len(term) - size + 1)
+        )
+    global_term_counts: Counter[str] = Counter()
+    for record in fit_records:
+        text_path = Path(str(record["clean_txt_path"]))
+        if text_path.exists():
+            global_term_counts.update(
+                count_selected_terms(read_text(text_path), global_count_terms)
+            )
+    global_entity_terms, global_canonicalization = canonicalize_nested_mask_terms(
+        raw_global_entity_terms,
+        global_term_counts,
+    )
+    global_entity_term_set = set(global_entity_terms)
+    concentration_rescue_terms = [
+        term for term in concentration_rescue_terms if term in global_entity_term_set
+    ]
 
     selected: list[dict[str, Any]] = []
     for record in records:
@@ -519,7 +745,7 @@ def select_mask_terms(
             ),
         })
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "masking_policy": MASKING_POLICY_VERSION,
         "provenance": {
             "fit_split": "train",
@@ -527,6 +753,14 @@ def select_mask_terms(
             "fit_book_ids": fit_book_ids,
             "fit_book_ids_sha256": book_id_sha256(fit_book_ids),
             "global_term_selection_uses_fit_labels": True,
+            "concentration_rescue_uses_fit_labels": True,
+            "concentration_rescue_uses_held_out_statistics": False,
+            "concentration_rescue_counts_all_fit_occurrences": True,
+            "nested_canonicalization_counts_all_fit_occurrences": True,
+            "nested_term_canonicalization": global_canonicalization,
+            "rescue_component_conditional_rejection_count": len(
+                component_conditional_rejections
+            ),
             "transform_uses_author_label": False,
             "held_out_corpus_statistics_used_for_global_terms": False,
             "local_term_selection": "same_book_text_and_title_without_author_label",
@@ -535,13 +769,38 @@ def select_mask_terms(
             "ngram_min_count": MASK_NGRAM_MIN_COUNT,
             "ngram_min_n": MASK_NGRAM_MIN_N,
             "ngram_max_n": MASK_NGRAM_MAX_N,
+            "rescue_max_n": MASK_RESCUE_MAX_N,
             "max_entity_terms_per_book": MAX_ENTITY_TERMS_PER_BOOK,
             "max_entity_v2_terms_per_book": MAX_ENTITY_V2_TERMS_PER_BOOK,
             "max_topic_terms_per_book": MAX_TOPIC_TERMS_PER_BOOK,
             "max_global_entity_v2_terms": MAX_GLOBAL_ENTITY_V2_TERMS,
+            "max_global_concentration_rescue_terms": (
+                MAX_GLOBAL_CONCENTRATION_RESCUE_TERMS
+            ),
+            "rescue_min_book_count": MASK_RESCUE_MIN_BOOK_COUNT,
+            "rescue_max_document_frequency": MASK_RESCUE_MAX_DOCUMENT_FREQUENCY,
+            "rescue_max_author_frequency": MASK_RESCUE_MAX_AUTHOR_FREQUENCY,
+            "rescue_min_dominant_book_share": (
+                MASK_RESCUE_MIN_DOMINANT_BOOK_SHARE
+            ),
+            "rescue_high_concentration_share": (
+                MASK_RESCUE_HIGH_CONCENTRATION_SHARE
+            ),
+            "rescue_high_concentration_min_book_count": (
+                MASK_RESCUE_HIGH_CONCENTRATION_MIN_BOOK_COUNT
+            ),
+            "rescue_min_component_conditional_share": (
+                MASK_RESCUE_MIN_COMPONENT_CONDITIONAL_SHARE
+            ),
+            "nested_extension_min_coverage": (
+                MASK_NESTED_EXTENSION_MIN_COVERAGE
+            ),
         },
         "global_terms": {
             "entity_terms_v2": global_entity_terms,
+            "concentration_rescue_terms": sorted(
+                concentration_rescue_terms, key=lambda item: (-len(item), item)
+            ),
         },
         "books": selected,
     }
@@ -1321,11 +1580,11 @@ def main() -> int:
     parser.add_argument("--target-author", default="非天夜翔")
     parser.add_argument(
         "--stage",
-        choices=["paths", "clean", "chunks", "all"],
+        choices=["paths", "clean", "mask", "chunks", "all"],
         default="clean",
         help=(
-            "Normalize manifest paths, run corpus cleanup, rebuild chunk views from "
-            "current cleaned artifacts, or run all stages."
+            "Normalize manifest paths, run corpus cleanup, fit the train-only mask "
+            "plan, rebuild chunk views from current artifacts, or run all stages."
         ),
     )
     parser.add_argument("--chunk-target-cjk", type=int, default=CHUNK_TARGET_CJK)
@@ -1364,21 +1623,60 @@ def main() -> int:
         )
         return 0
 
-    if args.stage == "chunks":
+    if args.stage in {"mask", "chunks"}:
         records = json.loads(
             (output_dir / "cleaned_manifest.json").read_text(encoding="utf-8")
         )
         splits = json.loads((output_dir / "splits.json").read_text(encoding="utf-8"))
-        mask_plan_path = dataset_root / "masked/mask_terms.json"
-        mask_plan = json.loads(mask_plan_path.read_text(encoding="utf-8"))
-        if mask_plan.get("masking_policy") != MASKING_POLICY_VERSION:
-            raise ValueError("Cannot rebuild chunks from a stale mask plan")
         if {
             record.get("cross_book_decontamination")
             for record in records
             if record.get("exists")
         } != {CROSS_BOOK_DECONTAMINATION_VERSION}:
-            raise ValueError("Cannot rebuild chunks from stale cleaned texts")
+            raise ValueError("Cannot rebuild masking artifacts from stale cleaned texts")
+        if args.stage == "mask":
+            split_names = split_lookup(splits)
+            if args.include_excluded_chunks:
+                mask_records = records
+            else:
+                mask_records = [
+                    record
+                    for record in records
+                    if split_names.get(
+                        (str(record["author"]), str(record["title"])),
+                        "excluded",
+                    )
+                    != "excluded"
+                ]
+            mask_plan = select_mask_terms(mask_records, splits)
+            mask_plan_path = dataset_root / "masked/mask_terms.json"
+            write_mask_plan(mask_plan_path, mask_plan)
+            print(
+                json.dumps(
+                    {
+                        "stage": "mask",
+                        "mask_plan": str(mask_plan_path),
+                        "masking_policy": mask_plan["masking_policy"],
+                        "fit_book_count": mask_plan["provenance"]["fit_book_count"],
+                        "global_term_count": len(
+                            mask_plan["global_terms"]["entity_terms_v2"]
+                        ),
+                        "rescue_term_count": len(
+                            mask_plan["global_terms"][
+                                "concentration_rescue_terms"
+                            ]
+                        ),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        mask_plan_path = dataset_root / "masked/mask_terms.json"
+        mask_plan = json.loads(mask_plan_path.read_text(encoding="utf-8"))
+        if mask_plan.get("masking_policy") != MASKING_POLICY_VERSION:
+            raise ValueError("Cannot rebuild chunks from a stale mask plan")
         chunk_summary = generate_chunk_views(
             records,
             splits,

@@ -35,7 +35,7 @@ CURRENT_MASKED_VIEW = "train_global_masked"
 CURRENT_FEATURE_METHOD = "mask_stripped_char_ngrams"
 CURRENT_SCORER_ID = (
     "unweighted_sgd_hinge_mask_stripped_char_ngrams_min_df_20."
-    "train_global_mask_v1"
+    "train_global_mask_v2"
 )
 CURRENT_CHAR_MIN_DF = 20
 CURRENT_MAX_CHAR_FEATURES = 80_000
