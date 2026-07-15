@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sample_id", "approved", "paragraphs", "issues"],
+  "properties": {
+    "sample_id": {"type": "string"},
+    "approved": {"type": "boolean"},
+    "paragraphs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "en"],
+        "properties": {
+          "id": {"type": "string"},
+          "en": {"type": "string"}
+        }
+      }
+    },
+    "issues": {"type": "array", "items": {"type": "string"}}
+  }
+}

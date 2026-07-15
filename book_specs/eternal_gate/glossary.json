@@ -12,15 +12,17 @@
     },
     "Tetsu": {
       "zh": "闪哲",
-      "note": "comment-confirmed; avoid 铁子 except joke contexts"
+      "note": "comment-confirmed; avoid 铁子 except joke contexts",
+      "aliases": [
+        "Tesut"
+      ]
     },
     "Oracle": {
       "zh": "司命",
-      "note": "user-provided canonical title"
-    },
-    "the Oracle": {
-      "zh": "司命",
-      "note": "user-provided canonical title"
+      "note": "user-provided canonical title",
+      "aliases": [
+        "the Oracle"
+      ]
     },
     "false god": {
       "zh": "伪神",
@@ -136,19 +138,32 @@
     },
     "God-Slayer": {
       "zh": "弑神者",
-      "note": "title/figure"
-    },
-    "The God-Slayer": {
-      "zh": "弑神者",
-      "note": "title/figure"
+      "note": "title/figure",
+      "aliases": [
+        "The God-Slayer"
+      ]
     },
     "The Fallen Priest": {
       "zh": "堕落祭司",
       "note": "provisional title"
     },
     "Fire-Bearing Warrior": {
-      "zh": "持火武士",
-      "note": "provisional title"
+      "zh": "持火人",
+      "note": "author reply in chapter 6 comments confirms 持火人 in the Choros priest/oracle context",
+      "confidence": "high",
+      "source_comment": "216721704"
+    },
+    "Choros fire-bearer": {
+      "zh": "绰罗斯传火者",
+      "note": "author reply in chapter 6 comments: 真正的绰罗斯传火者与持火人，应当疯狂相爱呢",
+      "confidence": "high",
+      "source_comment": "216721704"
+    },
+    "fire-bearer": {
+      "zh": "传火者",
+      "note": "derived from author-confirmed 绰罗斯传火者; use for the Choros religious role when not naming Choros directly",
+      "confidence": "high",
+      "source_comment": "216721704"
     },
     "Himmelfeld": {
       "zh": "希梅尔费尔德",
@@ -384,21 +399,9 @@
       "confidence": "medium",
       "source_chunk": "04_005"
     },
-    "Regent": {
-      "zh": "摄政",
-      "note": "本段多次用于称呼蒙汜的政治身份，需与后文官职体系保持一致。",
-      "confidence": "medium",
-      "source_chunk": "05_001"
-    },
     "crushing": {
       "zh": "碾刑",
       "note": "春泽城特有处刑方式，后文可能反复出现，应固定术语。",
-      "confidence": "high",
-      "source_chunk": "05_001"
-    },
-    "spring hunt": {
-      "zh": "春猎",
-      "note": "贵族与官员在暮春进行的狩猎活动，中文语境中用词自然且简洁。",
       "confidence": "high",
       "source_chunk": "05_001"
     },
@@ -430,7 +433,10 @@
       "zh": "春猎",
       "note": "本章活动名称，反复出现的王廷仪式与狩猎背景术语，宜固定译法。",
       "confidence": "high",
-      "source_chunk": "06_001"
+      "source_chunk": "06_001",
+      "aliases": [
+        "spring hunt"
+      ]
     },
     "scholars": {
       "zh": "学士",
@@ -629,12 +635,725 @@
       "note": "幻想植物名，直译保留意象与花名质感。",
       "confidence": "medium",
       "source_chunk": "05_003"
+    },
+    "glacial inferno": {
+      "zh": "冰冷的炼狱",
+      "note": "经文式惩罚地名/刑罚意象，后文可能复现。",
+      "confidence": "medium",
+      "source_chunk": "01_001"
+    },
+    "sea of fire": {
+      "zh": "火海",
+      "note": "宗教审判语境中的固定意象，可保持稳定。",
+      "confidence": "medium",
+      "source_chunk": "01_001"
+    },
+    "mortal world": {
+      "zh": "人间",
+      "note": "神祇与凡人对照时比“凡世”更自然，适合本段神话叙述。",
+      "confidence": "medium",
+      "source_chunk": "01_001"
+    },
+    "Translators": {
+      "zh": "译者",
+      "note": "章节前置署名信息中的固定职能词，可统一处理译者署名行。",
+      "confidence": "high",
+      "source_chunk": "02_001"
+    },
+    "New chapters are released every Tuesday and Friday at 10:00 AM EST!": {
+      "zh": "每周二、周五美东时间上午十点更新！",
+      "note": "发布说明为站点公告式固定句，适合在同类前置信息中保持一致表达。",
+      "confidence": "medium",
+      "source_chunk": "02_001"
+    },
+    "martial drill": {
+      "zh": "操练",
+      "note": "反复用于王宫卫队训练场景，宜固定为简洁军事用语。",
+      "confidence": "high",
+      "source_chunk": "03_001"
+    },
+    "palace guard": {
+      "zh": "王宫卫队",
+      "note": "与枫宫广场操练相关，属于机构性称谓。",
+      "confidence": "high",
+      "source_chunk": "03_001"
+    },
+    "stables": {
+      "zh": "马厩",
+      "note": "后文初见场景地点，常用稳定译名。",
+      "confidence": "medium",
+      "source_chunk": "03_001"
+    },
+    "warhorse": {
+      "zh": "战马",
+      "note": "后文奴隶刷拭马鬃的对象，适合作为常规名词收录。",
+      "confidence": "medium",
+      "source_chunk": "03_001"
+    },
+    "royal consorts": {
+      "zh": "王室眷属",
+      "note": "用于春猎营地随行人员，比直译王妃更能覆盖王室女性与眷属范围。",
+      "confidence": "medium",
+      "source_chunk": "03_002"
+    },
+    "the hand of fate": {
+      "zh": "命运之手",
+      "note": "本段为命运牵引初遇的叙述性固定意象，可作为后续统一译名。",
+      "confidence": "medium",
+      "source_chunk": "03_002"
+    },
+    "imperial garden": {
+      "zh": "御花园",
+      "note": "本段作为枫宫内王室活动空间反复出现，译作御花园比直译更自然。",
+      "confidence": "medium",
+      "source_chunk": "03_003"
+    },
+    "self-defence": {
+      "zh": "防身术",
+      "note": "对应奴隶可能学习的基础护身技能，中文表达简洁自然。",
+      "confidence": "high",
+      "source_chunk": "03_003"
+    },
+    "foot soldiers": {
+      "zh": "步卒",
+      "note": "用于战时被征入军中的低阶步兵，贴合中古 fantasy 语境。",
+      "confidence": "medium",
+      "source_chunk": "03_003"
+    },
+    "royal pardon": {
+      "zh": "王室赦免",
+      "note": "涉及奴隶因军功获释的制度性表达，可作为后续统一术语。",
+      "confidence": "medium",
+      "source_chunk": "03_003"
+    },
+    "felt hat": {
+      "zh": "毡帽",
+      "note": "本段反复用于角色外貌与寒冷环境，作为服饰名词可加入术语表以保持一致。",
+      "confidence": "medium",
+      "source_chunk": "03_004"
+    },
+    "moat": {
+      "zh": "护城河",
+      "note": "枫宫外固定空间设施，后续可能多次出现，需要统一译名。",
+      "confidence": "high",
+      "source_chunk": "03_004"
+    },
+    "captain of the palace guard": {
+      "zh": "王宫卫队长",
+      "note": "与既有“王宫卫队营房”相关，是宫廷职衔，建议统一。",
+      "confidence": "medium",
+      "source_chunk": "03_004"
+    },
+    "apothecary": {
+      "zh": "药房",
+      "note": "本段指学院内配药取药之处，译为药房比药剂师或药铺更贴合场景。",
+      "confidence": "high",
+      "source_chunk": "03_005"
+    },
+    "secret passage": {
+      "zh": "密道",
+      "note": "多次指枫宫地下隐秘通路，后文可统一使用密道。",
+      "confidence": "high",
+      "source_chunk": "03_005"
+    },
+    "secret repository": {
+      "zh": "密库",
+      "note": "位于藏书楼内、藏有暗门的隐秘储藏空间，密库简洁且符合宫廷建筑语境。",
+      "confidence": "medium",
+      "source_chunk": "03_005"
+    },
+    "abandoned well": {
+      "zh": "废井",
+      "note": "指城西不再使用的井口，是地下通路出口，可作为稳定地名/场景名。",
+      "confidence": "high",
+      "source_chunk": "03_005"
+    },
+    "underground river": {
+      "zh": "地下河",
+      "note": "洞窟深处连接的自然水道，中文常用译法明确。",
+      "confidence": "high",
+      "source_chunk": "03_005"
+    },
+    "forbidden grounds": {
+      "zh": "禁地",
+      "note": "神明居所前的限制区域，擅入会受神力影响，禁地符合宗教禁区语境。",
+      "confidence": "high",
+      "source_chunk": "03_005"
+    },
+    "fissure": {
+      "zh": "裂口",
+      "note": "指冥想室墙上的缝隙和出入口，裂口比裂隙更口语自然，便于后续动作描写。",
+      "confidence": "medium",
+      "source_chunk": "03_005"
+    },
+    "clocktower": {
+      "zh": "钟楼",
+      "note": "本段出现王都中心地标，与既有 bell tower 对应，可统一为钟楼。",
+      "confidence": "medium",
+      "source_chunk": "03_006"
+    },
+    "mass shelter": {
+      "zh": "避难所",
+      "note": "地下城用途之一，后续若反复出现可固定为避难所。",
+      "confidence": "medium",
+      "source_chunk": "03_006"
+    },
+    "defenses": {
+      "zh": "防御工事",
+      "note": "地底金属敲击声对应修筑战备设施，译为防御工事较稳定。",
+      "confidence": "medium",
+      "source_chunk": "03_006"
+    },
+    "His Majesty": {
+      "zh": "陛下",
+      "note": "宫廷对国王的固定称谓，本段总管转述送酒时使用。",
+      "confidence": "high",
+      "source_chunk": "04_001"
+    },
+    "flatbread": {
+      "zh": "薄饼",
+      "note": "奴隶日常食物反复出现，可固定为朴素具体的食物名。",
+      "confidence": "medium",
+      "source_chunk": "04_001"
+    },
+    "northern vintage": {
+      "zh": "北地佳酿",
+      "note": "用于宫廷送酒语境，比直译北方年份酒更自然。",
+      "confidence": "medium",
+      "source_chunk": "04_001"
+    },
+    "upper district": {
+      "zh": "上城区",
+      "note": "Springvale City location term used for Kando's residence; likely recurring civic geography.",
+      "confidence": "medium",
+      "source_chunk": "04_002"
+    },
+    "wheelchair": {
+      "zh": "轮椅",
+      "note": "Recurring object tied to Chamon's movement and scene blocking.",
+      "confidence": "high",
+      "source_chunk": "04_002"
+    },
+    "solar terms": {
+      "zh": "节气",
+      "note": "Calendar and astrology terminology in Chamon's Academy duties.",
+      "confidence": "medium",
+      "source_chunk": "04_002"
+    },
+    "shelter": {
+      "zh": "避难所",
+      "note": "本段多次指应对大暴雪的地下安置空间，后文也有各地修建 shelters；可作为固定世界观用语。",
+      "confidence": "high",
+      "source_chunk": "04_003"
+    },
+    "fortifications": {
+      "zh": "防御工事",
+      "note": "指军队在地下修筑的防御设施，适合作为军事设施译名。",
+      "confidence": "medium",
+      "source_chunk": "04_003"
+    },
+    "royal capital": {
+      "zh": "王都",
+      "note": "与 Springvale City 的政治地位相关，当前语境指首都人口规模。",
+      "confidence": "medium",
+      "source_chunk": "04_003"
+    },
+    "shelters": {
+      "zh": "避难所",
+      "note": "本段多次指大暴雪来临时平民被允许进入的地下或防灾设施，建议固定为避难所。",
+      "confidence": "high",
+      "source_chunk": "04_004"
+    },
+    "God of Time, Aeonflare of the east": {
+      "zh": "东方的时间之神刹那",
+      "note": "评论确认望潮神明为时间之神，结合既有术语刹那，适合用作完整称谓。",
+      "confidence": "high",
+      "source_chunk": "04_004"
+    },
+    "final spring of this thousand-year cycle": {
+      "zh": "这千年轮回里最后一个春天",
+      "note": "对应大暴雪与永恒之门开启前的末日感，保留千年周期与春天意象。",
+      "confidence": "medium",
+      "source_chunk": "04_004"
+    },
+    "cycle of reincarnation": {
+      "zh": "灵魂轮回",
+      "note": "用于解释至高造物主掌控死后魂魄去向的世界观规则，应作为稳定术语保留。",
+      "confidence": "high",
+      "source_chunk": "04_005"
+    },
+    "Creator": {
+      "zh": "造物主",
+      "note": "在上下文中是至高造物主的简称，与既有术语保持一致。",
+      "confidence": "high",
+      "source_chunk": "04_005"
+    },
+    "day of judgement": {
+      "zh": "审判之日",
+      "note": "与大暴雪预言及末日审判语境相关，可与 glossary 中 Judgement=审判 形成固定表达。",
+      "confidence": "medium",
+      "source_chunk": "04_005"
+    },
+    "citizen": {
+      "zh": "国民",
+      "note": "与奴隶并列，指拥有普通身份的人；比“市民”更适合王国制度语境。",
+      "confidence": "medium",
+      "source_chunk": "04_005"
+    },
+    "sinner": {
+      "zh": "罪人",
+      "note": "用于格兰传说中无法回归永恒之门的灵魂状态，与既有“罪王”相关但语义层级不同。",
+      "confidence": "medium",
+      "source_chunk": "04_006"
+    },
+    "underground altar": {
+      "zh": "地下神坛",
+      "note": "本段指魔喉位于地下的神坛场景，可与既有“divine altar=神坛”保持一致。",
+      "confidence": "medium",
+      "source_chunk": "04_006"
+    },
+    "hounds / hunting hounds": {
+      "zh": "猎犬",
+      "note": "本段多次出现追捕用犬，属于春猎与巡逻追捕场景的稳定名词，可加入术语表保持一致。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "falcon": {
+      "zh": "鹰",
+      "note": "与侦察鹰场景相邻，单独出现时可用简洁的“鹰”以避免误扩写。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "rocky shoal": {
+      "zh": "石滩",
+      "note": "下游脱险地点反复承接河流场景，译为“石滩”自然且便于后文定位。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "stag": {
+      "zh": "雄鹿",
+      "note": "本段反复出现猎获的巨鹿，后续祭献与分食都围绕此物展开，建议固定译名以保持连续性。",
+      "confidence": "high",
+      "source_chunk": "06_001"
+    },
+    "consorts": {
+      "zh": "妃嫔",
+      "note": "指王宫中与王子并列享用猎物上等肉的宫廷成员，译作妃嫔较贴合王宫语境。",
+      "confidence": "medium",
+      "source_chunk": "06_001"
+    },
+    "offal": {
+      "zh": "内脏",
+      "note": "与骨头一起分配给军队，中文叙事中用内脏比下水更中性。",
+      "confidence": "medium",
+      "source_chunk": "06_001"
+    },
+    "practice field": {
+      "zh": "校场",
+      "note": "Repeated location near martial drills where Tetsu appears; concise fantasy/palace register fits the scene.",
+      "confidence": "high",
+      "source_chunk": "06_002"
+    },
+    "martial drills": {
+      "zh": "操练",
+      "note": "Describes warriors training by the fence; natural concise verb-noun choice in Chinese prose.",
+      "confidence": "high",
+      "source_chunk": "06_002"
+    },
+    "slave quarters": {
+      "zh": "奴隶屋舍",
+      "note": "Specific living space for Tetsu; matches existing slave terminology while avoiding a modern dormitory feel.",
+      "confidence": "medium",
+      "source_chunk": "06_002"
+    },
+    "library’s secret passage": {
+      "zh": "藏书室的密道",
+      "note": "Potential recurring route from the library; useful as a fixed worldbuilding term.",
+      "confidence": "medium",
+      "source_chunk": "06_002"
+    },
+    "cock": {
+      "zh": "阳根",
+      "note": "本段为直接成人性描写，采用风格指南中较稳定的显性用语。",
+      "confidence": "high",
+      "source_chunk": "06_004"
+    },
+    "linen breeches": {
+      "zh": "麻布裤",
+      "note": "本段多次出现奴隶朴素麻布衣物，译为具体衣物名可保持身体接触与阶级质感。",
+      "confidence": "medium",
+      "source_chunk": "06_005"
+    },
+    "waning moon": {
+      "zh": "残月",
+      "note": "后续场景将以西天月光照面开镜，固定为简洁自然的环境词。",
+      "confidence": "medium",
+      "source_chunk": "06_005"
+    },
+    "well rope": {
+      "zh": "井绳",
+      "note": "Concrete object needed for the dry-well escape route and body blocking.",
+      "confidence": "high",
+      "source_chunk": "06_006"
+    },
+    "shimmering veil of starlight": {
+      "zh": "星光光幕",
+      "note": "Useful magic-effect rendering that preserves the veil/barrier image without ornate expansion.",
+      "confidence": "medium",
+      "source_chunk": "06_006"
+    },
+    "Knights of the Divine Court": {
+      "zh": "神庭骑士",
+      "note": "与既有术语“神庭骑士团”相关，当前语境指骑士团成员而非组织本身。",
+      "confidence": "high",
+      "source_chunk": "07_001"
+    },
+    "regent’s household": {
+      "zh": "摄政王一系",
+      "note": "多处指摄政王所属政治家族或权力派系，用“一系”比“家庭”更符合政治叙述。",
+      "confidence": "medium",
+      "source_chunk": "07_001"
+    },
+    "legislative power": {
+      "zh": "立法权",
+      "note": "当前政治设定中指学院被夺走的制度性权力，可固定为术语。",
+      "confidence": "medium",
+      "source_chunk": "07_001"
+    },
+    "House Laurent": {
+      "zh": "隆让家族",
+      "note": "与已定术语“蒙汜家族”对应，指隆让所属家族势力。",
+      "confidence": "high",
+      "source_chunk": "07_002"
+    },
+    "merchant caravan": {
+      "zh": "商队",
+      "note": "闪哲身世叙述中的行商组织称谓，后文可统一。",
+      "confidence": "high",
+      "source_chunk": "07_003"
+    },
+    "monsoon winds": {
+      "zh": "季风",
+      "note": "解释商队迁徙与航路的自然条件。",
+      "confidence": "medium",
+      "source_chunk": "07_003"
+    },
+    "pirates": {
+      "zh": "海盗",
+      "note": "狭海航路遭遇的掠夺者，适合作为固定普通名词。",
+      "confidence": "high",
+      "source_chunk": "07_003"
+    },
+    "doorman": {
+      "zh": "门房",
+      "note": "闪哲曾在小贵族家中的职役。",
+      "confidence": "medium",
+      "source_chunk": "07_003"
+    },
+    "slaver": {
+      "zh": "奴隶贩子",
+      "note": "闪哲被转卖经历中的身份称谓。",
+      "confidence": "high",
+      "source_chunk": "07_003"
+    },
+    "sex slave": {
+      "zh": "娈奴",
+      "note": "Fits the slave-market context and restrained author-style diction better than a blunt modern term while preserving the sexual-servitude meaning.",
+      "confidence": "medium",
+      "source_chunk": "07_003"
+    },
+    "money": {
+      "zh": "钱",
+      "note": "本段反复以银币和花用概念说明锡安缺乏日常货币经验，后续可能作为社会经验词反复出现。",
+      "confidence": "medium",
+      "source_chunk": "07_004"
+    },
+    "hereditary": {
+      "zh": "世袭",
+      "note": "评论中特别指出该词是闪哲身份疑点，且本段直接触发锡安对闪哲识字和出身的怀疑。",
+      "confidence": "high",
+      "source_chunk": "07_004"
+    },
+    "torch": {
+      "zh": "火把",
+      "note": "地下河洞窟和墙缝前的手持照明物。",
+      "confidence": "high",
+      "source_chunk": "07_005"
+    },
+    "river channel": {
+      "zh": "河道",
+      "note": "两人沿地下河旧水道行走，河道比水渠更自然。",
+      "confidence": "medium",
+      "source_chunk": "07_005"
+    },
+    "grand scholars’ tent": {
+      "zh": "学士大帐",
+      "note": "后文出现的营地中学士所在大型帐篷，现有glossary仅有scholars=学士，补充固定称呼可保持一致。",
+      "confidence": "medium",
+      "source_chunk": "03_002"
+    },
+    "grand scholars": {
+      "zh": "大学士",
+      "note": "用于区分普通学士，符合上下文中营帐身份层级。",
+      "confidence": "medium",
+      "source_chunk": "03_003"
+    },
+    "dried ginger": {
+      "zh": "干姜",
+      "note": "本段药材名，后文可能继续用于驱寒药方。",
+      "confidence": "high",
+      "source_chunk": "03_004"
+    },
+    "ephedra": {
+      "zh": "麻黄",
+      "note": "本段药材名，与干姜、苏罗根并列，适合固定译名。",
+      "confidence": "high",
+      "source_chunk": "03_004"
+    },
+    "spring thaw": {
+      "zh": "开春化冻",
+      "note": "描写冬末春初尸体暴露后的环境变化，可作为固定自然现象译法。",
+      "confidence": "medium",
+      "source_chunk": "03_004"
+    },
+    "cavern": {
+      "zh": "洞窟",
+      "note": "地底空间描写中的核心地点，可与地下河、裂口等术语保持一致。",
+      "confidence": "medium",
+      "source_chunk": "03_005"
+    },
+    "hidden tunnels": {
+      "zh": "暗道",
+      "note": "用于枫宫地下迷宫般通路，和已有“密道”相近但更适合复数通道语境。",
+      "confidence": "medium",
+      "source_chunk": "03_005"
+    },
+    "dragon-kind": {
+      "zh": "龙族",
+      "note": "作者在第6章评论补充：一千年前龙族几乎被全灭，但仍有最后的龙被囚禁于刹那的封印中；后续需固定译名。",
+      "confidence": "medium",
+      "source_chunk": "04_004"
+    },
+    "Shana's seal": {
+      "zh": "刹那的封印",
+      "note": "author reply in chapter 6 comments confirms the remaining dragon is imprisoned in 刹那的封印",
+      "confidence": "high",
+      "source_comment": "216899322"
+    },
+    "last dragon": {
+      "zh": "最后的龙",
+      "note": "author reply in chapter 6 comments confirms the last dragon remains imprisoned under the sea",
+      "confidence": "high",
+      "source_comment": "216899322"
+    },
+    "dragon blood": {
+      "zh": "龙血",
+      "note": "author reply in chapter 6 comments describes the thousand-year-old war as 龙血染红了大海",
+      "confidence": "high",
+      "source_comment": "216899322"
+    },
+    "paradise": {
+      "zh": "乐园",
+      "note": "用于永恒之门另一侧的死后世界，带有宗教世界观含义。",
+      "confidence": "medium",
+      "source_chunk": "04_004"
+    },
+    "the other side": {
+      "zh": "彼岸",
+      "note": "指穿过永恒之门后的另一界，可作为宗教/轮回语境固定译法。",
+      "confidence": "medium",
+      "source_chunk": "04_004"
+    },
+    "wild wolf": {
+      "zh": "野狼",
+      "note": "用于锡安与闪哲相逢时的意象，可作为固定动物意象保留。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "white stag": {
+      "zh": "白色雄鹿",
+      "note": "与既有 stag=雄鹿 一致，并保留 white 的视觉特征。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "mate": {
+      "zh": "伴侣",
+      "note": "此处指被春天唤醒后渴求的配偶/伴侣，伴侣更自然且不突兀。",
+      "confidence": "medium",
+      "source_chunk": "05_002"
+    },
+    "basil": {
+      "zh": "罗勒",
+      "note": "本段用于炖鹿心的香草名，后文若继续出现可统一。",
+      "confidence": "high",
+      "source_chunk": "06_002"
+    },
+    "monarchy": {
+      "zh": "王权",
+      "note": "用于概括饶国内王室或君主一方的政治力量，与学院、军方并列。",
+      "confidence": "medium",
+      "source_chunk": "07_001"
+    },
+    "military": {
+      "zh": "军方",
+      "note": "用于政治格局中与学院、摄政王一系并列的武装体系，较“军队”更符合制度性语境。",
+      "confidence": "high",
+      "source_chunk": "07_001"
+    },
+    "Loving you is worth any fate, even being torn apart.": {
+      "zh": "和你相爱，粉身碎骨也值得。",
+      "note": "user-provided author reply for PanaW's chapter 8 comment; use as the fixed translation of Tetsu's line in chapter 7.",
+      "confidence": "high",
+      "source_comment": "217391511"
+    },
+    "If ever should I taste of love’s sweet savor, All things I shall forsake and seek no more the Eternal Gate.": {
+      "zh": "若有朝品尝爱情的滋味，我将舍弃万物，不再奔往永恒之门。",
+      "note": "user-provided author-confirmed translation for Gran's poem; preserve this wording wherever the two-line quotation appears.",
+      "confidence": "high"
+    },
+    "flint": {
+      "zh": "火石",
+      "note": "第58段出现的取火用具，后续可能反复用于野外或地下场景。",
+      "confidence": "medium",
+      "source_chunk": "07_002"
+    },
+    "driftwood": {
+      "zh": "漂木",
+      "note": "第57段河岸边拾取并堆放用来生火的木料。",
+      "confidence": "medium",
+      "source_chunk": "07_002"
+    },
+    "silver coin": {
+      "zh": "银币",
+      "note": "本段多次出现货币单位，建议固定译法以配合钱币体系。",
+      "confidence": "high",
+      "source_chunk": "07_004"
+    },
+    "currency": {
+      "zh": "钱币",
+      "note": "用于概括金银作为流通媒介，区别于抽象的“钱”。",
+      "confidence": "medium",
+      "source_chunk": "07_004"
+    },
+    "sacred frock": {
+      "zh": "神圣长袍",
+      "note": "Repeated clothing/worldbuilding term for Zion's religious garment; not currently in glossary.",
+      "confidence": "medium",
+      "source_chunk": "08_001"
+    },
+    "solitary mountains": {
+      "zh": "孤山",
+      "note": "Geographic or religious reference tied to northern prophets; may recur later.",
+      "confidence": "medium",
+      "source_chunk": "08_001"
+    },
+    "blood mist": {
+      "zh": "血雾",
+      "note": "Specific supernatural or ritual image associated with madness; worth standardizing if repeated.",
+      "confidence": "medium",
+      "source_chunk": "08_001"
+    },
+    "maple syrup": {
+      "zh": "枫糖浆",
+      "note": "Concrete item used in this scene and may recur in continuity.",
+      "confidence": "high",
+      "source_chunk": "08_001"
+    },
+    "execution grounds": {
+      "zh": "刑场",
+      "note": "本段多次涉及处刑场景，作为固定场所名词可统一。",
+      "confidence": "high",
+      "source_chunk": "08_002"
+    },
+    "artillery schematics": {
+      "zh": "火炮图纸",
+      "note": "学院学士讨论的技术图纸，译名便于后续保持一致。",
+      "confidence": "medium",
+      "source_chunk": "08_002"
+    },
+    "great final cleansing": {
+      "zh": "最终大清洗",
+      "note": "指末世式清除生命的事件，可作为世界观术语候选。",
+      "confidence": "medium",
+      "source_chunk": "08_002"
+    },
+    "apprentice scholar": {
+      "zh": "见习学士",
+      "note": "本段用于隆让潜入学院时的伪装身份，可作为学院等级或身份称谓固定下来。",
+      "confidence": "medium",
+      "source_chunk": "08_003"
+    },
+    "private workshop": {
+      "zh": "私人工坊",
+      "note": "坎多专属的器械和图纸房间，后续若反复出现宜统一译名。",
+      "confidence": "medium",
+      "source_chunk": "08_003"
+    },
+    "mouthpiece of God": {
+      "zh": "神的代言人",
+      "note": "指司命作为神明传话者的身份功能，不是正式头衔但有世界观意义。",
+      "confidence": "medium",
+      "source_chunk": "08_003"
+    },
+    "pardon quotas": {
+      "zh": "赦免名额",
+      "note": "关键制度名词，解释军方每年可授予奴隶自由民身份的名额。",
+      "confidence": "high",
+      "source_chunk": "08_004"
+    },
+    "Einiber": {
+      "zh": "埃尼伯",
+      "note": "该民族名在本段多次出现，现有术语表未收录，需固定音译以保持后续一致。",
+      "confidence": "medium",
+      "source_chunk": "08_006"
+    },
+    "Skysunder": {
+      "zh": "天裂",
+      "note": "user-provided confirmed deity name; replaces earlier provisional 裂天.",
+      "confidence": "high",
+      "source_chunk": "08_007"
+    },
+    "Battle of Oil River": {
+      "zh": "油河之战",
+      "note": "战役名，按地名直译并与既有“长河之战”等格式一致。",
+      "confidence": "medium",
+      "source_chunk": "08_007"
+    },
+    "Bjorn Yngvarr": {
+      "zh": "比约恩·英瓦尔",
+      "note": "艾尼伯大领主人名，按常见北欧名音译处理。",
+      "confidence": "medium",
+      "source_chunk": "08_007"
+    },
+    "wineskin": {
+      "zh": "酒囊",
+      "note": "本段中作为刑虐装置反复出现，且后文有人形酒囊的比喻，需要固定译法。",
+      "confidence": "medium",
+      "source_chunk": "08_008"
+    },
+    "bedchamber": {
+      "zh": "寝殿",
+      "note": "摄政王居住场景中的固定空间称谓，可与宫廷语境保持一致。",
+      "confidence": "medium",
+      "source_chunk": "08_008"
+    },
+    "longsword": {
+      "zh": "长剑",
+      "note": "武器名称在动作描写中出现，译为常规兵器名便于后续统一。",
+      "confidence": "high",
+      "source_chunk": "08_008"
     }
   },
-  "style_notes": [
-    "Use concise literary Chinese with Feitian-like rhythm: concrete verbs, clean clause flow, sparse modern slang.",
-    "For scenery and appearance, prefer vivid but controlled diction: 春风、月色、霜雪、眉眼、眸光、身形 etc. Do not over-floridly expand.",
-    "Keep English names/terms consistent with glossary, and preserve ambiguity when comments identify possible foreshadowing."
+  "glossary_conflicts": [
+    {
+      "normalized_key": "regent",
+      "canonical_source": "regent",
+      "canonical_zh": "摄政王",
+      "conflicting_source": "Regent",
+      "conflicting_zh": "摄政",
+      "note": "Unresolved existing glossary collision; keep canonical regent => 摄政王 unless translation evidence supports a distinct term.",
+      "source_chunk": "05_001"
+    }
   ],
   "translation_run": {
     "method": "crawl snapshot + reusable chunked Codex translation with local glossary, Patreon comments, and local vector references",

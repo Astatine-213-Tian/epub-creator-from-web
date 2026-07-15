@@ -15,10 +15,12 @@ This repository contains Python scripts for scraping web novels and building EPU
 - `src/providers/<provider>/search.py` contains provider search and lightweight preview helpers.
 - `src/search/orchestrator.py` contains shared search models, ranking, preview orchestration, and interactive selection.
 - `src/search/engines.py` contains reusable external site-search helpers for providers without reliable native search.
-- `src/translation/` contains the reusable crawl-snapshot-to-bilingual-EPUB translation pipeline: comment ranking, glossary loading, vector indexing/search, prompt generation, Codex CLI execution, validation, and bilingual EPUB building.
+- `src/translation/` contains the reusable crawl-snapshot-to-bilingual-EPUB translation pipeline: comment ranking, glossary loading, prompt generation, content-plan author-style transfer, Codex CLI execution, semantic validation, and bilingual EPUB building.
 - `book_specs/` stores maintained per-book specs. Each book should have a slug folder, for example `book_specs/eternal_gate/config.json` and `book_specs/eternal_gate/glossary.json`.
-- `generated/` stores reproducible pipeline artifacts such as crawl snapshots, translation runs, and vector indexes.
+- `generated/` stores production artifacts such as crawl snapshots, translation runs, and minimized author-style bundles.
 - `books/` stores final reader-facing book outputs, currently EPUB files grouped by author. Do not treat generated books as source code.
+- `tests/` contains focused production-pipeline contract tests.
+- `research/` is an independent nested `uv` project for local corpora, author-style benchmarks, experiment scripts, reports, and generated research evidence. Production code must not import it.
 
 ## Build, Test, and Development Commands
 
@@ -55,23 +57,34 @@ uv run book-crawl "https://www.patreon.com/collection/2218551?view=condensed" \
   --author "顾雪柔" \
   --output generated/crawls/eternal_gate
 
-uv run --with sentence-transformers --with torch --with numpy \
-  book-translate index --config book_specs/eternal_gate/config.json
-
-uv run --with sentence-transformers --with torch --with numpy \
-  book-translate prepare generated/crawls/eternal_gate \
+uv run book-translate prepare generated/crawls/eternal_gate \
   --config book_specs/eternal_gate/config.json
 
 uv run book-translate run generated/translation_runs/eternal_gate \
-  --config book_specs/eternal_gate/config.json \
-  --retry-empty
+  --config book_specs/eternal_gate/config.json
 uv run book-translate validate generated/translation_runs/eternal_gate \
+  --config book_specs/eternal_gate/config.json
+uv run book-translate transfer-style generated/translation_runs/eternal_gate \
   --config book_specs/eternal_gate/config.json \
-  --allow-missing
+  --run-codex
+uv run book-translate validate \
+  generated/translation_runs/eternal_gate/author_style_transfer \
+  --config book_specs/eternal_gate/config.json
 uv run book-translate build-epub generated/crawls/eternal_gate \
-  --run-dir generated/translation_runs/eternal_gate \
+  --run-dir generated/translation_runs/eternal_gate/author_style_transfer \
   --config book_specs/eternal_gate/config.json \
   -o books/顾雪柔/永恒之门.bilingual.epub
+```
+
+Dataset TXT output and manifests live under `research/datasets/`. The production
+`book-ingest` and `book-dataset` commands write there by default so crawling and
+EPUB generation remain centralized while research owns the resulting corpus.
+Run author-style experiments from `research/` with its own environment:
+
+```bash
+cd research
+uv sync
+uv run author-style-research verify
 ```
 
 ## Coding Style & Naming Conventions
@@ -95,11 +108,17 @@ Prefer native site search. If unavailable, use `src.search.engines.site_search()
 
 ## Testing Guidelines
 
-There is no formal test suite yet. For parser changes, add lightweight tests only if introducing a test framework is explicitly requested. Validate manually with a small known book or saved HTML fixture when possible. For search changes, verify `uv run book-to-epub --search "known title" --parser <provider>` shows sensible previews without immediately downloading the whole book. For EPUB output, open the generated file and confirm metadata, table of contents, chapter order, and cover handling.
+Focused production contract tests live under `tests/` and run with
+`uv run python -m unittest discover -s tests -p 'test_*.py'`. For parser
+changes, also validate manually with a small known book or saved HTML fixture
+when possible. For search changes, verify `uv run book-to-epub --search "known
+title" --parser <provider>` shows sensible previews without immediately
+downloading the whole book. For EPUB output, open the generated file and confirm
+metadata, table of contents, chapter order, and cover handling.
 
-For translation-pipeline changes, at minimum run `uv run python -m py_compile ...`, `uv run book-crawl --help`, `uv run book-translate --help`, and a small fixture through `book-translate prepare --no-vector`, `validate --config`, and `build-epub`. When touching vector retrieval, also smoke-test `book-translate prepare` with a known vector metadata file using `uv run --with sentence-transformers --with torch --with numpy`.
+For translation-pipeline changes, at minimum run `uv run python -m py_compile ...`, `uv run book-crawl --help`, `uv run book-translate --help`, the focused production unit tests, and a small fixture through `book-translate prepare`, `validate --config`, `transfer-style`, and `build-epub`.
 
-For generated bilingual EPUBs, the main Codex run should retry failed translations with narrower context: use `book-translate run --retry-empty` for separate runs, or `book-translate all --run-codex` which retries empty/refusal translations by default. Empty `zh` values are allowed only after retry when a paragraph still cannot be translated and must produce no placeholder/refusal text. In that case validate the run with `book-translate validate --allow-missing --config ...`, then scan the final EPUB for placeholder strings and confirm only the intended paragraphs are English-only.
+For generated bilingual EPUBs, the main Codex run retries failed chunks with narrower context and paragraph fallbacks. Empty `zh` values are allowed only after retry when a paragraph still cannot be translated and must produce no placeholder/refusal text. In that case validate the run with `book-translate validate --allow-missing --config ...`, then scan the final EPUB for placeholder strings and confirm only the intended paragraphs are English-only.
 
 ## Commit & Pull Request Guidelines
 
@@ -107,4 +126,4 @@ Use Conventional Commits for commit messages, such as `fix(xfxs): repair preview
 
 ## Security & Configuration Tips
 
-Do not commit credentials, browser profiles, temporary downloads, generated crawl snapshots, generated vector indexes, generated translation runs, generated EPUBs, or copyrighted source text. Keep final book outputs in `books/`, generated crawl/translation/index artifacts under `generated/`, and maintained per-book specs under `book_specs/`. Avoid hard-coded absolute paths.
+Do not commit credentials, browser profiles, temporary downloads, generated crawl snapshots, generated translation runs, generated EPUBs, or copyrighted source text. Keep final book outputs in `books/`, production crawl/translation artifacts under `generated/`, research corpora and experiment outputs under `research/datasets/` and `research/generated/`, and maintained per-book specs under `book_specs/`. Avoid hard-coded absolute paths.

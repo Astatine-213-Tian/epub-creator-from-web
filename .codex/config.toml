@@ -1,0 +1,3 @@
+# Project-local Codex defaults. Applies only when this repository is trusted.
+default_permissions = ":danger-full-access"
+approval_policy = "never"

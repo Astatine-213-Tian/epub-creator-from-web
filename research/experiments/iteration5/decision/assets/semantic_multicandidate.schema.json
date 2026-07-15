@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["packet_id", "judgments"],
+  "properties": {
+    "packet_id": {"type": "string"},
+    "judgments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "semantic_fidelity",
+          "naturalness",
+          "high_severity_semantic_error",
+          "speaker_dialogue_topology_preserved",
+          "rationale"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string"},
+          "semantic_fidelity": {"type": "integer", "minimum": 1, "maximum": 5},
+          "naturalness": {"type": "integer", "minimum": 1, "maximum": 5},
+          "high_severity_semantic_error": {"type": "boolean"},
+          "speaker_dialogue_topology_preserved": {"type": "boolean"},
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sample_id",
+    "method_id",
+    "intensity",
+    "content_plan",
+    "paragraphs",
+    "style_cues_applied",
+    "style_cues_skipped",
+    "uncertainties"
+  ],
+  "properties": {
+    "sample_id": {
+      "type": "string",
+      "pattern": "^s_[0-9a-f]{24}$"
+    },
+    "method_id": {
+      "type": "string"
+    },
+    "intensity": {
+      "type": "string",
+      "const": "strong"
+    },
+    "content_plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "facts", "constraints"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^p[0-9]{4}$"
+          },
+          "facts": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "constraints": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+    "paragraphs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "zh"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^p[0-9]{4}$"
+          },
+          "zh": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "style_cues_applied": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "style_cues_skipped": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

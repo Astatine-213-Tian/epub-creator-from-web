@@ -244,6 +244,17 @@ def _api_post_comments_url(post_id: str) -> str:
     return f"{HOST}/api/posts/{post_id}/comments?{urlencode({'include': 'commenter,replies'})}"
 
 
+def _api_campaign_posts_url(campaign_id: str, *, count: int = 20) -> str:
+    query = urlencode(
+        {
+            "include": "user,campaign,attachments,post_file,post_files,images",
+            "sort": "-published_at",
+            "page[count]": str(count),
+        }
+    )
+    return f"{HOST}/api/campaigns/{campaign_id}/posts?{query}"
+
+
 def _normalize_text(text: str) -> str:
     return SPACE_RE.sub(" ", text.replace("\u00a0", " ")).strip()
 
@@ -349,6 +360,131 @@ def _parse_collection(data: dict[str, Any], collection_id: str) -> tuple[BookMet
         )
     refs.sort(key=_post_ref_sort_key)
     return meta, refs
+
+
+def _campaign_id_from_collection_data(data: dict[str, Any]) -> str | None:
+    for item in data.get("included") or []:
+        if item.get("type") != "post":
+            continue
+        campaign = ((item.get("relationships") or {}).get("campaign") or {}).get("data") or {}
+        campaign_id = campaign.get("id")
+        if campaign_id:
+            return str(campaign_id)
+    for item in data.get("included") or []:
+        if item.get("type") == "campaign" and item.get("id"):
+            return str(item["id"])
+    return None
+
+
+def _chapter_number_from_title(title: str) -> int | None:
+    match = re.match(r"^\s*chapter\s+(\d+)\b", title, flags=re.IGNORECASE)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _source_chapter_label(number: int | None) -> str | None:
+    if number is None:
+        return None
+    return f"Chapter {number:03d}"
+
+
+def _source_chapter_file_stem(number: int | None) -> str | None:
+    if number is None:
+        return None
+    return f"chapter-{number:03d}"
+
+
+def _clear_json_files(directory: Path) -> None:
+    if not directory.exists():
+        return
+    for path in directory.glob("*.json"):
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+
+
+def _post_ref_from_api_post(post: dict[str, Any], *, order: int) -> PostRef | None:
+    post_id = str(post.get("id") or "")
+    attrs = post.get("attributes") or {}
+    if not post_id or not isinstance(attrs, dict) or not _is_published(attrs):
+        return None
+    if attrs.get("current_user_can_view") is False:
+        return None
+    title = _clean_title(str(attrs.get("title") or ""), fallback=f"Chapter {order + 1:03d}")
+    return PostRef(
+        post_id=post_id,
+        title=title,
+        url=_post_url(attrs, f"{HOST}/posts/{post_id}"),
+        published_at=str(attrs.get("published_at") or ""),
+        order=order,
+        current_user_can_view=attrs.get("current_user_can_view"),
+    )
+
+
+async def _supplement_refs_from_campaign_feed(
+    fetcher: PatreonFetcher,
+    collection_data: dict[str, Any],
+    refs: list[PostRef],
+) -> tuple[list[PostRef], dict[str, Any] | None]:
+    campaign_id = _campaign_id_from_collection_data(collection_data)
+    if not campaign_id:
+        return refs, None
+
+    existing_ids = {ref.post_id for ref in refs}
+    existing_numbers = [
+        number
+        for ref in refs
+        if (number := _chapter_number_from_title(ref.title)) is not None
+    ]
+    if not existing_numbers:
+        return refs, None
+
+    latest_published = max(
+        (
+            published
+            for ref in refs
+            if (published := _parse_iso_datetime(ref.published_at)) is not None
+        ),
+        default=None,
+    )
+    if latest_published is not None and latest_published.tzinfo is None:
+        latest_published = latest_published.replace(tzinfo=timezone.utc)
+    max_existing_number = max(existing_numbers)
+
+    feed_data = await fetcher.get_json(_api_campaign_posts_url(campaign_id))
+    feed_posts = feed_data.get("data") or []
+    if isinstance(feed_posts, dict):
+        feed_posts = [feed_posts]
+
+    supplements: list[PostRef] = []
+    for index, post in enumerate(feed_posts, len(refs)):
+        if not isinstance(post, dict) or str(post.get("id") or "") in existing_ids:
+            continue
+        ref = _post_ref_from_api_post(post, order=index)
+        if ref is None:
+            continue
+        number = _chapter_number_from_title(ref.title)
+        if number is None or number <= max_existing_number:
+            continue
+        published = _parse_iso_datetime(ref.published_at)
+        if published is not None:
+            if published.tzinfo is None:
+                published = published.replace(tzinfo=timezone.utc)
+            if latest_published is not None and published <= latest_published:
+                continue
+        supplements.append(ref)
+
+    if not supplements:
+        return refs, feed_data
+
+    merged = [*refs, *supplements]
+    merged.sort(key=_post_ref_sort_key)
+    added = ", ".join(f"{ref.post_id} {ref.title}" for ref in supplements)
+    print(
+        f"[+] supplemented {len(supplements)} newer campaign feed post(s): {added}",
+        file=sys.stderr,
+    )
+    return merged, feed_data
 
 
 def _post_ref_sort_key(ref: PostRef) -> tuple[float, int]:
@@ -912,9 +1048,13 @@ async def crawl_snapshot(
     collection_url = _resolve_book_url(book_url)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "chapters").mkdir(exist_ok=True)
+    (output_dir / "chapters" / "by-source").mkdir(exist_ok=True)
     (output_dir / "comments").mkdir(exist_ok=True)
+    (output_dir / "comments" / "by-source").mkdir(exist_ok=True)
     (output_dir / "raw_posts").mkdir(exist_ok=True)
     (output_dir / "assets").mkdir(exist_ok=True)
+    _clear_json_files(output_dir / "chapters" / "by-source")
+    _clear_json_files(output_dir / "comments" / "by-source")
 
     fetcher = PatreonFetcher(headless=headless, delay=delay)
     await fetcher.start()
@@ -922,6 +1062,11 @@ async def crawl_snapshot(
         await fetcher.open_collection(collection_url)
         collection_data = await fetcher.get_json(_api_collection_url(collection_id))
         meta, refs = _parse_collection(collection_data, collection_id)
+        refs, campaign_feed_data = await _supplement_refs_from_campaign_feed(
+            fetcher,
+            collection_data,
+            refs,
+        )
         if title:
             meta.title = title
         if author:
@@ -930,6 +1075,8 @@ async def crawl_snapshot(
             raise RuntimeError(f"Patreon collection {collection_id} has no published posts")
 
         write_json(output_dir / "raw_collection.json", collection_data)
+        if campaign_feed_data is not None:
+            write_json(output_dir / "raw_campaign_posts.json", campaign_feed_data)
         print(f"[+] found {len(refs)} published Patreon post(s)", file=sys.stderr)
         await _download_cover(fetcher, meta)
         post_results = await _crawl_post_snapshots_with_login_retry(
@@ -958,15 +1105,27 @@ async def crawl_snapshot(
         cover["path"] = f"assets/{cover_name}"
 
     manifest_chapters: list[dict[str, Any]] = []
+    chapter_index: list[dict[str, Any]] = []
     for index, (ref, result, comments) in enumerate(zip(refs, post_results, comment_lists, strict=True), 1):
         chapter, raw_post = result
         chapter_id = f"{index:02d}"
+        source_chapter_number = _chapter_number_from_title(chapter.title)
+        source_chapter_label = _source_chapter_label(source_chapter_number)
+        source_file_stem = _source_chapter_file_stem(source_chapter_number)
+        source_chapter_path = (
+            f"chapters/by-source/{source_file_stem}.json" if source_file_stem else None
+        )
+        source_comments_path = (
+            f"comments/by-source/{source_file_stem}.json" if source_file_stem else None
+        )
         blocks, paragraphs = _snapshot_blocks(chapter)
         chapter_payload = {
             "id": chapter_id,
             "title": chapter.title,
             "source_id": ref.post_id,
             "source_url": ref.url,
+            "source_chapter_number": source_chapter_number,
+            "source_chapter_label": source_chapter_label,
             "published_at": ref.published_at,
             "order": index - 1,
             "paragraphs": paragraphs,
@@ -974,6 +1133,15 @@ async def crawl_snapshot(
         }
         write_json(output_dir / "chapters" / f"{chapter_id}.json", chapter_payload)
         write_json(output_dir / "comments" / f"{chapter_id}.json", comments)
+        if source_file_stem:
+            write_json(
+                output_dir / "chapters" / "by-source" / f"{source_file_stem}.json",
+                chapter_payload,
+            )
+            write_json(
+                output_dir / "comments" / "by-source" / f"{source_file_stem}.json",
+                comments,
+            )
         write_json(output_dir / "raw_posts" / f"{ref.post_id}.json", raw_post)
         manifest_chapters.append(
             {
@@ -981,12 +1149,28 @@ async def crawl_snapshot(
                 "title": chapter.title,
                 "source_id": ref.post_id,
                 "source_url": ref.url,
+                "source_chapter_number": source_chapter_number,
+                "source_chapter_label": source_chapter_label,
                 "published_at": ref.published_at,
                 "order": index - 1,
                 "path": f"chapters/{chapter_id}.json",
                 "comments_path": f"comments/{chapter_id}.json",
+                "source_chapter_path": source_chapter_path,
+                "source_comments_path": source_comments_path,
                 "paragraph_count": len(paragraphs),
                 "block_count": len(blocks),
+            }
+        )
+        chapter_index.append(
+            {
+                "id": chapter_id,
+                "title": chapter.title,
+                "source_chapter_number": source_chapter_number,
+                "source_chapter_label": source_chapter_label,
+                "path": f"chapters/{chapter_id}.json",
+                "comments_path": f"comments/{chapter_id}.json",
+                "source_chapter_path": source_chapter_path,
+                "source_comments_path": source_comments_path,
             }
         )
 
@@ -1006,6 +1190,7 @@ async def crawl_snapshot(
         "cover": cover,
         "chapters": manifest_chapters,
     }
+    write_json(output_dir / "chapter_index.json", chapter_index)
     write_json(output_dir / "manifest.json", manifest)
     return output_dir / "manifest.json"
 
@@ -1025,6 +1210,11 @@ async def crawl_book(
         await fetcher.open_collection(collection_url)
         collection_data = await fetcher.get_json(_api_collection_url(collection_id))
         meta, refs = _parse_collection(collection_data, collection_id)
+        refs, _campaign_feed_data = await _supplement_refs_from_campaign_feed(
+            fetcher,
+            collection_data,
+            refs,
+        )
         if not refs:
             raise RuntimeError(f"Patreon collection {collection_id} has no published posts")
 

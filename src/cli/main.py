@@ -22,6 +22,36 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("target", nargs="?", help="Book URL, or site-specific id with --parser")
     p.add_argument("-o", "--output", type=Path, default=None)
+    p.add_argument(
+        "--txt-output",
+        type=Path,
+        default=None,
+        help="Explicit TXT output path when --output-format txt is requested",
+    )
+    p.add_argument(
+        "--output-format",
+        action="append",
+        choices=["epub", "txt", "both"],
+        default=None,
+        help="Output format to write; repeat for multiple formats, or use both. Default: epub",
+    )
+    p.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=None,
+        help="Write TXT output under author child folders rooted here. Use book-ingest or book-dataset upsert to update the manifest.",
+    )
+    overwrite_group = p.add_mutually_exclusive_group()
+    overwrite_group.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Allow replacing requested output files. Default: skip existing outputs",
+    )
+    overwrite_group.add_argument(
+        "--prevent-overwrite",
+        action="store_true",
+        help="Skip writing any requested output file that already exists. This is the default",
+    )
     p.add_argument("--parser", choices=parser_names, help="Force a parser for ids or ambiguous URLs")
     p.add_argument("--search", help="Search supported providers, preview matches, then choose one to parse")
     p.add_argument("--author", help="With --search, pass an author hint to providers that support it")
@@ -113,6 +143,10 @@ def main(argv: list[str] | None = None) -> int:
             args.target,
             ParserOptions(
                 output=args.output,
+                txt_output=args.txt_output,
+                output_formats=tuple(args.output_format or ["epub"]),
+                dataset_root=args.dataset_root,
+                prevent_overwrite=not args.overwrite,
                 delay=args.delay,
                 headless=args.headless,
                 concurrency=args.concurrency,

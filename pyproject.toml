@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "epub-creator-from-web"
 version = "0.1.0"
 description = "Scrape supported web novels and build EPUB files."
-readme = "AGENTS.md"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4==4.14.3",
@@ -20,8 +20,10 @@ dependencies = [
 
 [project.scripts]
 book-to-epub = "src.cli.main:main"
+book-ingest = "src.cli.ingest:main"
 book-crawl = "src.cli.crawl:main"
 book-translate = "src.cli.translate:main"
+book-dataset = "src.cli.dataset:main"
 
 [tool.setuptools.packages.find]
 include = ["src*"]

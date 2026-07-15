@@ -7,15 +7,24 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
 
+from src.core.models import Volume
 from src.core.output import default_output_path as core_default_output_path
+from src.core.output import dataset_txt_output_path
 from src.core.output import resolve_output_path
+from src.core.output import resolve_txt_output_path
+from src.core.text_writer import write_txt
 
 ParserRunner = Callable[[str, "ParserOptions"], Path]
+BuildEpub = Callable[[Path], None]
 
 
 @dataclass(frozen=True)
 class ParserOptions:
     output: Path | None = None
+    txt_output: Path | None = None
+    output_formats: tuple[str, ...] = ("epub",)
+    dataset_root: Path | None = None
+    prevent_overwrite: bool = True
     delay: float | None = None
     headless: bool = False
     concurrency: int | None = None
@@ -43,6 +52,85 @@ def resolve_output(options: ParserOptions, title: str, author: str = "") -> Path
     return resolve_output_path(options.output, title, author)
 
 
+def requested_formats(options: ParserOptions) -> tuple[str, ...]:
+    formats: list[str] = []
+    for output_format in options.output_formats or ("epub",):
+        normalized = output_format.strip().lower()
+        if normalized == "both":
+            normalized_formats = ("epub", "txt")
+        else:
+            normalized_formats = (normalized,)
+        for item in normalized_formats:
+            if item not in {"epub", "txt"}:
+                raise ValueError(f"unsupported output format: {output_format}")
+            if item not in formats:
+                formats.append(item)
+    return tuple(formats or ["epub"])
+
+
+def resolve_requested_txt_output(
+    options: ParserOptions,
+    *,
+    title: str,
+    author: str,
+    intro_paragraphs: list[str] | None = None,
+    intro_html: str = "",
+) -> Path:
+    _ = (intro_paragraphs, intro_html)
+    if options.dataset_root:
+        return dataset_txt_output_path(
+            options.dataset_root,
+            title=title,
+            author=author,
+            time_area="",
+            genre="",
+        )
+    return resolve_txt_output_path(options.txt_output, title, author)
+
+
+def emit_requested_outputs(
+    *,
+    options: ParserOptions,
+    title: str,
+    author: str,
+    volumes: list[Volume],
+    build_epub: BuildEpub,
+    intro_paragraphs: list[str] | None = None,
+    intro_html: str = "",
+) -> Path:
+    formats = requested_formats(options)
+    epub_path = resolve_output(options, title, author) if "epub" in formats else None
+    txt_path = (
+        resolve_requested_txt_output(
+            options,
+            title=title,
+            author=author,
+            intro_paragraphs=intro_paragraphs,
+            intro_html=intro_html,
+        )
+        if "txt" in formats
+        else None
+    )
+
+    if epub_path and (not options.prevent_overwrite or not epub_path.exists()):
+        build_epub(epub_path)
+    if txt_path and (not options.prevent_overwrite or not txt_path.exists()):
+        write_txt(
+            title=title,
+            author=author,
+            volumes=volumes,
+            out_path=txt_path,
+            intro_paragraphs=intro_paragraphs,
+            intro_html=intro_html,
+        )
+
+    if epub_path:
+        return epub_path
+    if txt_path:
+        return txt_path
+    raise ValueError("no output formats requested")
+
+
 def run_towasakata(target: str, options: ParserOptions) -> Path:
     from opencc import OpenCC
 
@@ -65,18 +153,34 @@ def run_towasakata(target: str, options: ParserOptions) -> Path:
             chapter.title = cc.convert(chapter.title)
             chapter.paragraphs = [cc.convert(line) for line in chapter.paragraphs]
 
-    out_path = resolve_output(options, title or "book", author)
-    parser.build_epub(title or "未命名", author, volumes, intro_simplified, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=title or "未命名",
+        author=author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(
+            title or "未命名",
+            author,
+            volumes,
+            intro_simplified,
+            out_path,
+        ),
+        intro_html=intro_simplified,
+    )
 
 
 def run_jrkywsy(target: str, options: ParserOptions) -> Path:
     from src.providers.jrkywsy import parser
 
     meta, volumes = parser.crawl_book(target)
-    out_path = resolve_output(options, meta.title, meta.author)
-    parser.build_epub(meta, volumes, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=meta.title,
+        author=meta.author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
+        intro_paragraphs=meta.intro_paragraphs,
+    )
 
 
 def run_mgsf(target: str, options: ParserOptions) -> Path:
@@ -86,9 +190,14 @@ def run_mgsf(target: str, options: ParserOptions) -> Path:
     book_url = parser._resolve_book_url(target)
     meta, volumes = parser.crawl_book(book_url, delay=delay)
 
-    out_path = resolve_output(options, meta.title, meta.author)
-    parser.build_epub(meta, volumes, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=meta.title,
+        author=meta.author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
+        intro_paragraphs=meta.intro_paragraphs,
+    )
 
 
 def run_xfxs(target: str, options: ParserOptions) -> Path:
@@ -106,9 +215,14 @@ def run_xfxs(target: str, options: ParserOptions) -> Path:
         )
     )
 
-    out_path = resolve_output(options, meta.title, meta.author)
-    parser.build_epub(meta, volumes, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=meta.title,
+        author=meta.author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
+        intro_paragraphs=meta.intro_paragraphs,
+    )
 
 
 def run_pili45(target: str, options: ParserOptions) -> Path:
@@ -126,9 +240,14 @@ def run_pili45(target: str, options: ParserOptions) -> Path:
         )
     )
 
-    out_path = resolve_output(options, meta.title, meta.author)
-    parser.build_epub(meta, volumes, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=meta.title,
+        author=meta.author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
+        intro_paragraphs=meta.intro_paragraphs,
+    )
 
 
 def run_quanben(target: str, options: ParserOptions) -> Path:
@@ -143,9 +262,14 @@ def run_quanben(target: str, options: ParserOptions) -> Path:
         concurrency=concurrency,
     )
 
-    out_path = resolve_output(options, meta.title, meta.author)
-    parser.build_epub(meta, volumes, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=meta.title,
+        author=meta.author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
+        intro_paragraphs=meta.intro_paragraphs,
+    )
 
 
 def run_zhenhun(target: str, options: ParserOptions) -> Path:
@@ -160,9 +284,14 @@ def run_zhenhun(target: str, options: ParserOptions) -> Path:
         concurrency=concurrency,
     )
 
-    out_path = resolve_output(options, meta.title, meta.author)
-    parser.build_epub(meta, volumes, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=meta.title,
+        author=meta.author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
+        intro_paragraphs=meta.intro_paragraphs,
+    )
 
 
 def run_ibusread(target: str, options: ParserOptions) -> Path:
@@ -177,9 +306,14 @@ def run_ibusread(target: str, options: ParserOptions) -> Path:
         concurrency=concurrency,
     )
 
-    out_path = resolve_output(options, meta.title, meta.author)
-    parser.build_epub(meta, volumes, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=meta.title,
+        author=meta.author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
+        intro_paragraphs=meta.intro_paragraphs,
+    )
 
 
 def run_patreon(target: str, options: ParserOptions) -> Path:
@@ -197,9 +331,14 @@ def run_patreon(target: str, options: ParserOptions) -> Path:
         )
     )
 
-    out_path = resolve_output(options, meta.title, meta.author)
-    parser.build_epub(meta, volumes, out_path)
-    return out_path
+    return emit_requested_outputs(
+        options=options,
+        title=meta.title,
+        author=meta.author,
+        volumes=volumes,
+        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
+        intro_paragraphs=meta.intro_paragraphs,
+    )
 
 
 PARSERS: tuple[ParserSpec, ...] = (

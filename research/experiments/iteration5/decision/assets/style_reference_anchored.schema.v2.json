@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["packet_id", "judgments"],
+  "properties": {
+    "packet_id": {"type": "string"},
+    "judgments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "dimension_scores",
+          "style_adherence",
+          "naturalness",
+          "rationale"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string"},
+          "dimension_scores": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "clause_packaging_and_syntax",
+              "sentence_rhythm",
+              "paragraph_discourse_progression",
+              "dialogue_turn_and_attribution_architecture",
+              "narrator_stance_and_reaction_timing",
+              "punctuation_and_emphasis",
+              "function_word_and_register_texture"
+            ],
+            "properties": {
+              "clause_packaging_and_syntax": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 5}, {"type": "null"}]},
+              "sentence_rhythm": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 5}, {"type": "null"}]},
+              "paragraph_discourse_progression": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 5}, {"type": "null"}]},
+              "dialogue_turn_and_attribution_architecture": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 5}, {"type": "null"}]},
+              "narrator_stance_and_reaction_timing": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 5}, {"type": "null"}]},
+              "punctuation_and_emphasis": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 5}, {"type": "null"}]},
+              "function_word_and_register_texture": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 5}, {"type": "null"}]}
+            }
+          },
+          "style_adherence": {"type": "integer", "minimum": 1, "maximum": 5},
+          "naturalness": {"type": "integer", "minimum": 1, "maximum": 5},
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

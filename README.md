@@ -2,6 +2,10 @@
 
 Scrape supported web novel sites and build EPUB files through one command-line entry point.
 
+The repository root is the maintained production project. Dataset-heavy
+authorship and style-transfer experiments are isolated in the nested
+[`research/`](research/) project and never imported by production code.
+
 ## Setup
 
 ```bash
@@ -69,6 +73,42 @@ uv run book-to-epub 2574 --parser mgsf -o books/book.epub
 uv run book-to-epub doupocangqiong --parser quanben -o books/book.epub
 ```
 
+## Ingest For Reading And Training
+
+Use `book-ingest` for the normal end-to-end workflow. It crawls the source once,
+writes the requested reader/training outputs from the same parsed book model,
+validates EPUB archive integrity, and upserts only the affected TXT entry in
+`research/datasets/dataset_manifest.json`.
+
+```bash
+# Default: reading + training
+uv run book-ingest "https://www.mangguoshufang.com/1/2574/info.html"
+
+# Reading only
+uv run book-ingest "https://www.mangguoshufang.com/1/2574/info.html" --mode epub
+
+# Training only
+uv run book-ingest "https://www.mangguoshufang.com/1/2574/info.html" --mode txt
+```
+
+EPUB output defaults to `books/<author>/<title>.epub`. TXT output defaults to
+`research/datasets/raw/<author>/<title>.txt`. Dataset metadata is resolved from
+the maintained Jinjiang research crawl when available, then falls back to Codex
+classification unless `--no-codex-classify` is passed.
+
+For standalone dataset maintenance, use targeted commands:
+
+```bash
+uv run book-dataset upsert --txt research/datasets/raw/black_di/替罪羊.txt --author black_di --title 替罪羊
+uv run book-dataset export-txt --epub books/black_di/替罪羊.epub
+```
+
+Bulk EPUB-to-TXT export is still available, but the EPUB tree must be explicit:
+
+```bash
+uv run book-dataset export-txt --books-root books
+```
+
 ## Ranking
 
 Search results are ranked simply:
@@ -96,14 +136,28 @@ BOOKLIB_BROWSER_PATH="/path/to/chromium" uv run book-to-epub --search "全球高
 
 ## Crawl Then Translate
 
-For bilingual workflows, crawling and translation are separate commands. The
-crawler writes a reusable snapshot with raw source data, normalized chapter
-blocks, comments, and assets. The translation command can then reuse that
-snapshot with any compatible glossary and vector-reference config.
+The production bilingual workflow has three passes:
 
-Maintained per-book settings live under `book_specs/<book_slug>/`. For Eternal
-Gate, `book_specs/eternal_gate/config.json` holds crawl/translation settings and
-`book_specs/eternal_gate/glossary.json` holds the reusable glossary.
+1. English to neutral Simplified Chinese.
+2. `content_plan_combined_full_regeneration` author style transfer.
+3. English-grounded semantic QA, followed by EPUB construction.
+
+The second pass builds a paragraph-level content plan from English, uses neutral
+Chinese only as a terminology/content anchor, then regenerates every paragraph
+with retrieved aligned masked examples and a validated style definition. The old
+single-author profile/card/cluster reconstruction and flow-repair pipeline is no
+longer exposed by `book-translate`; its historical evidence remains under
+`research/docs/` and
+`research/generated/style_research/`.
+
+Maintained settings live in `book_specs/eternal_gate/config.json`; glossary data
+lives in `book_specs/eternal_gate/glossary.json`. The prompt and output schema are
+under `book_specs/author_styles/feitianyexiang/`. The local corpus-derived style
+asset is ignored by Git and can be reproduced from the frozen research asset:
+
+```bash
+uv run --project research author-style-research export-production --overwrite
+```
 
 Create an authenticated Patreon crawl snapshot:
 
@@ -115,40 +169,73 @@ uv run book-crawl "https://www.patreon.com/collection/2218551?view=condensed" \
   --output generated/crawls/eternal_gate
 ```
 
-Build or refresh the configured local vector index:
+Run the complete production pipeline:
 
 ```bash
-uv run --with sentence-transformers --with torch --with numpy \
-  book-translate index --config book_specs/eternal_gate/config.json
-```
-
-Prepare translation prompts from the snapshot:
-
-```bash
-uv run --with sentence-transformers --with torch --with numpy \
-  book-translate prepare generated/crawls/eternal_gate \
-  --config book_specs/eternal_gate/config.json
-```
-
-Run prepared prompts through Codex, validate outputs, and build the bilingual
-EPUB:
-
-```bash
-uv run book-translate run generated/translation_runs/eternal_gate \
+uv run book-translate all generated/crawls/eternal_gate \
   --config book_specs/eternal_gate/config.json \
-  --retry-empty
-uv run book-translate validate generated/translation_runs/eternal_gate \
-  --config book_specs/eternal_gate/config.json \
-  --allow-missing
-uv run book-translate build-epub generated/crawls/eternal_gate \
   --run-dir generated/translation_runs/eternal_gate \
+  --run-codex \
+  -o books/顾雪柔/永恒之门.bilingual.epub
+```
+
+For inspection or resumption, run each stage separately:
+
+```bash
+uv run book-translate prepare generated/crawls/eternal_gate \
+  --config book_specs/eternal_gate/config.json
+uv run book-translate run generated/translation_runs/eternal_gate \
+  --config book_specs/eternal_gate/config.json
+uv run book-translate validate generated/translation_runs/eternal_gate \
+  --config book_specs/eternal_gate/config.json
+uv run book-translate transfer-style generated/translation_runs/eternal_gate \
+  --config book_specs/eternal_gate/config.json \
+  --run-codex
+uv run book-translate validate \
+  generated/translation_runs/eternal_gate/author_style_transfer \
+  --config book_specs/eternal_gate/config.json
+uv run book-translate build-epub generated/crawls/eternal_gate \
+  --run-dir generated/translation_runs/eternal_gate/author_style_transfer \
   --config book_specs/eternal_gate/config.json \
   -o books/顾雪柔/永恒之门.bilingual.epub
 ```
 
-The same translation pipeline can be reused for other books by creating another
-config under `book_specs/` and pointing it at a different crawl
-snapshot, glossary, and reference-book set.
+The default model order is `gpt-5.6-sol`, `gpt-5.6-terra`,
+`gpt-5.6-luna`, `gpt-5.5`, `gpt-5.3-codex-spark`, then `gpt-5.4`.
+The runner advances only after an explicit capacity, quota, unsupported-model,
+or availability failure. Contract and fidelity failures retry on the same model
+and recursively bisect the block; a single paragraph can fall back to the
+validated neutral text only after the style output fails deterministic fidelity
+checks and all non-fidelity checks pass.
+
+`validate --config ...` automatically runs semantic QA for author style-transfer
+runs. The QA stage reviews the highest-risk deterministic candidates, applies
+only low-risk repairs that pass acceptance checks, and validates repaired output
+again. EPUB construction requires a current, non-dry-run QA summary bound to the
+styled outputs. Any failed style chunk, failed QA batch, or rejected QA candidate
+stops the production command. A `true_loss` verdict must be repaired and accepted;
+unresolved true-loss findings also block EPUB construction.
+
+The same three-pass pipeline can be used for another book by providing a config,
+glossary, and hash-locked author-style asset for that target author.
+
+## Author Style Research
+
+Author identification, corpus masking, style-meter evaluation, and transfer
+experiments are isolated in the nested [`research/`](research/) project. Its
+copyrighted corpora and generated evidence stay under `research/datasets/` and
+`research/generated/`; production code does not import research modules.
+
+```bash
+cd research
+uv sync
+uv run author-style-research verify
+```
+
+The research project has its own dependency lock and imports shared crawler and
+snapshot primitives through an editable dependency on the production project.
+See [`research/README.md`](research/README.md) for the active reports and
+reproduction entry points.
 
 ## Development Layout
 
@@ -166,12 +253,14 @@ Shared orchestration lives in:
 src/cli/main.py
 src/core/
 src/fetch/
+src/metadata/
 src/providers/registry.py
 src/runtime/
 src/search/orchestrator.py
 src/search/engines.py
 src/crawl/
 src/translation/
+tests/
 ```
 
 ## Validation
