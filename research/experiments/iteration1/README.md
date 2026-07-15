@@ -16,7 +16,8 @@ validation machinery used by later iterations.
 | Independent semantic judgments | `build_style_semantic_judgments.py` |
 | Promotion and final validation | `build_style_refinement_contract.py`, `select_style_transfer_promotions.py`, `prepare_style_final_validation.py` |
 | Provenance and gates | `style_analysis_lock.py`, `style_experiment_provenance.py`, `verify_style_analysis_gates.py` |
-| Construct audit and reports | `audit_style_meter_construct.py`, `report_style_transfer_experiment.py` |
+| Construct audit | `audit_style_meter_construct.py` |
+| Snapshot report regeneration | `style_transfer_research.py report` |
 
 Inspect the protocol command surface with:
 
@@ -25,3 +26,8 @@ uv run python -m experiments.iteration1.style_transfer_research --help
 ```
 
 Canonical report: [Iteration 1 prompt methods](../../docs/reports/03_transfer_iteration1_prompt_methods.md).
+
+The former second report generator was removed because it duplicated this command
+and embedded obsolete corpus and classifier totals. Reproduction may produce a
+clearer report layout than the retained snapshot; the frozen model outputs and
+decision artifacts remain the evidence source.

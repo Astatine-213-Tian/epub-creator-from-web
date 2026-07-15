@@ -9,6 +9,7 @@ from typing import Any, Mapping
 
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.author_style_meter_contract import CURRENT_SCORER_ID
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -54,12 +55,12 @@ EXPERIMENT_ARTIFACT_PATHS = (
     "method_assets/style_transfer_payloads.v1.lock.json",
     "calibration/style_meter_scores.v1.jsonl",
     "calibration/style_meter_threshold.v1.json",
-    "scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1/manifest.json",
-    "scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1/scorer_config.json",
-    "scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1/masking_config.json",
-    "scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1/labels.json",
-    "scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1/classifier.joblib",
-    "scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1/vectorizer.joblib",
+    f"scorers/{CURRENT_SCORER_ID}/manifest.json",
+    f"scorers/{CURRENT_SCORER_ID}/scorer_config.json",
+    f"scorers/{CURRENT_SCORER_ID}/masking_config.json",
+    f"scorers/{CURRENT_SCORER_ID}/labels.json",
+    f"scorers/{CURRENT_SCORER_ID}/classifier.joblib",
+    f"scorers/{CURRENT_SCORER_ID}/vectorizer.joblib",
 )
 
 REPO_ARTIFACT_PATHS = (

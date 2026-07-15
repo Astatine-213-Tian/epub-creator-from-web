@@ -4,10 +4,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
+
+import ahocorasick
 
 
 CJK_RE = re.compile(r"[\u4e00-\u9fff]")
@@ -57,6 +60,54 @@ REPLACEMENT_ARTIFACT_RE = re.compile(r"€{2,}")
 UNICODE_REPLACEMENT_CHAR = "�"
 SYSTEMIC_REPLACEMENT_MIN_HITS = 10
 SYSTEMIC_REPLACEMENT_MIN_LINES = 5
+PUNCTUATION_NORMALIZATION_VERSION = "canonical_zh_v1"
+CROSS_BOOK_DECONTAMINATION_VERSION = "exact_passage_shingles_v1"
+MASKING_POLICY_VERSION = "train_fit_global_label_blind_local_v1"
+
+ASCII_ELLIPSIS_RE = re.compile(r"\.{2,}")
+UNICODE_ELLIPSIS_RE = re.compile(r"…+")
+DASH_RUN_RE = re.compile(r"(?:-{2,}|[—–―─]{2,})")
+ASCII_COMMA_RE = re.compile(r"(?<!\d),|,(?!\d)")
+ASCII_PERIOD_RE = re.compile(r"(?<!\d)\.|\.(?!\d)")
+ASCII_COLON_RE = re.compile(r"(?<!\d):|:(?!\d)")
+PUNCTUATION_TRANSLATION = str.maketrans(
+    {
+        "﹐": "，",
+        "﹑": "、",
+        "､": "、",
+        "﹒": "。",
+        "．": "。",
+        "｡": "。",
+        "!": "！",
+        "﹗": "！",
+        "?": "？",
+        "﹖": "？",
+        ";": "；",
+        "﹔": "；",
+        "﹕": "：",
+        "(": "（",
+        ")": "）",
+        "﹙": "（",
+        "﹚": "）",
+        "[": "【",
+        "]": "】",
+        "﹝": "【",
+        "﹞": "】",
+        "「": "“",
+        "」": "”",
+        "﹁": "“",
+        "﹂": "”",
+        "『": "‘",
+        "』": "’",
+        "〝": "“",
+        "〞": "”",
+        "–": "—",
+        "―": "—",
+        "─": "—",
+        "~": "～",
+        "＂": '"',
+    }
+)
 
 
 AUTHOR_ALIASES = {
@@ -69,8 +120,10 @@ MASK_NGRAM_MIN_COUNT = 4
 MAX_ENTITY_TERMS_PER_BOOK = 240
 MAX_ENTITY_V2_TERMS_PER_BOOK = 800
 MAX_TOPIC_TERMS_PER_BOOK = 640
+MAX_GLOBAL_ENTITY_V2_TERMS = 12_000
 MASK_NGRAM_MIN_N = 2
 MASK_NGRAM_MAX_N = 5
+CROSS_BOOK_DUPLICATE_RULES = ((1, 80), (2, 100), (3, 120))
 
 MASK_TERM_STOP_CHARS = set(
     "的一是在不了有和人这中大为上个我以要他时来用们生到作地于出就分对成会可主"
@@ -103,6 +156,77 @@ def safe_id(text: str) -> str:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
+
+
+def resolve_manifest_path(value: str, dataset_root: Path) -> Path:
+    dataset_root = dataset_root.resolve()
+    path = Path(value)
+    if path.is_absolute():
+        if path.exists():
+            return path
+        for anchor in ("datasets", "books"):
+            if anchor not in path.parts:
+                continue
+            marker = len(path.parts) - 1 - path.parts[::-1].index(anchor)
+            base = dataset_root if anchor == "datasets" else dataset_root.parent.parent
+            candidate = base.joinpath(*path.parts[marker + (1 if anchor == "datasets" else 0):])
+            if candidate.exists():
+                return candidate
+        return path
+    candidates = (
+        dataset_root / path,
+        dataset_root.parent / path,
+        dataset_root.parent.parent / path,
+        path,
+    )
+    return next((candidate for candidate in candidates if candidate.exists()), candidates[0])
+
+
+def normalize_manifest_paths(
+    manifest: list[dict[str, Any]], dataset_root: Path
+) -> int:
+    changed = 0
+    for row in manifest:
+        for field in ("txt_path", "source_epub"):
+            value = str(row.get(field) or "")
+            if not value:
+                continue
+            resolved = resolve_manifest_path(value, dataset_root).resolve()
+            portable = Path(os.path.relpath(resolved, dataset_root.resolve())).as_posix()
+            if portable != value:
+                row[field] = portable
+                changed += 1
+    return changed
+
+
+def normalize_balanced_straight_quotes(text: str) -> str:
+    normalized: list[str] = []
+    for line in text.splitlines(keepends=True):
+        if line.count('"') % 2:
+            normalized.append(line)
+            continue
+        opening = True
+        chars: list[str] = []
+        for char in line:
+            if char == '"':
+                chars.append("“" if opening else "”")
+                opening = not opening
+            else:
+                chars.append(char)
+        normalized.append("".join(chars))
+    return "".join(normalized)
+
+
+def normalize_punctuation(text: str) -> str:
+    """Canonicalize typographic variants while preserving punctuation roles."""
+    text = ASCII_ELLIPSIS_RE.sub("……", text)
+    text = UNICODE_ELLIPSIS_RE.sub("……", text)
+    text = DASH_RUN_RE.sub("——", text)
+    text = ASCII_COMMA_RE.sub("，", text)
+    text = ASCII_PERIOD_RE.sub("。", text)
+    text = ASCII_COLON_RE.sub("：", text)
+    text = text.translate(PUNCTUATION_TRANSLATION)
+    return normalize_balanced_straight_quotes(text)
 
 
 def normalize_lines(text: str) -> list[str]:
@@ -209,11 +333,15 @@ def cleaned_text(raw_text: str, *, title: str) -> tuple[str, dict[str, Any]]:
     lines = normalize_lines(raw_text)
     body_start = find_body_start(lines, title)
     body_lines = filter_body_lines(lines[body_start:])
-    cleaned = "\n".join(body_lines).strip() + "\n" if body_lines else ""
+    unnormalized = "\n".join(body_lines).strip()
+    normalized = normalize_punctuation(unnormalized)
+    cleaned = normalized + "\n" if normalized else ""
     return cleaned, {
         "raw_line_count": len(lines),
         "body_start_line": body_start + 1 if lines else 0,
         "dropped_leading_lines": body_start,
+        "punctuation_normalization": PUNCTUATION_NORMALIZATION_VERSION,
+        "punctuation_normalized": normalized != unnormalized,
     }
 
 
@@ -283,13 +411,51 @@ def record_key(record: dict[str, Any]) -> str:
     return f"{record['author']}::{record['title']}"
 
 
-def select_mask_terms(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    per_book_counts: dict[str, Counter[str]] = {}
+def book_id_sha256(book_ids: list[str]) -> str:
+    payload = "\n".join(sorted(book_ids)).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def ranked_local_terms(
+    counts: Counter[str],
+    title: str,
+    *,
+    limit: int,
+) -> list[str]:
+    terms = list(title_mask_terms(title))
+    seen = set(terms)
+    ranked = sorted(
+        counts.items(),
+        key=lambda item: (-(item[1] * len(item[0])), -len(item[0]), item[0]),
+    )
+    for term, _count in ranked:
+        if term in seen:
+            continue
+        terms.append(term)
+        seen.add(term)
+        if len(terms) >= limit:
+            break
+    return sorted(terms, key=lambda item: (-len(item), item))
+
+
+def select_mask_terms(
+    records: list[dict[str, Any]],
+    splits: dict[str, Any],
+) -> dict[str, Any]:
+    split_names = split_lookup(splits)
+    fit_records = [
+        record
+        for record in records
+        if split_names.get((str(record["author"]), str(record["title"]))) == "train"
+    ]
+    fit_keys = {record_key(record) for record in fit_records}
+    fit_book_ids = sorted(fit_keys)
+
+    fit_book_counts: dict[str, Counter[str]] = {}
     document_frequency: Counter[str] = Counter()
     term_authors: dict[str, set[str]] = defaultdict(set)
-    for record in records:
-        if not record.get("exists") or not record.get("clean_txt_path"):
-            continue
+    total_frequency: Counter[str] = Counter()
+    for record in fit_records:
         text_path = Path(str(record["clean_txt_path"]))
         if not text_path.exists():
             continue
@@ -299,59 +465,86 @@ def select_mask_terms(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]
             if count >= MASK_NGRAM_MIN_COUNT
         })
         key = record_key(record)
-        per_book_counts[key] = counts
+        fit_book_counts[key] = counts
         document_frequency.update(counts.keys())
+        total_frequency.update(counts)
         for term in counts:
             term_authors[term].add(str(record["author"]))
 
-    book_count = max(len(per_book_counts), 1)
+    book_count = max(len(fit_book_counts), 1)
     entity_max_df = max(3, book_count // 20)
-    topic_max_df = max(6, book_count // 10)
     author_frequency = {term: len(authors) for term, authors in term_authors.items()}
-    selected: dict[str, dict[str, Any]] = {}
+    global_candidates = [
+        term
+        for term in total_frequency
+        if document_frequency[term] <= entity_max_df
+        or author_frequency.get(term, 0) <= 1
+    ]
+    global_entity_terms = sorted(
+        global_candidates,
+        key=lambda term: (
+            -(total_frequency[term] * len(term) / max(author_frequency.get(term, 1), 1)),
+            -len(term),
+            term,
+        ),
+    )[:MAX_GLOBAL_ENTITY_V2_TERMS]
+    global_entity_terms = sorted(global_entity_terms, key=lambda item: (-len(item), item))
+
+    selected: list[dict[str, Any]] = []
     for record in records:
         key = record_key(record)
-        counts = per_book_counts.get(key, Counter())
-        title_terms = title_mask_terms(str(record["title"]))
-
-        def ranked_terms(max_df: int, limit: int, *, allow_author_concentrated: bool = False) -> list[str]:
-            ranked = sorted(
-                (
-                    (term, count, document_frequency[term])
-                    for term, count in counts.items()
-                    if document_frequency[term] <= max_df
-                    or (allow_author_concentrated and author_frequency.get(term, 0) <= 1)
-                ),
-                key=lambda item: (
-                    -(item[1] * len(item[0]) / max(author_frequency.get(item[0], item[2]), 1)),
-                    -len(item[0]),
-                    item[0],
-                ),
-            )
-            terms = list(title_terms)
-            seen = set(terms)
-            for term, _count, _df in ranked:
-                if term in seen:
-                    continue
-                terms.append(term)
-                seen.add(term)
-                if len(terms) >= limit:
-                    break
-            return sorted(terms, key=lambda item: (-len(item), item))
-
-        selected[key] = {
+        text_path = Path(str(record["clean_txt_path"]))
+        counts = fit_book_counts.get(key)
+        if counts is None:
+            counts = Counter({
+                term: count
+                for term, count in cjk_ngrams(read_text(text_path)).items()
+                if count >= MASK_NGRAM_MIN_COUNT
+            })
+        title = str(record["title"])
+        selected.append({
             "author": record["author"],
-            "title": record["title"],
+            "title": title,
+            "split": split_names.get((str(record["author"]), title), "excluded"),
+            "selection_uses_author_label": False,
             "candidate_term_count": len(counts),
-            "entity_terms": ranked_terms(entity_max_df, MAX_ENTITY_TERMS_PER_BOOK),
-            "entity_terms_v2": ranked_terms(
-                entity_max_df,
-                MAX_ENTITY_V2_TERMS_PER_BOOK,
-                allow_author_concentrated=True,
+            "entity_terms": ranked_local_terms(
+                counts, title, limit=MAX_ENTITY_TERMS_PER_BOOK
             ),
-            "topic_terms": ranked_terms(topic_max_df, MAX_TOPIC_TERMS_PER_BOOK),
-        }
-    return selected
+            "entity_terms_v2": ranked_local_terms(
+                counts, title, limit=MAX_ENTITY_V2_TERMS_PER_BOOK
+            ),
+            "topic_terms": ranked_local_terms(
+                counts, title, limit=MAX_TOPIC_TERMS_PER_BOOK
+            ),
+        })
+    return {
+        "schema_version": 2,
+        "masking_policy": MASKING_POLICY_VERSION,
+        "provenance": {
+            "fit_split": "train",
+            "fit_book_count": len(fit_book_ids),
+            "fit_book_ids": fit_book_ids,
+            "fit_book_ids_sha256": book_id_sha256(fit_book_ids),
+            "global_term_selection_uses_fit_labels": True,
+            "transform_uses_author_label": False,
+            "held_out_corpus_statistics_used_for_global_terms": False,
+            "local_term_selection": "same_book_text_and_title_without_author_label",
+        },
+        "parameters": {
+            "ngram_min_count": MASK_NGRAM_MIN_COUNT,
+            "ngram_min_n": MASK_NGRAM_MIN_N,
+            "ngram_max_n": MASK_NGRAM_MAX_N,
+            "max_entity_terms_per_book": MAX_ENTITY_TERMS_PER_BOOK,
+            "max_entity_v2_terms_per_book": MAX_ENTITY_V2_TERMS_PER_BOOK,
+            "max_topic_terms_per_book": MAX_TOPIC_TERMS_PER_BOOK,
+            "max_global_entity_v2_terms": MAX_GLOBAL_ENTITY_V2_TERMS,
+        },
+        "global_terms": {
+            "entity_terms_v2": global_entity_terms,
+        },
+        "books": selected,
+    }
 
 
 def normalize_non_cjk_content(text: str) -> str:
@@ -360,38 +553,77 @@ def normalize_non_cjk_content(text: str) -> str:
     return re.sub(r"<+(CONTENT|NUM|LATIN)>+", r"<\1>", text)
 
 
-def compile_term_pattern(terms: list[str]) -> re.Pattern[str] | None:
+class TermMatcher:
+    """Exact leftmost-longest multi-term matcher backed by Aho-Corasick."""
+
+    def __init__(self, terms: list[str]):
+        automaton = ahocorasick.Automaton()
+        for term in sorted(set(terms), key=lambda item: (-len(item), item)):
+            if term:
+                automaton.add_word(term, term)
+        automaton.make_automaton()
+        self._automaton = automaton
+
+    def substitute(
+        self,
+        text: str,
+        *,
+        placeholder: str,
+        preserve_length: bool,
+    ) -> str:
+        output: list[str] = []
+        cursor = 0
+        for end_index, term in self._automaton.iter_long(text):
+            start_index = end_index - len(term) + 1
+            output.append(text[cursor:start_index])
+            output.append(
+                placeholder * cjk_len(term) if preserve_length else placeholder
+            )
+            cursor = end_index + 1
+        output.append(text[cursor:])
+        return "".join(output)
+
+
+def compile_term_matcher(terms: list[str]) -> TermMatcher | None:
     if not terms:
         return None
-    return re.compile("|".join(re.escape(term) for term in sorted(terms, key=lambda item: (-len(item), item))))
+    return TermMatcher(terms)
 
 
-def mask_terms(text: str, pattern: re.Pattern[str] | None, *, placeholder: str, preserve_length: bool = False) -> str:
-    if pattern is None:
+def mask_terms(
+    text: str,
+    matcher: TermMatcher | None,
+    *,
+    placeholder: str,
+    preserve_length: bool = False,
+) -> str:
+    if matcher is None:
         return text
-    if preserve_length:
-        return pattern.sub(lambda match: placeholder * cjk_len(match.group(0)), text)
-    return pattern.sub(placeholder, text)
+    return matcher.substitute(
+        text,
+        placeholder=placeholder,
+        preserve_length=preserve_length,
+    )
 
 
-def entity_masked_text(text: str, pattern: re.Pattern[str] | None) -> str:
+def entity_masked_text(text: str, matcher: TermMatcher | None) -> str:
     text = normalize_non_cjk_content(text)
-    return mask_terms(text, pattern, placeholder="<CONTENT>")
+    return mask_terms(text, matcher, placeholder="<CONTENT>")
 
 
-def entity_masked_v2_text(text: str, pattern: re.Pattern[str] | None) -> str:
+def entity_masked_v2_text(text: str, matcher: TermMatcher | None) -> str:
     text = normalize_non_cjk_content(text)
-    return mask_terms(text, pattern, placeholder="<TERM>")
+    return mask_terms(text, matcher, placeholder="<TERM>")
 
 
-def entity_masked_v3_text(text: str, pattern: re.Pattern[str] | None) -> str:
+def entity_masked_v3_text(text: str, matcher: TermMatcher | None) -> str:
     text = normalize_non_cjk_content(text)
-    return mask_terms(text, pattern, placeholder="某", preserve_length=True)
+    return mask_terms(text, matcher, placeholder="某", preserve_length=True)
 
 
-def topic_distorted_text(text: str, pattern: re.Pattern[str] | None) -> str:
+def topic_distorted_text(text: str, matcher: TermMatcher | None) -> str:
     text = normalize_non_cjk_content(text)
-    text = mask_terms(text, pattern, placeholder="文", preserve_length=True)
+    text = mask_terms(text, matcher, placeholder="文", preserve_length=True)
     return CJK_RE.sub(lambda match: match.group(0) if match.group(0) in FUNCTION_STYLE_CHARS else "文", text)
 
 
@@ -454,21 +686,10 @@ def text_flags(raw: str, cleaned: str) -> list[str]:
 
 
 def book_record(row: dict[str, Any], dataset_root: Path, output_text_root: Path) -> dict[str, Any]:
-    txt_path = Path(str(row.get("txt_path") or ""))
-    if txt_path.is_absolute() and not txt_path.exists() and "datasets" in txt_path.parts:
-        marker = len(txt_path.parts) - 1 - txt_path.parts[::-1].index("datasets")
-        txt_path = dataset_root.joinpath(*txt_path.parts[marker + 1 :])
-    elif not txt_path.is_absolute():
-        candidates = (
-            dataset_root / txt_path,
-            dataset_root.parent / txt_path,
-            dataset_root.parent.parent / txt_path,
-            txt_path,
-        )
-        txt_path = next(
-            (candidate for candidate in candidates if candidate.exists()),
-            candidates[0],
-        )
+    txt_path = resolve_manifest_path(str(row.get("txt_path") or ""), dataset_root)
+    recorded_txt_path = Path(
+        os.path.relpath(txt_path.resolve(), Path.cwd().resolve())
+    ).as_posix()
     author = clean_author(str(row.get("author") or ""))
     title = str(row.get("title") or txt_path.stem)
     exists = txt_path.exists()
@@ -491,7 +712,7 @@ def book_record(row: dict[str, Any], dataset_root: Path, output_text_root: Path)
         "title": title,
         "author": author,
         "original_author": str(row.get("author") or ""),
-        "txt_path": str(txt_path),
+        "txt_path": recorded_txt_path,
         "clean_txt_path": str(out_path),
         "source_epub": row.get("source_epub") or "",
         "metadata_source": row.get("metadata_source") or "",
@@ -517,6 +738,130 @@ def book_record(row: dict[str, Any], dataset_root: Path, output_text_root: Path)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(cleaned, encoding="utf-8")
     return record
+
+
+def passage_fingerprint(lines: list[str]) -> str:
+    normalized = "\n".join(re.sub(r"\s+", "", line) for line in lines)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def cross_book_duplicate_passages(
+    books: dict[str, list[str]],
+) -> tuple[dict[str, set[int]], list[dict[str, Any]]]:
+    marked_lines: dict[str, set[int]] = defaultdict(set)
+    findings: list[dict[str, Any]] = []
+    for window_size, minimum_cjk in CROSS_BOOK_DUPLICATE_RULES:
+        occurrences: dict[str, list[tuple[str, int, int]]] = defaultdict(list)
+        for key, lines in books.items():
+            for index in range(0, len(lines) - window_size + 1):
+                window = lines[index:index + window_size]
+                window_cjk = sum(cjk_len(line) for line in window)
+                if window_cjk < minimum_cjk:
+                    continue
+                occurrences[passage_fingerprint(window)].append(
+                    (key, index, window_cjk)
+                )
+        for fingerprint, matches in occurrences.items():
+            matched_books = {key for key, _index, _cjk in matches}
+            if len(matched_books) < 2:
+                continue
+            for key, index, _window_cjk in matches:
+                marked_lines[key].update(range(index, index + window_size))
+            findings.append(
+                {
+                    "sha256": fingerprint,
+                    "window_lines": window_size,
+                    "minimum_cjk": minimum_cjk,
+                    "occurrence_count": len(matches),
+                    "book_count": len(matched_books),
+                    "occurrences": [
+                        {
+                            "book_id": key,
+                            "paragraph_index": index + 1,
+                            "cjk_count": window_cjk,
+                        }
+                        for key, index, window_cjk in matches
+                    ],
+                }
+            )
+    findings.sort(
+        key=lambda item: (
+            -int(item["book_count"]),
+            -int(item["window_lines"]),
+            str(item["sha256"]),
+        )
+    )
+    return marked_lines, findings
+
+
+def decontaminate_cross_book_passages(records: list[dict[str, Any]]) -> dict[str, Any]:
+    books: dict[str, list[str]] = {}
+    records_by_key: dict[str, dict[str, Any]] = {}
+    for record in records:
+        if not record.get("exists") or not record.get("clean_txt_path"):
+            continue
+        path = Path(str(record["clean_txt_path"]))
+        if not path.exists():
+            continue
+        key = record_key(record)
+        books[key] = [line for line in normalize_lines(read_text(path)) if line]
+        records_by_key[key] = record
+
+    marked_lines, findings = cross_book_duplicate_passages(books)
+    removed_line_count = 0
+    removed_cjk_count = 0
+    affected_books = 0
+    for key, lines in books.items():
+        record = records_by_key[key]
+        removed = marked_lines.get(key, set())
+        removed_cjk = sum(cjk_len(lines[index]) for index in removed)
+        remaining = [line for index, line in enumerate(lines) if index not in removed]
+        cleaned = "\n".join(remaining).strip()
+        cleaned = cleaned + "\n" if cleaned else ""
+        path = Path(str(record["clean_txt_path"]))
+        path.write_text(cleaned, encoding="utf-8")
+
+        record["cross_book_decontamination"] = CROSS_BOOK_DECONTAMINATION_VERSION
+        record["cross_book_duplicate_lines_removed"] = len(removed)
+        record["cross_book_duplicate_cjk_removed"] = removed_cjk
+        record["clean_cjk_count"] = cjk_len(cleaned)
+        record["clean_sha256"] = (
+            hashlib.sha256(cleaned.encode("utf-8")).hexdigest() if cleaned else ""
+        )
+        raw = read_text(Path(str(record["txt_path"])))
+        record["quality_flags"] = text_flags(raw, cleaned)
+        if record.get("author_header_conflicts"):
+            record["quality_flags"].append("manifest_author_header_conflict")
+        if removed:
+            record["quality_flags"].append("cross_book_duplicate_passages_removed")
+            affected_books += 1
+        removed_line_count += len(removed)
+        removed_cjk_count += removed_cjk
+
+    remaining_books = {
+        key: [line for line in normalize_lines(read_text(Path(str(record["clean_txt_path"])))) if line]
+        for key, record in records_by_key.items()
+    }
+    _remaining_marks, remaining_findings = cross_book_duplicate_passages(remaining_books)
+    if remaining_findings:
+        raise ValueError(
+            "Cross-book passage decontamination left repeated fingerprints; "
+            "the corpus cannot be split safely"
+        )
+    return {
+        "schema_version": 1,
+        "policy": CROSS_BOOK_DECONTAMINATION_VERSION,
+        "rules": [
+            {"window_lines": window_size, "minimum_cjk": minimum_cjk}
+            for window_size, minimum_cjk in CROSS_BOOK_DUPLICATE_RULES
+        ],
+        "affected_books": affected_books,
+        "removed_line_count": removed_line_count,
+        "removed_cjk_count": removed_cjk_count,
+        "detected_fingerprint_count": len(findings),
+        "remaining_fingerprint_count": 0,
+        "fingerprints": findings,
+    }
 
 
 def is_primary_eligible(item: dict[str, Any]) -> bool:
@@ -630,6 +975,10 @@ def summarize(records: list[dict[str, Any]], splits: dict[str, Any]) -> dict[str
             for item in records
             if is_primary_eligible(item) and item["clean_cjk_count"] >= 120_000
         ),
+        "punctuation_normalization": PUNCTUATION_NORMALIZATION_VERSION,
+        "books_with_punctuation_normalization": sum(
+            1 for item in records if item.get("punctuation_normalized")
+        ),
         "quality_flag_counts": dict(Counter(flag for item in records for flag in item["quality_flags"])),
         "authors_with_3plus_usable_books": sum(1 for item in author_summary if item["usable_book_count_50k"] >= 3),
         "authors_with_5plus_usable_books": sum(1 for item in author_summary if item["usable_book_count_50k"] >= 5),
@@ -715,6 +1064,9 @@ def chunk_record(
         "genre": record.get("genre") or "",
         "article_type": record.get("article_type") or "",
         "quality_flags": record.get("quality_flags") or [],
+        "punctuation_normalization": record.get("punctuation_normalization") or "",
+        "cross_book_decontamination": record.get("cross_book_decontamination") or "",
+        "masking_policy": MASKING_POLICY_VERSION,
         "text": view_text,
     }
 
@@ -722,7 +1074,7 @@ def chunk_record(
 def generate_chunk_views(
     records: list[dict[str, Any]],
     splits: dict[str, Any],
-    mask_plan: dict[str, dict[str, Any]],
+    mask_plan: dict[str, Any],
     dataset_root: Path,
     *,
     chunk_target_cjk: int = CHUNK_TARGET_CJK,
@@ -736,6 +1088,7 @@ def generate_chunk_views(
 
     output_paths = {
         "clean": unmasked_dir / "chunks.clean.jsonl",
+        "train_global_masked": masked_dir / "chunks.train_global_masked.jsonl",
         "entity_masked": masked_dir / "chunks.entity_masked.jsonl",
         "entity_masked_v2": masked_dir / "chunks.entity_masked_v2.jsonl",
         "entity_masked_v3": masked_dir / "chunks.entity_masked_v3.jsonl",
@@ -747,11 +1100,25 @@ def generate_chunk_views(
         for view, path in output_paths.items()
     }
     split_names = split_lookup(splits)
+    plan_by_book = {
+        record_key(row): row
+        for row in mask_plan.get("books", [])
+        if isinstance(row, dict)
+    }
+    global_entity_v2_matcher = compile_term_matcher(
+        list(mask_plan.get("global_terms", {}).get("entity_terms_v2") or [])
+    )
     summary: dict[str, Any] = {
         "dataset_root": str(dataset_root),
         "chunk_target_cjk": chunk_target_cjk,
         "chunk_min_cjk": chunk_min_cjk,
         "include_excluded": include_excluded,
+        "masking_policy": mask_plan.get("masking_policy", ""),
+        "mask_fit_book_count": int(mask_plan.get("provenance", {}).get("fit_book_count", 0)),
+        "mask_fit_book_ids_sha256": str(
+            mask_plan.get("provenance", {}).get("fit_book_ids_sha256", "")
+        ),
+        "cross_book_decontamination": CROSS_BOOK_DECONTAMINATION_VERSION,
         "books_chunked": 0,
         "chunks_by_view": Counter(),
         "chunks_by_split": Counter(),
@@ -773,27 +1140,41 @@ def generate_chunk_views(
             if not clean_chunks:
                 continue
             summary["books_chunked"] += 1
-            plan = mask_plan.get(record_key(record), {})
-            entity_pattern = compile_term_pattern(list(plan.get("entity_terms") or []))
-            entity_v2_pattern = compile_term_pattern(list(plan.get("entity_terms_v2") or []))
-            topic_pattern = compile_term_pattern(list(plan.get("topic_terms") or []))
+            plan = plan_by_book.get(record_key(record), {})
+            entity_matcher = compile_term_matcher(list(plan.get("entity_terms") or []))
+            entity_v2_matcher = compile_term_matcher(list(plan.get("entity_terms_v2") or []))
+            topic_matcher = compile_term_matcher(list(plan.get("topic_terms") or []))
 
             for index, clean_chunk in enumerate(clean_chunks, start=1):
                 chunk_id = f"{safe_id(str(record['author']))}__{safe_id(str(record['title']))}__{index:04d}"
                 clean_cjk_count = cjk_len(clean_chunk)
-                entity_text = entity_masked_text(clean_chunk, entity_pattern)
-                entity_v2_text = entity_masked_v2_text(clean_chunk, entity_v2_pattern)
-                entity_v3_text = entity_masked_v3_text(clean_chunk, entity_v2_pattern)
+                entity_text = entity_masked_text(clean_chunk, entity_matcher)
+                train_global_masked_text = entity_masked_v3_text(
+                    clean_chunk, global_entity_v2_matcher
+                )
+                entity_v2_text = entity_masked_v2_text(clean_chunk, global_entity_v2_matcher)
+                entity_v2_text = mask_terms(
+                    entity_v2_text, entity_v2_matcher, placeholder="<TERM>"
+                )
+                entity_v3_text = entity_masked_v3_text(clean_chunk, global_entity_v2_matcher)
+                entity_v3_text = mask_terms(
+                    entity_v3_text,
+                    entity_v2_matcher,
+                    placeholder="某",
+                    preserve_length=True,
+                )
                 views = {
                     "clean": clean_chunk,
+                    "train_global_masked": train_global_masked_text,
                     "entity_masked": entity_text,
                     "entity_masked_v2": entity_v2_text,
                     "entity_masked_v3": entity_v3_text,
-                    "topic_distorted": topic_distorted_text(clean_chunk, topic_pattern),
+                    "topic_distorted": topic_distorted_text(clean_chunk, topic_matcher),
                     "structure_only": structure_only_text(clean_chunk),
                 }
                 view_cjk_counts = {
                     "clean": clean_cjk_count,
+                    "train_global_masked": cjk_len(train_global_masked_text),
                     "entity_masked": cjk_len(entity_text),
                     "entity_masked_v2": cjk_len(entity_v2_text),
                     "entity_masked_v3": cjk_len(entity_v3_text),
@@ -823,19 +1204,11 @@ def generate_chunk_views(
     return summary
 
 
-def write_mask_plan(path: Path, mask_plan: dict[str, dict[str, Any]]) -> None:
-    payload = {
-        "parameters": {
-            "ngram_min_count": MASK_NGRAM_MIN_COUNT,
-            "ngram_min_n": MASK_NGRAM_MIN_N,
-            "ngram_max_n": MASK_NGRAM_MAX_N,
-            "max_entity_terms_per_book": MAX_ENTITY_TERMS_PER_BOOK,
-            "max_entity_v2_terms_per_book": MAX_ENTITY_V2_TERMS_PER_BOOK,
-            "max_topic_terms_per_book": MAX_TOPIC_TERMS_PER_BOOK,
-        },
-        "books": list(mask_plan.values()),
-    }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+def write_mask_plan(path: Path, mask_plan: dict[str, Any]) -> None:
+    path.write_text(
+        json.dumps(mask_plan, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def write_chunk_report(path: Path, summary: dict[str, Any]) -> None:
@@ -848,6 +1221,11 @@ def write_chunk_report(path: Path, summary: dict[str, Any]) -> None:
         f"- Books chunked: {summary['books_chunked']}",
         f"- Chunk target CJK: {summary['chunk_target_cjk']}",
         f"- Minimum tail CJK before merge: {summary['chunk_min_cjk']}",
+        f"- Punctuation normalization: `{PUNCTUATION_NORMALIZATION_VERSION}`",
+        f"- Cross-book decontamination: `{summary['cross_book_decontamination']}`",
+        f"- Masking policy: `{summary['masking_policy']}`",
+        f"- Mask vocabulary fit books: {summary['mask_fit_book_count']}",
+        f"- Mask fit-book hash: `{summary['mask_fit_book_ids_sha256']}`",
         "",
         "## Chunks By View",
         "",
@@ -899,9 +1277,19 @@ def write_markdown(path: Path, summary: dict[str, Any], duplicates: list[dict[st
         f"- Missing TXT files: {summary['txt_missing_count']}",
         f"- Usable books >=50k CJK: {summary['usable_book_count_50k']}",
         f"- Primary books >=120k CJK: {summary['primary_book_count_120k']}",
+        f"- Punctuation normalization: `{summary['punctuation_normalization']}`",
+        f"- Books changed by punctuation normalization: {summary['books_with_punctuation_normalization']}",
         f"- Authors with >=3 usable books: {summary['authors_with_3plus_usable_books']}",
         f"- Authors with >=5 usable books: {summary['authors_with_5plus_usable_books']}",
         f"- Exact duplicate cleaned texts: {len(duplicates)}",
+        f"- Cross-book duplicate fingerprints removed: "
+        f"{summary['cross_book_decontamination']['detected_fingerprint_count']}",
+        f"- Cross-book duplicate lines removed: "
+        f"{summary['cross_book_decontamination']['removed_line_count']}",
+        f"- Cross-book duplicate CJK removed: "
+        f"{summary['cross_book_decontamination']['removed_cjk_count']}",
+        f"- Remaining checked cross-book fingerprints: "
+        f"{summary['cross_book_decontamination']['remaining_fingerprint_count']}",
         "",
         "## Split Counts",
         "",
@@ -933,9 +1321,12 @@ def main() -> int:
     parser.add_argument("--target-author", default="非天夜翔")
     parser.add_argument(
         "--stage",
-        choices=["clean", "all"],
+        choices=["paths", "clean", "chunks", "all"],
         default="clean",
-        help="Run only corpus cleanup, or cleanup followed by chunk and mask generation.",
+        help=(
+            "Normalize manifest paths, run corpus cleanup, rebuild chunk views from "
+            "current cleaned artifacts, or run all stages."
+        ),
     )
     parser.add_argument("--chunk-target-cjk", type=int, default=CHUNK_TARGET_CJK)
     parser.add_argument("--chunk-min-cjk", type=int, default=CHUNK_MIN_CJK)
@@ -953,11 +1344,83 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     text_root.mkdir(parents=True, exist_ok=True)
 
+    if args.stage == "paths":
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        changed = normalize_manifest_paths(manifest, dataset_root)
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (output_dir / "raw_manifest_snapshot.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(
+            json.dumps(
+                {"stage": "paths", "manifest": str(manifest_path), "paths_changed": changed},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+
+    if args.stage == "chunks":
+        records = json.loads(
+            (output_dir / "cleaned_manifest.json").read_text(encoding="utf-8")
+        )
+        splits = json.loads((output_dir / "splits.json").read_text(encoding="utf-8"))
+        mask_plan_path = dataset_root / "masked/mask_terms.json"
+        mask_plan = json.loads(mask_plan_path.read_text(encoding="utf-8"))
+        if mask_plan.get("masking_policy") != MASKING_POLICY_VERSION:
+            raise ValueError("Cannot rebuild chunks from a stale mask plan")
+        if {
+            record.get("cross_book_decontamination")
+            for record in records
+            if record.get("exists")
+        } != {CROSS_BOOK_DECONTAMINATION_VERSION}:
+            raise ValueError("Cannot rebuild chunks from stale cleaned texts")
+        chunk_summary = generate_chunk_views(
+            records,
+            splits,
+            mask_plan,
+            dataset_root,
+            chunk_target_cjk=args.chunk_target_cjk,
+            chunk_min_cjk=args.chunk_min_cjk,
+            include_excluded=args.include_excluded_chunks,
+        )
+        (output_dir / "chunk_report.json").write_text(
+            json.dumps(chunk_summary, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        write_chunk_report(dataset_root / "masked/masking_report.md", chunk_summary)
+        print(
+            json.dumps(
+                {
+                    "stage": "chunks",
+                    "output_dir": str(output_dir),
+                    "dataset_root": str(dataset_root),
+                    "chunks_by_view": chunk_summary["chunks_by_view"],
+                    "chunk_outputs": chunk_summary["output_paths"],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    normalized_manifest_paths = normalize_manifest_paths(manifest, dataset_root)
+    if normalized_manifest_paths:
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     records = [book_record(row, dataset_root, text_root) for row in manifest]
     stale_cleaned_files_removed = prune_stale_cleaned_texts(text_root, records)
+    passage_decontamination = decontaminate_cross_book_passages(records)
     splits = split_books(records, clean_author(args.target_author))
     summary = summarize(records, splits)
+    summary["cross_book_decontamination"] = passage_decontamination
     duplicates = duplicate_report(records)
 
     (output_dir / "raw_manifest_snapshot.json").write_text(
@@ -976,6 +1439,10 @@ def main() -> int:
         json.dumps(duplicates, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    (output_dir / "cross_book_passage_report.json").write_text(
+        json.dumps(passage_decontamination, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     (output_dir / "cleaning_report.json").write_text(
         json.dumps({**summary, "recommendations": recommendation(summary)}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -992,7 +1459,17 @@ def main() -> int:
         "authors_with_5plus_usable_books": summary["authors_with_5plus_usable_books"],
         "split_counts": summary["split_counts"],
         "duplicate_count": len(duplicates),
+        "cross_book_duplicate_fingerprints_removed": passage_decontamination[
+            "detected_fingerprint_count"
+        ],
+        "cross_book_duplicate_lines_removed": passage_decontamination[
+            "removed_line_count"
+        ],
+        "cross_book_duplicate_cjk_removed": passage_decontamination[
+            "removed_cjk_count"
+        ],
         "stale_cleaned_files_removed": stale_cleaned_files_removed,
+        "normalized_manifest_paths": normalized_manifest_paths,
     }
 
     if args.stage == "all":
@@ -1004,7 +1481,8 @@ def main() -> int:
                 record for record in records
                 if split_names.get((str(record["author"]), str(record["title"])), "excluded") != "excluded"
             ]
-        mask_plan = select_mask_terms(chunk_records)
+        mask_plan = select_mask_terms(chunk_records, splits)
+        write_mask_plan(dataset_root / "masked" / "mask_terms.json", mask_plan)
         chunk_summary = generate_chunk_views(
             chunk_records,
             splits,
@@ -1018,7 +1496,6 @@ def main() -> int:
             json.dumps(chunk_summary, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        write_mask_plan(dataset_root / "masked" / "mask_terms.json", mask_plan)
         write_chunk_report(dataset_root / "masked" / "masking_report.md", chunk_summary)
         output["chunks_by_view"] = chunk_summary["chunks_by_view"]
         output["chunk_outputs"] = chunk_summary["output_paths"]

@@ -1,5 +1,10 @@
 # Eternal Gate Style-Transfer Research: Iteration 4
 
+> **Current validity note:** the target-margin and threshold fields in this frozen
+> report came from the retired pre-normalization class-balanced scorer. They must not
+> be compared with the current normalized benchmark. The source-fidelity, readability,
+> model-output, and direct-reader evidence remain part of the method decision.
+
 ## Executive Status
 
 > **ITERATION 4 DEVELOPMENT COMPLETE - NO-GO TO SCREENING.**
@@ -354,17 +359,17 @@ The frozen pilot rejection conditions were:
 
 ### Style endpoint
 
-The Stage-1 class-balanced exact character 2-4 gram SGD hinge model was the
+The historical Stage-1 class-balanced exact character 2-4 gram SGD hinge model was the
 frozen author-style meter. Iteration 4 calibrated an absolute generated-domain
 threshold on its 32 calibration rows before style generation. The selected
 threshold and allocation hashes were bound into the analysis lock.
 
-The copied scorer was independently reloaded and replayed against its frozen
-35,812-row benchmark before Iteration 4 generation. It reproduced accuracy
-`87.7611%`, balanced accuracy `83.6490%`, macro F1 `82.3104%`, and target-author
-recall `100.0000%`, with zero material difference from the registered result.
-This verifies artifact identity and executable behavior; it does not replace
-the required 32-row generated-domain threshold calibration.
+The copied historical scorer was independently reloaded and replayed against its
+then-current benchmark before Iteration 4 generation, confirming that the frozen
+decision used the intended artifact. That benchmark and scorer have now been
+retired after corpus cleanup and punctuation normalization; their numerical
+performance is deliberately not carried into the current result. See the current
+authorship-meter report for the replacement benchmark.
 
 A deterministic style success requires all of:
 
@@ -653,7 +658,7 @@ semantic endpoint because the same call both judged and selected candidates.
 The aligned-pair candidate had the best mean rank and no selector-identified
 hard semantic errors. Content planning had the highest mean semantic and
 naturalness scores but was frequently ineligible because of deterministic
-token failures. These are useful qualitative clues for Iteration 5, not proof
+token failures. These are useful qualitative clues for subsequent research, not proof
 of semantic noninferiority.
 
 ## Protocol Deviations and Limits
@@ -694,12 +699,12 @@ and analysis lock fixed before generation.
 
 ## Style-Meter Construct Validity
 
-The frozen exact character 2-4 gram classifier remains a strong authorship
-classifier: test accuracy 87.7611%, balanced accuracy 83.6490%, macro F1
-82.3104%, and target recall 100%. The independent outcome evaluator also noted
-target precision of 75.36% with 703 false positives. These measure predictive
-authorship discrimination; they do not establish a content-independent style
-construct.
+The frozen historical exact character 2-4 gram classifier passed its
+then-current authorship benchmark, but those pre-normalization performance
+figures are retired. The independent outcome evaluator also observed substantial
+target-class false positives. Even before the later corpus correction, these
+results measured predictive authorship discrimination rather than a
+content-independent style construct.
 
 A deterministic post-outcome audit inspected the target class's top 300 positive
 features across 5,650 target train chunks from 29 books and 19,307 comparison
@@ -757,7 +762,7 @@ top target-class features. Its central findings were:
    bottleneck;
 4. generator weakness is real, but cross-arm failure cannot be attributed solely
    to generation because the absolute meter is construct-contaminated; and
-5. Iteration 5 must prospectively repair both measurement and evaluation before
+5. A subsequent study must prospectively repair both measurement and evaluation before
    testing a materially stronger generation mechanism.
 
 ## Conclusion
@@ -779,7 +784,7 @@ The experiment nevertheless establishes four actionable results:
 4. the current ngram classifier is suitable only as a historical attribution and
    paired-lift diagnostic, not as the next primary cross-content style meter.
 
-The next iteration must be prospectively new rather than an in-place repair. Its
+Any subsequent transfer study must be prospectively new rather than an in-place repair. Its
 minimum research design is:
 
 1. build and freeze a content-resistant primary style representation using
@@ -802,5 +807,5 @@ minimum research design is:
 This moves the research from prompt-card combinations toward the reconstruction
 and contrastive-control methods supported by TinyStyler-style self-distillation
 and authorship-transfer policy optimization. Iteration 4's screening and later
-partitions remain preserved as untouched evidence; Iteration 5 must use a fresh
-development allocation and its own lock.
+partitions remain preserved as untouched evidence; any new transfer study must
+use a fresh development allocation and its own lock.

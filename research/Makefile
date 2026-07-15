@@ -1,4 +1,4 @@
-.PHONY: help sync verify test rebuild-corpus audit-masks benchmark-authorship export-production
+.PHONY: help sync verify test rebuild-corpus audit-masks audit-mask-artifacts benchmark-authorship export-production
 
 help:
 	uv run author-style-research --help
@@ -18,16 +18,13 @@ rebuild-corpus:
 audit-masks:
 	uv run author-style-research mask-audit
 
-benchmark-authorship:
-	uv run author-style-research authorship-supervised \
-		--views clean,entity_masked_v3 \
-		--masked-view entity_masked_v3 \
-		--methods char_ngrams \
-		--classifiers sgd_hinge,sgd_hinge_unbalanced \
-		--max-char-features 80000 \
-		--char-min-df 20 \
-		--output-dir generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20 \
-		--jobs -1 --max-iter 3000
+audit-mask-artifacts:
+	uv run author-style-research mask-artifact-audit --jobs -1
+
+benchmark-authorship: rebuild-corpus
+	uv run author-style-research authorship-supervised --jobs -1
+	uv run author-style-research authorship-report \
+		--evaluation-file generated/style_research/benchmarks/author_style_supervised_50authors_cleaned/evaluator_review.md
 
 export-production:
 	uv run author-style-research export-production --overwrite

@@ -29,8 +29,8 @@ planning, neutral Chinese as a terminology/content anchor, retrieved aligned
 masked examples, a validated style definition, and complete paragraph
 regeneration. This operational selection was made after direct reader review of
 the Eternal Gate application artifact. It does not retroactively turn the
-Iteration 4 NO-GO or the later 6/8 application benchmark into an 80% research
-success claim; research conclusions and production preference remain distinct.
+Iteration 4 NO-GO into an 80% research success claim; research conclusions and
+production preference remain distinct.
 
 ## Superseded Work
 
@@ -96,11 +96,11 @@ Use the local multi-author corpus under `datasets/raw/`, indexed by
 
 Current observed scale after expansion and cleanup:
 
-- 200 books;
+- 198 books;
 - 50 canonical author labels, all with at least 3 books;
-- 42 books labeled `非天夜翔`;
-- 199 usable books at `>=50k` cleaned CJK characters;
-- 196 primary books at `>=120k` cleaned CJK characters.
+- 40 books labeled `非天夜翔`;
+- 198 usable books at `>=50k` cleaned CJK characters;
+- 195 primary books at `>=120k` cleaned CJK characters.
 
 Raw files remain audit evidence only. All modeling and sampling use generated clean
 texts plus the masked/unmasked chunk views.
@@ -149,6 +149,9 @@ experiments.
 - fanwai, afterwords, author notes, and extras are identified;
 - mixed-language or non-main-text spans are flagged;
 - source quality issues are recorded rather than silently cleaned away.
+- typographically equivalent Chinese and ASCII punctuation is canonicalized before
+  any clean or masked chunks are generated, while numeric forms such as `3.14` and
+  `12:30` are preserved.
 
 ### Clean corpus artifacts
 
@@ -231,22 +234,13 @@ content controls.
 
 ### Baseline methods
 
-Current implemented baseline:
-
-- nearest author-profile classifier with normalized sparse profiles;
-- character n-grams as a leakage-sensitive diagnostic;
-- punctuation/dialogue features;
-- sentence and paragraph length/shape features;
-- Chinese function-character features;
-- combined interpretable baseline over punctuation/dialogue, length/shape, and
-  function-character features.
-
-Next supervised comparisons to add after this baseline:
-
-- Burrows-Delta-style nearest centroid;
-- logistic regression;
-- linear SVM;
-- random forest as a non-linear baseline.
+The current selected supervised baseline is exact character 2-4 gram TF-IDF with
+an SGD hinge classifier. In plain language, it measures which short adjacent
+character sequences recur in each author's prose. The benchmark compares an
+unweighted classifier with a class-balanced companion on both clean and
+entity-masked text. Exploratory punctuation, dialogue, length, function-character,
+function-word, hashed n-gram, logistic, Naive Bayes, and passive-aggressive variants
+remain diagnostic evidence; they are not the selected meter.
 
 Feature families:
 
@@ -284,10 +278,9 @@ Hard-negative controls should include:
 
 ### Required metrics
 
-Report both unmasked and masked metrics. Current baseline report includes the
-implemented subset below; ROC AUC, probability calibration, and feature-importance
-views remain future additions because the current profile classifier is a distance
-baseline rather than a calibrated probabilistic model.
+Report both unmasked and masked metrics. The current hinge classifier exposes
+decision margins rather than calibrated probabilities, so ROC AUC and probability
+calibration remain future work.
 
 ```text
 top1_author_accuracy
@@ -309,12 +302,12 @@ The style identifier is usable as a style meter only if:
 - feature importance is not dominated by names, titles, or setting terms;
 - confidence scores are calibrated enough for neutral-vs-styled comparisons.
 
-Current milestone result: exact character n-gram TF-IDF with SGD hinge loss on
-`entity_masked_v3` reaches 88.2% masked test accuracy and 84.1% balanced accuracy
-over 50 authors. Use the class-balanced exact n-gram model as the target-author
-style meter, retain the unbalanced variant as the best overall classifier, and use
-the interpretable feature families only as diagnostic guardrails. See
-`docs/reports/02_authorship_style_meter.md`.
+Current milestone result after punctuation normalization, train-only global-mask
+fitting, and removal of mask-marker features: exact character n-gram TF-IDF with
+unweighted SGD hinge loss reaches 89.8% test accuracy and 87.9% balanced accuracy
+over 50 authors. The book-local `entity_masked_v3` view remains a diagnostic, not
+the selected attribution proxy. Interpretable feature families remain diagnostic
+guardrails. See `docs/reports/02_authorship_style_meter.md`.
 
 ## Stage 3: Style-Transfer Method Comparison
 

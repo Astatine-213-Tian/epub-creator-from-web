@@ -21,7 +21,17 @@ from sklearn.linear_model import PassiveAggressiveClassifier, SGDClassifier
 from sklearn.naive_bayes import ComplementNB
 from sklearn.svm import LinearSVC
 
-from benchmark_author_style import (
+from .author_style_meter_contract import (
+    CROSS_BOOK_DECONTAMINATION_VERSION,
+    CURRENT_BENCHMARK_DIR,
+    CURRENT_CHAR_MIN_DF,
+    MASKING_POLICY_VERSION,
+    PUNCTUATION_NORMALIZATION_VERSION,
+    RESEARCH_ROOT,
+    file_sha256,
+    normalize_char_text,
+)
+from .benchmark_author_style import (
     FEATURE_FNS,
     METHOD_LABELS,
     TARGET_AUTHOR_DEFAULT,
@@ -76,27 +86,93 @@ class MatrixBundle:
     matrix_by_split: dict[str, sparse.csr_matrix]
 
 
-def normalize_char_text(text: str) -> str:
-    return re.sub(r"\s+", "", text)
-
-
 def parse_csv_arg(value: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
 def load_records(path: Path) -> list[ChunkRecord]:
     records: list[ChunkRecord] = []
+    seen_chunks: set[str] = set()
+    book_splits: dict[tuple[str, str], str] = {}
     for item in jsonl_records(path):
-        records.append(
-            ChunkRecord(
-                split=str(item["split"]),
-                author=str(item["author"]),
-                title=str(item["title"]),
-                chunk_id=str(item["chunk_id"]),
-                text=str(item["text"]),
+        normalization = str(item.get("punctuation_normalization", ""))
+        if normalization != PUNCTUATION_NORMALIZATION_VERSION:
+            raise ValueError(
+                f"{path} contains chunks built with punctuation normalization "
+                f"{normalization or '<missing>'}; rebuild with "
+                f"`author-style-research corpus-build --stage all`"
             )
+        decontamination = str(item.get("cross_book_decontamination", ""))
+        if decontamination != CROSS_BOOK_DECONTAMINATION_VERSION:
+            raise ValueError(
+                f"{path} contains chunks built with cross-book decontamination "
+                f"{decontamination or '<missing>'}; rebuild the corpus"
+            )
+        masking_policy = str(item.get("masking_policy", ""))
+        if masking_policy != MASKING_POLICY_VERSION:
+            raise ValueError(
+                f"{path} contains chunks built with masking policy "
+                f"{masking_policy or '<missing>'}; rebuild the corpus"
+            )
+        record = ChunkRecord(
+            split=str(item["split"]),
+            author=str(item["author"]),
+            title=str(item["title"]),
+            chunk_id=str(item["chunk_id"]),
+            text=str(item["text"]),
         )
+        if record.chunk_id in seen_chunks:
+            raise ValueError(f"duplicate chunk_id in {path}: {record.chunk_id}")
+        seen_chunks.add(record.chunk_id)
+        book_key = (record.author, record.title)
+        previous_split = book_splits.setdefault(book_key, record.split)
+        if previous_split != record.split:
+            raise ValueError(f"book appears in multiple splits in {path}: {book_key}")
+        records.append(record)
+    if not records:
+        raise ValueError(f"no chunk records found in {path}")
     return records
+
+
+def validate_view_alignment(records_by_view: dict[str, list[ChunkRecord]]) -> None:
+    reference_view = next(iter(records_by_view))
+    reference = {
+        record.chunk_id: (record.split, record.author, record.title)
+        for record in records_by_view[reference_view]
+    }
+    for view, records in records_by_view.items():
+        observed = {
+            record.chunk_id: (record.split, record.author, record.title)
+            for record in records
+        }
+        if observed != reference:
+            raise ValueError(
+                f"chunk identity or split mismatch between {reference_view} and {view}; "
+                "rebuild all corpus views together"
+            )
+
+
+def validate_mask_plan(path: Path, records: list[ChunkRecord]) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("masking_policy") != MASKING_POLICY_VERSION:
+        raise ValueError(f"{path} does not use the current masking policy")
+    provenance = payload.get("provenance", {})
+    if provenance.get("fit_split") != "train":
+        raise ValueError(f"{path} was not fit on the train split")
+    if provenance.get("transform_uses_author_label") is not False:
+        raise ValueError(f"{path} permits author-label-aware transforms")
+    if provenance.get("held_out_corpus_statistics_used_for_global_terms") is not False:
+        raise ValueError(f"{path} permits held-out statistics in global mask selection")
+    expected_fit_books = sorted({
+        f"{record.author}::{record.title}"
+        for record in records
+        if record.split == "train"
+    })
+    if provenance.get("fit_book_ids") != expected_fit_books:
+        raise ValueError(f"{path} fit-book provenance differs from current train books")
+    if int(provenance.get("fit_book_count", -1)) != len(expected_fit_books):
+        raise ValueError(f"{path} has an invalid fit-book count")
+    return payload
 
 
 def group_records_by_split(records: list[ChunkRecord]) -> dict[str, list[ChunkRecord]]:
@@ -527,6 +603,7 @@ def write_outputs(
     target_author: str,
     dataset_root: Path,
     char_min_df: int,
+    input_bindings: dict[str, Any],
 ) -> None:
     gap_rows = build_gap_rows(results, classifiers=classifiers, methods=methods, masked_view=masked_view)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -540,6 +617,7 @@ def write_outputs(
                 "classifiers": classifiers,
                 "methods": methods,
                 "char_min_df": char_min_df,
+                "input_bindings": input_bindings,
                 "results": results,
                 "masked_gap": gap_rows,
             },
@@ -589,19 +667,27 @@ def write_outputs(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Benchmark supervised author-style classifiers on clean and masked chunks.")
     parser.add_argument("--dataset-root", type=Path, default=Path("datasets"))
-    parser.add_argument("--output-dir", type=Path, default=Path("generated/style_research/benchmarks/author_style_supervised_baselines"))
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=CURRENT_BENCHMARK_DIR.relative_to(RESEARCH_ROOT),
+    )
     parser.add_argument("--target-author", default=TARGET_AUTHOR_DEFAULT)
-    parser.add_argument("--views", default="clean,entity_masked_v3", help="Comma-separated views to benchmark.")
+    parser.add_argument(
+        "--views",
+        default="clean,train_global_masked,entity_masked_v3",
+        help="Comma-separated views to benchmark.",
+    )
     parser.add_argument("--masked-view", default="entity_masked_v3", help="Masked view to compare against clean.")
     parser.add_argument(
         "--methods",
-        default="char_ngrams,punctuation_dialogue,length_shape,function_chars,function_words,function_words_plus_chars,combined_interpretable,combined_rich_function_words",
+        default="char_ngrams",
         help="Comma-separated feature families to benchmark.",
     )
-    parser.add_argument("--classifiers", default="linear_svm,sgd_logistic,complement_nb")
+    parser.add_argument("--classifiers", default="sgd_hinge,sgd_hinge_unbalanced")
     parser.add_argument("--max-char-features", type=int, default=80_000)
-    parser.add_argument("--char-min-df", type=int, default=2)
-    parser.add_argument("--max-iter", type=int, default=2000)
+    parser.add_argument("--char-min-df", type=int, default=CURRENT_CHAR_MIN_DF)
+    parser.add_argument("--max-iter", type=int, default=3000)
     parser.add_argument("--random-state", type=int, default=13)
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--report-only", action="store_true", help="Regenerate Markdown/charts from completed JSON results.")
@@ -638,12 +724,41 @@ def main() -> int:
             target_author=str(payload.get("target_author", args.target_author)),
             dataset_root=Path(str(payload.get("dataset_root", args.dataset_root))),
             char_min_df=int(payload.get("char_min_df", args.char_min_df)),
+            input_bindings=dict(payload.get("input_bindings", {})),
         )
         print(json.dumps({"report": str(args.output_dir / "supervised_author_baseline_results.md"), "report_only": True}, indent=2))
         return 0
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     records_by_view = {view: load_records(paths[view]) for view in views}
+    validate_view_alignment(records_by_view)
+    mask_plan_path = args.dataset_root / "masked/mask_terms.json"
+    mask_plan = validate_mask_plan(mask_plan_path, records_by_view[views[0]])
+    input_bindings = {
+        "punctuation_normalization": PUNCTUATION_NORMALIZATION_VERSION,
+        "cross_book_decontamination": CROSS_BOOK_DECONTAMINATION_VERSION,
+        "masking_policy": MASKING_POLICY_VERSION,
+        "mask_plan": {
+            "path": str(mask_plan_path),
+            "sha256": file_sha256(mask_plan_path),
+            "fit_book_count": int(mask_plan["provenance"]["fit_book_count"]),
+            "fit_book_ids_sha256": str(
+                mask_plan["provenance"]["fit_book_ids_sha256"]
+            ),
+        },
+        "benchmark_source": {
+            "path": str(Path(__file__).resolve().relative_to(RESEARCH_ROOT)),
+            "sha256": file_sha256(Path(__file__).resolve()),
+        },
+        "chunk_files": {
+            view: {
+                "path": str(paths[view]),
+                "sha256": file_sha256(paths[view]),
+                "rows": len(records_by_view[view]),
+            }
+            for view in views
+        },
+    }
     matrix_cache: dict[tuple[str, str], MatrixBundle] = {}
     results: dict[str, dict[str, Any]] = {}
     for view in views:
@@ -682,6 +797,7 @@ def main() -> int:
                             "classifiers": classifiers,
                             "methods": methods,
                             "char_min_df": args.char_min_df,
+                            "input_bindings": input_bindings,
                             "completed_runs": sorted(results),
                             "results": results,
                         },
@@ -702,6 +818,7 @@ def main() -> int:
         target_author=args.target_author,
         dataset_root=args.dataset_root,
         char_min_df=args.char_min_df,
+        input_bindings=input_bindings,
     )
     print(
         json.dumps(

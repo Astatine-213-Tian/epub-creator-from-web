@@ -2,6 +2,12 @@
 
 Generated from frozen artifacts at `2026-07-13T00:19:37+00:00`.
 
+> **Current validity note:** the margin tables below were produced by the retired
+> pre-normalization class-balanced scorer. They describe the frozen Iteration-2
+> decision but are not current style-meter measurements. The retained outputs must
+> be rescored with the normalized unweighted meter before quantitative reuse. The
+> English-grounded fidelity findings remain valid independently of that scorer.
+
 ## Executive Result
 
 Iteration 2 finished source construction, neutral translation, three aligned-pair style-transfer arms, deterministic scoring, and an independent outcome audit. All three style methods produced positive mean target-author margin lift in both benchmark arms, but **none passed the preregistered joint gate** because own-author hard-fidelity failure rates were 25.0%-29.2%, above the 10% limit. Confirmation was therefore not opened.
@@ -100,7 +106,10 @@ This is an execution-quality result, not a style result. Iteration 3 should free
 
 ## Deterministic Results
 
-The frozen Stage-1 style meter is the class-balanced exact 2-4 character n-gram SGD hinge classifier on `entity_masked_v3`. `Mean paired lift` is candidate target-author decision margin minus the same row's neutral margin. Positive lift means movement toward the target-author side of this proxy; it is not a probability or human style score.
+The historical Stage-1 style meter was the pre-normalization class-balanced exact
+2-4 character n-gram SGD hinge classifier on `entity_masked_v3`. `Mean paired lift`
+is candidate target-author decision margin minus the same row's neutral margin.
+These values are preserved as frozen decision provenance, not current scores.
 
 ![Mean paired margin lift](../../generated/style_research/style_transfer_experiments/iterations/aligned_pairs_v1/evaluations/screening_v1_initial/charts/mean_paired_lift.svg)
 

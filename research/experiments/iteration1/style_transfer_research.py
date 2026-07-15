@@ -14,6 +14,12 @@ from typing import Any, Iterable, Sequence
 
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.author_style_meter_contract import (
+    CURRENT_MASKED_VIEW,
+    CURRENT_SCORER_ID,
+    CURRENT_SCORER_VALIDATION_RESULT,
+    CURRENT_SCORER_VALIDATION_RUN_KEY,
+)
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -1855,8 +1861,8 @@ def initialize_prompts(experiment_root: Path) -> dict[str, str]:
         "schema_version": 1,
         "style_meter_status": "provisional_pending_generated_domain_calibration",
         "style_meter": {
-            "model": "class_balanced_sgd_hinge_exact_char_ngrams_min_df_20",
-            "input_view": "entity_masked_v3",
+            "model": CURRENT_SCORER_ID,
+            "input_view": CURRENT_MASKED_VIEW,
             "reported_outputs": [
                 "target_decision_margin",
                 "target_rank",
@@ -2361,6 +2367,15 @@ def render_report(
     run_config = json.loads(run_config_path.read_text(encoding="utf-8"))
     evaluation_protocol_path = experiment_root / "protocols/evaluation_protocol.v1.json"
     evaluation = load_evaluation(evaluation_path)
+    authorship_payload = json.loads(
+        CURRENT_SCORER_VALIDATION_RESULT.read_text(encoding="utf-8")
+    )
+    authorship_result = authorship_payload["results"][
+        CURRENT_SCORER_VALIDATION_RUN_KEY
+    ]
+    authorship_test = authorship_result["chunk_metrics"]["test"]
+    authorship_accuracy = authorship_test["accuracy"] * 100
+    authorship_balanced_accuracy = authorship_test["balanced_accuracy"] * 100
 
     if evaluation and "reviews" in evaluation:
         reviews = evaluation["reviews"]
@@ -2378,7 +2393,11 @@ def render_report(
 
     status_rows = [
         ("Corpus cleaning and book-level splits", "complete", "Existing reproducible corpus"),
-        ("Masked author-style classifier", "complete", "88.2% masked test accuracy"),
+        (
+            "Masked author-style classifier",
+            "complete",
+            f"{authorship_accuracy:.1f}% accuracy / {authorship_balanced_accuracy:.1f}% balanced",
+        ),
         ("Generated-domain style-meter calibration", "pending", "32 rows reserved"),
         ("Development sample freeze", "complete", f"{summary['total_samples']} chunks, two arms"),
         ("Runner/evaluator target isolation", "complete", "Opaque IDs and evaluator-only files"),
@@ -2455,8 +2474,8 @@ Generated from reproducible artifacts on {utc_now()}.
 ## Executive Status
 
 The author-style identification prerequisite passes the 80% classifier requirement:
-the best exact character n-gram classifier reaches **88.2% masked test accuracy**
-and **84.1% balanced accuracy** across 50 authors. The class-balanced exact n-gram
+the current exact character n-gram classifier reaches **{authorship_accuracy:.1f}% masked test accuracy**
+and **{authorship_balanced_accuracy:.1f}% balanced accuracy** across 50 authors. The unweighted exact n-gram
 SGD hinge model is a **provisional proxy meter**, not yet a calibrated style-transfer
 endpoint. Its generated-domain threshold must be frozen on the 32 calibration cases.
 

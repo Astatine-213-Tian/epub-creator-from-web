@@ -11,7 +11,7 @@ from pathlib import Path
 RESEARCH_ROOT = Path(__file__).resolve().parents[1]
 EXCLUDED_TESTS = {
     (
-        "tests.experiments.iteration5.test_cr_fysm_v4_construct_v2."
+        "tests.experiments.validation.test_cr_fysm_v4_construct_v2."
         "ConstructV2ProtocolTests."
         "test_preregistered_and_executed_command_templates_match"
     ): (

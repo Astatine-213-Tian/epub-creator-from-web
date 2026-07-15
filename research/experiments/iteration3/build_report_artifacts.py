@@ -14,6 +14,7 @@ from typing import Any, Iterable
 from experiments.iteration1 import evaluate_style_transfer_methods as base_evaluator
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.author_style_meter_contract import CURRENT_SCORER_ID
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -412,13 +413,14 @@ def original_control_rows(
         benchmark_result=(
             REPO_ROOT
             / "generated/style_research/benchmarks/"
-            "author_style_supervised_50authors_iter3_exact_hinge_mindf20/"
+            "author_style_supervised_50authors_cleaned/"
             "supervised_author_baseline_results.json"
         ),
         benchmark_script=REPO_ROOT / "workflows/benchmark_author_style_supervised.py",
         scorer_dir=(
             experiment_root
-            / "scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1"
+            / "scorers"
+            / CURRENT_SCORER_ID
         ),
     )
     scorer = evaluator.load_frozen_scorer(scorer_paths)

@@ -14,6 +14,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.author_style_meter_contract import CURRENT_SCORER_ID
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -611,7 +612,7 @@ def copy_runtime_artifacts() -> None:
     (ITERATION_ROOT / "prompts/style_transfer_method.v1.md").write_text(
         STYLE_PROMPT, encoding="utf-8"
     )
-    scorer = "class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1"
+    scorer = CURRENT_SCORER_ID
     for source in (ITERATION2_ROOT / "scorers" / scorer).iterdir():
         if source.is_file():
             copy_file(source, ITERATION_ROOT / "scorers" / scorer / source.name)
@@ -946,7 +947,10 @@ def method_assets(assets: Mapping[str, Any], microcards: list[dict[str, Any]]) -
             "paragraph_contract": "Preserve paragraph IDs and order exactly; output no JSON residue inside paragraph strings.",
         },
         "evidence_source": {
-            "pair_pool": "29 entity-masked train excerpts from 29 target-author books",
+            "pair_pool": (
+                f"{len(pair_rows)} entity-masked train excerpts from "
+                f"{len({row['title'] for row in pair_rows})} target-author books"
+            ),
             "retrieval_query": "semantic_and_structural_signature_v1",
             "k": PAIR_K,
             "book_diversity": "at_most_one_pair_per_book",

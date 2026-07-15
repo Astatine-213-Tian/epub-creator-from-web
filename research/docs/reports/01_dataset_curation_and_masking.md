@@ -7,6 +7,7 @@ generated/style_research/corpus/
   cleaned_manifest.json
   cleaning_report.json
   cleaning_report.md
+  cross_book_passage_report.json
   duplicate_report.json
   splits.json
   texts/<author>/<title>.clean.txt
@@ -18,26 +19,42 @@ Reproduce with:
 uv run author-style-research corpus-build --stage clean
 ```
 
-The script does not modify raw source TXT files under `datasets/raw/`. It writes
-generated cleaned copies for style-research use. Run this cleanup stage and verify
-residue scans before generating any masked or unmasked chunks.
+The script normally leaves raw source TXT files under `datasets/raw/` unchanged and
+writes generated cleaned copies for style-research use. Corpus curation decisions,
+such as removing an ineligible book, are made explicitly in the raw manifest before
+cleanup is rerun. Run this stage and verify residue scans before generating masked
+or unmasked chunks.
 
 ## Current Result
 
-- Manifest books: 200
-- TXT files present: 200
+- Manifest books: 198
+- TXT files present: 198
 - Missing TXT files: 0
 - Authors: 50
-- Usable books at `>=50k` cleaned CJK characters: 199
-- Primary books at `>=120k` cleaned CJK characters: 196
+- Usable books at `>=50k` cleaned CJK characters: 198
+- Primary books at `>=120k` cleaned CJK characters: 195
 - Authors with at least 3 books: 50
 - Authors with at least 5 usable books: 4
 - Exact duplicate cleaned texts: 0
+- Punctuation normalization: `canonical_zh_v1`
+- Books changed by punctuation normalization: 195
+- Repeated cross-book passage fingerprints removed: 1,362
+- Books affected by cross-book passage removal: 28
+- Lines removed from generated clean copies: 4,877
+- CJK characters removed from generated clean copies: 222,241
+- Remaining checked cross-book fingerprints: 0
 
 The source TXT files contain many author notes and some scrape/source boilerplate,
 but the generated cleaned copies remove detected chapter headings, author-note
 blocks, URL lines, and obvious boilerplate lines. A residue scan over the generated
-cleaned texts found no hits for the main checked patterns:
+cleaned texts found no hits for the main checked patterns. Cleanup also canonicalizes
+equivalent Chinese/ASCII punctuation forms while preserving punctuation roles;
+numeric forms such as `3.14` and `12:30` remain intact.
+
+The cross-book decontamination pass removes exact long passages shared by different
+books, including copied recommendations, source messages, and other repeated prose
+that survives line-level boilerplate rules. It operates only on generated clean
+copies. Files under `datasets/raw/` remain unchanged.
 
 ```text
 作者有话要说
@@ -67,12 +84,11 @@ Use `>=120k` cleaned CJK as the stronger "primary full-length" marker when a met
 needs longer stable samples, but do not discard `50k-120k` books from the first
 exploratory benchmark.
 
-## Drop From Primary Benchmark
+## Length Tiers
 
-Exclude `非天夜翔/西楚霸王` from the primary chunk benchmark because it has only
-38,604 cleaned CJK characters. Keep the three books between 50k and 120k
-(`black_di/白日梦`, `black_di/陌上花`, and `酱子贝/我喜欢你男朋友很久了`) in the
-usable set but outside analyses that explicitly require the stronger 120k marker.
+Keep the three books between 50k and 120k (`black_di/白日梦`, `black_di/陌上花`,
+and `酱子贝/我喜欢你男朋友很久了`) in the usable set but outside analyses that
+explicitly require the stronger 120k marker.
 
 Authors with fewer than three books were removed from `datasets/`; no one-book or
 two-book author remains in the current manifest.
@@ -92,11 +108,11 @@ Never split chunks from the same book across train/dev/test.
 
 Current generated split counts:
 
-- train: 89 books
+- train: 88 books
 - dev: 53 books
 - test: 53 books
 - proxy_transfer: 4 books
-- excluded: 1 book
+- excluded: 0 books
 
 The proxy-transfer holdout currently uses four large target-author books:
 
@@ -148,28 +164,22 @@ Current generated chunk artifacts:
 
 ```text
 datasets/unmasked/chunks.clean.jsonl
-datasets/masked/chunks.entity_masked.jsonl
-datasets/masked/chunks.entity_masked_v2.jsonl
+datasets/masked/chunks.train_global_masked.jsonl
 datasets/masked/chunks.entity_masked_v3.jsonl
-datasets/masked/chunks.topic_distorted.jsonl
-datasets/masked/chunks.structure_only.jsonl
 datasets/masked/mask_terms.json
 datasets/masked/masking_report.md
 ```
 
 Current chunk counts:
 
-- books chunked: 199
-- clean chunks: 87,174
-- entity-masked chunks: 87,174
-- entity-masked v2 chunks: 87,174
-- entity-masked v3 chunks: 87,174
-- topic-distorted chunks: 87,174
-- structure-only chunks: 87,174
-- train chunks: 24,957
-- dev chunks: 23,683
-- test chunks: 35,812
-- proxy-transfer chunks: 2,722
+- books chunked: 198
+- clean chunks: 87,137
+- train-global-masked chunks: 87,137
+- global-plus-local entity-masked chunks: 87,137
+- train chunks: 24,796
+- dev chunks: 23,642
+- test chunks: 35,994
+- proxy-transfer chunks: 2,705
 
 Run the mask-quality QA report:
 
@@ -186,29 +196,32 @@ generated/style_research/benchmarks/mask_quality_stats.json
 
 Current QA result:
 
-- all five chunk views have matching row counts;
+- all three current benchmark views have matching rows and split assignments;
 - known scrape and author-note residue hits: 0;
-- malformed placeholder chunks: 0;
-- `entity_masked` is readable enough for human QA but leaked some
-  author/book-concentrated names in sample inspection;
-- `entity_masked_v2` replaces author-concentrated content terms with `<TERM>`,
-  has 90.4% CJK retention, and is retained as the earlier masked view;
-- `entity_masked_v3` replaces the same author-concentrated content terms with
-  length-preserving `某`, has 100.0% CJK retention, and is the current masked
-  view for supervised author-style baselines;
-- `topic_distorted` and `structure_only` are diagnostic views, not readable
-  training text.
+- malformed placeholder chunks in current benchmark views: 0;
+- `train_global_masked` uses a 12,000-term content vocabulary fitted from the
+  88 training books only and masks about 3.36% of CJK positions;
+- `entity_masked_v3` adds terms selected independently from each book by the
+  same author-label-blind rule and masks about 18.87% of CJK positions;
+- both current masked views use length-preserving `某`, so clean and masked
+  chunks retain identical CJK length;
+- neither global vocabulary fitting nor transformation reads development,
+  test, or proxy-holdout corpus statistics.
+
+The global-only view is an ablation control. A large gain after adding the
+per-book supplement would indicate that the masking transform itself may create
+an authorship shortcut, so both results must be reported together.
 
 The current reproducible exact n-gram benchmark command is:
 
 ```bash
 uv run author-style-research authorship-supervised \
-  --views clean,entity_masked_v3 \
+  --views clean,train_global_masked,entity_masked_v3 \
   --masked-view entity_masked_v3 \
   --methods char_ngrams \
   --classifiers sgd_hinge,sgd_hinge_unbalanced \
   --char-min-df 20 \
-  --output-dir generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20
+  --output-dir generated/style_research/benchmarks/author_style_supervised_50authors_cleaned
 ```
 
 Current benchmark and transfer-research reports:
@@ -216,6 +229,6 @@ Current benchmark and transfer-research reports:
 ```text
 docs/reports/02_authorship_style_meter.md
 docs/reports/03_transfer_iteration1_prompt_methods.md
-generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20/supervised_author_baseline_results.md
-generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20/supervised_author_baseline_results.json
+generated/style_research/benchmarks/author_style_supervised_50authors_cleaned/supervised_author_baseline_results.md
+generated/style_research/benchmarks/author_style_supervised_50authors_cleaned/supervised_author_baseline_results.json
 ```

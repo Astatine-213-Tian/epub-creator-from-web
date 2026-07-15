@@ -233,7 +233,7 @@ def build_report(root: Path, output: Path) -> None:
         "",
         "| Stage | Data | Result | Status |",
         "| --- | --- | --- | --- |",
-        f"| Aligned-pair evidence | {pair_summary['total_samples']} excerpts from {pair_summary['books']} target-author train books | 29 English -> neutral -> original-target pairs | complete |",
+        f"| Aligned-pair evidence | {pair_summary['total_samples']} excerpts from {pair_summary['books']} target-author train books | {pair_summary['total_samples']} English -> neutral -> original-target pairs | complete |",
         f"| Fresh screen | {preregistration['proxy_screen']['screening_own']} own-author + {preregistration['proxy_screen']['screening_rows'] - preregistration['proxy_screen']['screening_own']} cross-author rows | Zero overlap with iteration-1 screen | complete |",
         "| Style generation | 3 methods x 36 rows | 108/108 final outputs valid | complete |",
         "| Deterministic evaluation | Frozen exact character n-gram style meter plus fidelity/copy gates | Positive relative style lift; no copy failures; every method fails joint promotion | complete |",
@@ -305,7 +305,7 @@ def build_report(root: Path, output: Path) -> None:
             "### What the pair rebuild changed",
             "",
             "The audit-triggered `prepare.py` rebuild did **not** call an LLM and did not replace "
-            "the 29 English, neutral, or target texts. It deterministically rewrote manifests, role "
+            f"the {pair_summary['total_samples']} English, neutral, or target texts. It deterministically rewrote manifests, role "
             "labels, paths, hashes, method assets, source bindings, and the active lock so every "
             "artifact referenced the iteration-2 allocation. Rebuilding those records was required "
             "because the first frozen package still contained iteration-1 paths and geometry.",

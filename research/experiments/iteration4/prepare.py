@@ -8,11 +8,14 @@ import re
 import shutil
 import sys
 from collections import Counter, defaultdict
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.audit_style_dataset import compile_term_matcher, mask_terms
+from workflows.author_style_meter_contract import CURRENT_SCORER_ID
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -795,7 +798,7 @@ def copy_runtime_artifacts() -> None:
         ITERATION_ROOT / "schemas/independent_candidate_selector_output.v1.schema.json",
         SELECTOR_SCHEMA,
     )
-    scorer_name = "class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1"
+    scorer_name = CURRENT_SCORER_ID
     shutil.copytree(
         ITERATION3_ROOT / "scorers" / scorer_name,
         ITERATION_ROOT / "scorers" / scorer_name,
@@ -805,15 +808,27 @@ def copy_runtime_artifacts() -> None:
 
 def mask_term_plans() -> dict[tuple[str, str], tuple[str, ...]]:
     payload = read_json(MASK_TERMS_PATH)
+    global_terms = [
+        str(value)
+        for value in payload.get("global_terms", {}).get("entity_terms_v2", [])
+    ]
     return {
         (str(row["author"]), str(row["title"])): tuple(
             sorted(
-                (str(value) for value in row.get("entity_terms", [])),
+                {
+                    *global_terms,
+                    *(str(value) for value in row.get("entity_terms_v2", [])),
+                },
                 key=lambda value: (-len(value), value),
             )
         )
         for row in payload["books"]
     }
+
+
+@lru_cache(maxsize=128)
+def cached_term_matcher(terms: tuple[str, ...]):
+    return compile_term_matcher(list(terms))
 
 
 def mask_v3_text(text: str, terms: Sequence[str]) -> str:
@@ -822,12 +837,12 @@ def mask_v3_text(text: str, terms: Sequence[str]) -> str:
         masked = masked.replace(placeholder, sentinel)
     masked = LATIN_RE.sub("<LATIN>", masked)
     masked = NUMBER_RE.sub("<NUM>", masked)
-    if terms:
-        pattern = re.compile("|".join(re.escape(term) for term in terms))
-        masked = pattern.sub(
-            lambda match: "某" * len(CJK_RE.findall(match.group(0))),
-            masked,
-        )
+    masked = mask_terms(
+        masked,
+        cached_term_matcher(tuple(terms)),
+        placeholder="某",
+        preserve_length=True,
+    )
     for placeholder, sentinel in PLACEHOLDER_SENTINELS.items():
         masked = masked.replace(sentinel, placeholder)
     masked = re.sub(r"<+(CONTENT|NUM|LATIN)>+", r"<\1>", masked)
@@ -901,8 +916,6 @@ def load_iteration3_pairs() -> dict[str, Any]:
         raise ValueError("Iteration-3 aligned-pair source is corrupt")
     bundle = read_json(source)
     pairs = bundle["assets"]["aligned_pairs"]
-    if int(pairs.get("count", 0)) != 29:
-        raise ValueError("Expected 29 aligned train pairs")
     allocation = {
         str(row["sample_id"]): row
         for row in iter_jsonl(ALIGNED_PAIR_ALLOCATION_PATH)
@@ -919,7 +932,10 @@ def load_iteration3_pairs() -> dict[str, Any]:
         metadata = allocation[str(pair["source_sample_id"])]
         author = str(metadata["author"])
         title = str(metadata["book_title"])
-        chunk = chunks[str(metadata["chunk_id"])]
+        chunk_id = str(metadata["chunk_id"])
+        if chunk_id not in chunks:
+            continue
+        chunk = chunks[chunk_id]
         neutral, target = remask_pair_paragraphs(
             pair=pair,
             author=author,
@@ -946,8 +962,24 @@ def load_iteration3_pairs() -> dict[str, Any]:
         }
         remasked["pair_sha256"] = sha256_json(remasked_without_hash)
         remasked_pairs.append(remasked)
+    current_train_books = {
+        (str(row["author"]), str(row["title"])) for row in chunks.values()
+    }
+    pair_books = {
+        (
+            str(allocation[str(pair["source_sample_id"])]["author"]),
+            str(allocation[str(pair["source_sample_id"])]["book_title"]),
+        )
+        for pair in remasked_pairs
+    }
+    if pair_books != current_train_books or len(remasked_pairs) != len(current_train_books):
+        raise ValueError(
+            "Aligned pairs do not provide exactly one source for every current "
+            "target-author train book"
+        )
     return {
         **pairs,
+        "count": len(remasked_pairs),
         "pairs": remasked_pairs,
         "source_view": "entity_masked_v3",
         "remasking_algorithm": (

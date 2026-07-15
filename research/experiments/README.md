@@ -1,14 +1,15 @@
 # Transfer Experiments
 
-This directory contains the maintained code for the five numbered transfer
-studies. Read the matching canonical report before rerunning an experiment: the
-report defines its data, frozen decisions, observed results, and limitations.
+This directory contains the maintained code for four numbered transfer studies
+and one unnumbered post-transfer validation package. Read the matching canonical
+report before rerunning a numbered experiment: the report defines its data,
+frozen decisions, observed results, and limitations.
 
 Run modules from `research/` using their package path, for example:
 
 ```bash
 uv run python -m experiments.iteration4.prepare --help
-uv run python -m experiments.iteration5.report_style_transfer_iteration5
+uv run python -m experiments.validation.meter.benchmark_content_resistant_meter --help
 ```
 
 ## Study Map
@@ -19,7 +20,7 @@ uv run python -m experiments.iteration5.report_style_transfer_iteration5
 | [`iteration2/`](iteration2/README.md) | Do aligned neutral-to-author pairs improve transfer? | [Iteration 2 report](../docs/reports/04_transfer_iteration2_aligned_pairs.md) |
 | [`iteration3/`](iteration3/README.md) | Do constrained edits, microcards, or reranking avoid fidelity loss? | [Iteration 3 report](../docs/reports/05_transfer_iteration3_constrained_rerank.md) |
 | [`iteration4/`](iteration4/README.md) | Does English-grounded full regeneration work better? | [Iteration 4 report](../docs/reports/06_transfer_iteration4_full_regeneration.md) |
-| [`iteration5/`](iteration5/README.md) | Is the style meter valid, does a 4B LoRA help, and which method should be applied to Eternal Gate? | [Iteration 5 report](../docs/reports/07_transfer_iteration5_prompt_vs_lora.md) |
+| [`validation/`](validation/README.md) | Does the transfer meter survive content controls, and how did the selected prompt method behave in application? | Diagnostic evidence; not a numbered transfer iteration |
 | [`shared/`](shared/README.md) | Stable path and hashing primitives with no experiment policy | Not a study |
 
 Tests are kept separately under `../tests/experiments/iterationN/`; production
@@ -29,10 +30,12 @@ and corpus workflows are under `../workflows/`.
 
 - Put prompts, sample allocation, generation, rating, and decision rules in the
   numbered iteration that registered them.
+- Put later measurement and application audits in `validation/`; these audits
+  must not be presented as an additional transfer-method iteration.
 - Put only policy-free infrastructure used across iterations in `shared/`.
 - Put evolving corpus construction, classifier benchmarks, verification, and
   production export commands in `../workflows/`.
-- Start a new numbered iteration when changing an observed method or endpoint.
+- Start a new numbered iteration when changing an observed transfer method.
 
 Similar-looking runners are not automatically duplicates. Iterations 2-4 encode
 different prompt contracts and evaluation rules, so merging them would obscure

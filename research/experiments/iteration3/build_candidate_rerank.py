@@ -17,6 +17,7 @@ import joblib
 
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.author_style_meter_contract import CURRENT_SCORER_ID
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -238,7 +239,7 @@ def edit_ratio(neutral: str, candidate: str) -> float:
 
 class StyleScorer:
     def __init__(self, root: Path):
-        scorer = root / "scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1"
+        scorer = root / "scorers" / CURRENT_SCORER_ID
         self.vectorizer = joblib.load(scorer / "vectorizer.joblib")
         self.classifier = joblib.load(scorer / "classifier.joblib")
         labels = read_json(scorer / "labels.json")

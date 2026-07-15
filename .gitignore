@@ -8,6 +8,7 @@ research/datasets/*
 !research/datasets/README.md
 research/generated/*
 !research/generated/README.md
+research/docs/synthesis/
 .serena/
 __pycache__/
 *.pyc

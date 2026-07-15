@@ -1,5 +1,11 @@
 # Eternal Gate Style-Transfer Research: Iteration 3
 
+> **Current validity note:** all target-margin and threshold results in this report
+> were computed with the retired pre-normalization class-balanced scorer. They are
+> historical decision evidence only. The generated candidates require rescoring
+> with the current normalized unweighted meter before quantitative comparison;
+> semantic, readability, copy, and execution findings remain separately usable.
+
 Generated from frozen local artifacts last refreshed at
 `2026-07-13T06:42:44Z`.
 
@@ -487,13 +493,13 @@ reported as an independently generated arm.
 
 ### Frozen classifier
 
-The meter is the selected Stage-1 class-balanced linear SGD hinge classifier over
+The historical meter was the then-selected Stage-1 class-balanced linear SGD hinge classifier over
 exact Chinese character 2-4 gram TF-IDF features with `min_df=20`, evaluated on
 `entity_masked_v3` text.
 
 | Binding | Value |
 | --- | --- |
-| Scorer ID | `class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1` |
+| Scorer ID | retired pre-normalization scorer (artifact removed from active reproduction) |
 | Input view | `entity_masked_v3` |
 | Classifier SHA-256 | `e53d99ace2917ce18acf0b1040c542539c10cef417b61c06ae371ab5a8a8920a` |
 | Scorer config SHA-256 | `d05b95e71d091c7a86df77fadd1ec4af06c6f8c00d66f37be0256b41ab0c63a8` |
@@ -1027,8 +1033,8 @@ subset for the official frozen selection.
 - Active method-asset lock and content-addressed asset:
   `method_assets/style_transfer_payloads.v1.lock.json` and
   `method_assets/style_transfer_payloads.v1/assets.f9389eaf905e85a2fb61be524f5ee9e019d73888f3f82c9bb7fbe2023549e619.json`
-- Frozen scorer:
-  `scorers/class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1/`
+- Frozen scorer: retired from active reproduction; retained outputs must be bound to
+  the current scorer before a new evaluation is issued.
 - Calibration scores and threshold:
   `calibration/style_meter_scores.v1.jsonl` and
   `calibration/style_meter_threshold.v1.json`

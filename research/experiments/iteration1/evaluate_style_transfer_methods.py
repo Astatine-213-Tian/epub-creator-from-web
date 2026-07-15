@@ -51,6 +51,23 @@ from experiments.iteration1.style_experiment_decisions import (
 
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.audit_style_dataset import (
+    compile_term_matcher,
+    mask_terms,
+)
+from workflows.audit_mask_artifacts import mask_stripped_char_ngrams
+from workflows.author_style_meter_contract import (
+    CROSS_BOOK_DECONTAMINATION_VERSION,
+    CURRENT_CHAR_MIN_DF,
+    CURRENT_MASKED_VIEW,
+    CURRENT_MAX_CHAR_FEATURES,
+    CURRENT_NGRAM_RANGE,
+    CURRENT_SCORER_ID,
+    CURRENT_SCORER_VALIDATION_RESULT,
+    CURRENT_SCORER_VALIDATION_RUN_KEY,
+    MASKING_POLICY_VERSION,
+    PUNCTUATION_NORMALIZATION_VERSION,
+)
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -59,16 +76,11 @@ DEFAULT_EXPERIMENT_ROOT = (
     REPO_ROOT / "generated/style_research/style_transfer_experiments"
 )
 DEFAULT_SPLITS = REPO_ROOT / "generated/style_research/corpus/splits.json"
-DEFAULT_BENCHMARK_RESULT = (
-    REPO_ROOT
-    / "generated/style_research/benchmarks/"
-    "author_style_supervised_50authors_iter3_exact_hinge_mindf20/"
-    "supervised_author_baseline_results.json"
-)
-DEFAULT_BENCHMARK_SCRIPT = REPO_ROOT / "workflows/benchmark_author_style_supervised.py"
+DEFAULT_BENCHMARK_RESULT = CURRENT_SCORER_VALIDATION_RESULT
+DEFAULT_BENCHMARK_SCRIPT = REPO_ROOT / "workflows/audit_mask_artifacts.py"
 DEFAULT_SAMPLE_SET = "development_proxy_v1"
 DEFAULT_TARGET_AUTHOR = "非天夜翔"
-SCORER_ID = "class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1"
+SCORER_ID = CURRENT_SCORER_ID
 DEFAULT_SCORER_DIR = DEFAULT_EXPERIMENT_ROOT / "scorers" / SCORER_ID
 DEFAULT_CALIBRATION_OUTPUT = (
     DEFAULT_EXPERIMENT_ROOT / "calibration/style_meter_scores.v1.jsonl"
@@ -77,13 +89,13 @@ DEFAULT_THRESHOLD = (
     DEFAULT_EXPERIMENT_ROOT / "calibration/style_meter_threshold.v1.json"
 )
 
-BENCHMARK_RUN_KEY = "sgd_hinge.char_ngrams.entity_masked_v3"
-MASKING_VIEW = "entity_masked_v3"
-MAX_CHAR_FEATURES = 80_000
-CHAR_MIN_DF = 20
-NGRAM_RANGE = (2, 4)
+BENCHMARK_RUN_KEY = CURRENT_SCORER_VALIDATION_RUN_KEY
+MASKING_VIEW = CURRENT_MASKED_VIEW
+MAX_CHAR_FEATURES = CURRENT_MAX_CHAR_FEATURES
+CHAR_MIN_DF = CURRENT_CHAR_MIN_DF
+NGRAM_RANGE = CURRENT_NGRAM_RANGE
 SGD_ALPHA = 1e-5
-SGD_MAX_ITER = 2_000
+SGD_MAX_ITER = 3_000
 SGD_TOL = 1e-3
 RANDOM_STATE = 13
 N_JOBS = 1
@@ -129,16 +141,6 @@ SCORER_FILES = {
 
 class EvaluationError(RuntimeError):
     """Raised when a frozen evaluation contract cannot be satisfied."""
-
-
-def normalize_char_text(text: str) -> str:
-    return re.sub(r"\s+", "", text)
-
-
-# Joblib needs a stable import name when this file is executed as a script.
-_MODULE_ALIAS = Path(__file__).stem
-sys.modules.setdefault(_MODULE_ALIAS, sys.modules[__name__])
-normalize_char_text.__module__ = _MODULE_ALIAS
 
 
 def canonical_json(value: Any) -> str:
@@ -335,7 +337,7 @@ def scorer_paths_from_args(args: argparse.Namespace) -> ScorerPaths:
     dataset_root = args.dataset_root.resolve()
     return ScorerPaths(
         dataset_root=dataset_root,
-        masked_chunks=(dataset_root / "masked/chunks.entity_masked_v3.jsonl"),
+        masked_chunks=(dataset_root / "masked/chunks.train_global_masked.jsonl"),
         mask_terms=(dataset_root / "masked/mask_terms.json"),
         splits=args.splits.resolve(),
         benchmark_result=args.benchmark_result.resolve(),
@@ -349,18 +351,52 @@ def validate_benchmark_result(path: Path) -> tuple[dict[str, Any], dict[str, Any
     errors: list[str] = []
     if payload.get("target_author") != DEFAULT_TARGET_AUTHOR:
         errors.append("target_author")
-    if payload.get("masked_view") != MASKING_VIEW:
-        errors.append("masked_view")
+    if MASKING_VIEW not in payload.get("views", []):
+        errors.append("views")
+    if "mask_stripped_char_ngrams" not in payload.get("representations", []):
+        errors.append("representations")
     if int(payload.get("char_min_df", -1)) != CHAR_MIN_DF:
         errors.append("char_min_df")
+    protocol = payload.get("protocol", {})
+    if protocol.get("primary_view") != MASKING_VIEW:
+        errors.append("protocol.primary_view")
+    if protocol.get("primary_classifier") != "sgd_hinge_unbalanced":
+        errors.append("protocol.primary_classifier")
+    if protocol.get("primary_representation") != "mask_stripped_char_ngrams":
+        errors.append("protocol.primary_representation")
+    if payload.get("protocol_evaluation", {}).get("all_checks_pass") is not True:
+        errors.append("protocol_evaluation")
+    input_bindings = payload.get("input_bindings", {})
+    for binding_name in ("source", "main_benchmark", "mask_plan"):
+        binding = input_bindings.get(binding_name)
+        if not isinstance(binding, dict):
+            errors.append(f"input_bindings.{binding_name}")
+            continue
+        bound_path = resolve_recorded_path(str(binding.get("path", "")))
+        if not bound_path.is_file() or file_sha256(bound_path) != binding.get("sha256"):
+            errors.append(f"input_bindings.{binding_name}.sha256")
+    chunk_binding = input_bindings.get("chunk_files", {}).get(MASKING_VIEW)
+    if not isinstance(chunk_binding, dict):
+        errors.append(f"input_bindings.chunk_files.{MASKING_VIEW}")
+    else:
+        chunk_path = resolve_recorded_path(str(chunk_binding.get("path", "")))
+        if not chunk_path.is_file() or file_sha256(chunk_path) != chunk_binding.get("sha256"):
+            errors.append(f"input_bindings.chunk_files.{MASKING_VIEW}.sha256")
+    prior = payload.get("prior_ablation_reference")
+    if not isinstance(prior, dict):
+        errors.append("prior_ablation_reference")
+    else:
+        prior_path = resolve_recorded_path(str(prior.get("path", "")))
+        if not prior_path.is_file() or file_sha256(prior_path) != prior.get("sha256"):
+            errors.append("prior_ablation_reference.sha256")
     result = payload.get("results", {}).get(BENCHMARK_RUN_KEY)
     if not isinstance(result, dict):
         errors.append(f"results.{BENCHMARK_RUN_KEY}")
         result = {}
     expected_spec = {
         "key": BENCHMARK_RUN_KEY,
-        "classifier": "sgd_hinge",
-        "method": "char_ngrams",
+        "classifier": "sgd_hinge_unbalanced",
+        "method": "mask_stripped_char_ngrams",
         "view": MASKING_VIEW,
     }
     if result.get("spec") != expected_spec:
@@ -376,6 +412,9 @@ def validate_benchmark_result(path: Path) -> tuple[dict[str, Any], dict[str, Any
 
 
 def masking_config_payload(paths: ScorerPaths) -> dict[str, Any]:
+    mask_plan = load_json(require_file(paths.mask_terms, "mask terms"))
+    if mask_plan.get("masking_policy") != MASKING_POLICY_VERSION:
+        raise EvaluationError("Mask plan does not use the current leakage-control policy")
     return {
         "schema_version": 1,
         "view": MASKING_VIEW,
@@ -384,15 +423,20 @@ def masking_config_payload(paths: ScorerPaths) -> dict[str, Any]:
             "latin_placeholder": "<LATIN>",
             "number_pattern": NUMBER_RE.pattern,
             "number_placeholder": "<NUM>",
-            "entity_term_field": "entity_terms_v2",
+            "global_entity_term_field": "global_terms.entity_terms_v2",
+            "global_fit_split": "train",
+            "held_out_statistics_used": False,
             "entity_replacement": "one_某_per_matched_cjk_character",
-            "term_order": "descending_length_then_lexicographic",
+            "matching": "pyahocorasick_exact_leftmost_longest",
+            "feature_extraction": (
+                "drop_mask_runs_and_extract_2_4_character_ngrams_within_unmasked_spans"
+            ),
         },
         "mask_terms_path": display_path(paths.mask_terms),
         "mask_terms_sha256": file_sha256(require_file(paths.mask_terms, "mask terms")),
         "masked_chunks_path": display_path(paths.masked_chunks),
         "masked_chunks_sha256": file_sha256(
-            require_file(paths.masked_chunks, "entity_masked_v3 chunks")
+            require_file(paths.masked_chunks, "train-global-masked chunks")
         ),
         "masking_source_path": display_path(REPO_ROOT / "workflows/audit_style_dataset.py"),
         "masking_source_sha256": file_sha256(
@@ -430,14 +474,14 @@ def scorer_config_payload(
         },
         "vectorizer": {
             "class": "sklearn.feature_extraction.text.TfidfVectorizer",
-            "analyzer": "char",
+            "analyzer": "workflows.audit_mask_artifacts.mask_stripped_char_ngrams",
             "ngram_range": list(NGRAM_RANGE),
             "max_features": MAX_CHAR_FEATURES,
             "min_df": CHAR_MIN_DF,
             "sublinear_tf": True,
             "norm": "l2",
             "lowercase": False,
-            "preprocessor": "normalize_char_text_remove_all_whitespace.v1",
+            "preprocessor": None,
             "dtype": "numpy.float32",
         },
         "classifier": {
@@ -445,7 +489,7 @@ def scorer_config_payload(
             "loss": "hinge",
             "penalty": "l2",
             "alpha": SGD_ALPHA,
-            "class_weight": "balanced",
+            "class_weight": None,
             "max_iter": SGD_MAX_ITER,
             "tol": SGD_TOL,
             "random_state": RANDOM_STATE,
@@ -519,6 +563,10 @@ def load_training_rows(
         if not chunk_id or chunk_id in seen_chunks:
             raise EvaluationError(f"Missing or duplicate chunk_id in {paths.masked_chunks}: {chunk_id}")
         seen_chunks.add(chunk_id)
+        if row.get("masking_policy") != MASKING_POLICY_VERSION:
+            raise EvaluationError(f"Stale masking policy for {chunk_id}")
+        if row.get("cross_book_decontamination") != CROSS_BOOK_DECONTAMINATION_VERSION:
+            raise EvaluationError(f"Stale decontamination policy for {chunk_id}")
         if row.get("view") != MASKING_VIEW:
             raise EvaluationError(f"Unexpected view for {chunk_id}: {row.get('view')}")
         key = (str(row.get("author", "")), str(row.get("title", "")))
@@ -561,14 +609,12 @@ def load_training_rows(
 
 def make_vectorizer() -> TfidfVectorizer:
     return TfidfVectorizer(
-        analyzer="char",
-        ngram_range=NGRAM_RANGE,
+        analyzer=mask_stripped_char_ngrams,
         max_features=MAX_CHAR_FEATURES,
         min_df=CHAR_MIN_DF,
         sublinear_tf=True,
         norm="l2",
         lowercase=False,
-        preprocessor=normalize_char_text,
         dtype=np.float32,
     )
 
@@ -578,7 +624,7 @@ def make_classifier() -> SGDClassifier:
         loss="hinge",
         penalty="l2",
         alpha=SGD_ALPHA,
-        class_weight="balanced",
+        class_weight=None,
         max_iter=SGD_MAX_ITER,
         tol=SGD_TOL,
         random_state=RANDOM_STATE,
@@ -854,28 +900,13 @@ def score_texts(bundle: ScorerBundle, texts: Sequence[str]) -> list[dict[str, An
 class EntityMasker:
     def __init__(self, path: Path):
         payload = load_json(require_file(path, "mask terms"))
-        books = payload.get("books")
-        if not isinstance(books, list):
-            raise EvaluationError(f"mask_terms books must be a list: {path}")
-        self._terms: dict[tuple[str, str], tuple[str, ...]] = {}
-        self._patterns: dict[tuple[str, str], re.Pattern[str] | None] = {}
-        for row in books:
-            key = (str(row.get("author", "")), str(row.get("title", "")))
-            terms = tuple(str(value) for value in row.get("entity_terms_v2", []))
-            self._terms[key] = terms
-
-    def pattern(self, author: str, title: str) -> re.Pattern[str] | None:
-        key = (author, title)
-        if key not in self._terms:
-            raise EvaluationError(f"No entity_masked_v3 term plan for {author} / {title}")
-        if key not in self._patterns:
-            terms = sorted(self._terms[key], key=lambda item: (-len(item), item))
-            self._patterns[key] = (
-                re.compile("|".join(re.escape(term) for term in terms))
-                if terms
-                else None
-            )
-        return self._patterns[key]
+        if payload.get("masking_policy") != MASKING_POLICY_VERSION:
+            raise EvaluationError(f"Stale masking policy in {path}")
+        global_terms = tuple(
+            str(value)
+            for value in payload.get("global_terms", {}).get("entity_terms_v2", [])
+        )
+        self._global_matcher = compile_term_matcher(list(global_terms))
 
     def mask(self, text: str, *, author: str, title: str) -> str:
         masked = text
@@ -883,9 +914,12 @@ class EntityMasker:
             masked = masked.replace(placeholder, sentinel)
         masked = LATIN_RE.sub("<LATIN>", masked)
         masked = NUMBER_RE.sub("<NUM>", masked)
-        pattern = self.pattern(author, title)
-        if pattern is not None:
-            masked = pattern.sub(lambda match: "某" * len(CJK_RE.findall(match.group(0))), masked)
+        masked = mask_terms(
+            masked,
+            self._global_matcher,
+            placeholder="某",
+            preserve_length=True,
+        )
         for placeholder, sentinel in PLACEHOLDER_SENTINELS.items():
             masked = masked.replace(sentinel, placeholder)
         masked = re.sub(r"<+(CONTENT|NUM|LATIN)>+", r"<\1>", masked)
@@ -1689,7 +1723,6 @@ def score_calibration(args: argparse.Namespace) -> dict[str, Any]:
             f"{len(failures)} failed, first={first_id}:{failures[first_id][:3]}"
         )
 
-    hidden = contract["hidden"]
     source_by_chunk = load_masked_source_rows(
         scorer_paths_from_args(args).masked_chunks,
         {
@@ -1701,13 +1734,12 @@ def score_calibration(args: argparse.Namespace) -> dict[str, Any]:
     original_texts: list[str] = []
     neutral_masked_texts: list[str] = []
     for sample_id in calibration_ids:
-        target = hidden[sample_id]
-        original = str(target.get("entity_masked_v3_zh", ""))
         source_row = source_by_chunk[
             str(contract["allocation"][sample_id]["chunk_id"])
         ]
-        if original != source_row.get("text"):
-            raise EvaluationError(f"Hidden masked target differs from dataset chunk: {sample_id}")
+        original = str(source_row.get("text", ""))
+        if not original:
+            raise EvaluationError(f"Current global-masked source is empty: {sample_id}")
         allocation = contract["allocation"][sample_id]
         masked_neutral = masker.mask(
             neutral[sample_id].text or "",
@@ -2775,7 +2807,7 @@ def load_final_validation_lock(
             REPO_ROOT / "datasets/unmasked/chunks.clean.jsonl"
         ),
         "masked_chunks_sha256": file_sha256(
-            REPO_ROOT / "datasets/masked/chunks.entity_masked_v3.jsonl"
+            scorer_paths_from_args(args).masked_chunks
         ),
         "splits_sha256": file_sha256(
             REPO_ROOT / "generated/style_research/corpus/splits.json"

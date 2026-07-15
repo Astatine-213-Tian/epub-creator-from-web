@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from .author_style_meter_contract import PUNCTUATION_NORMALIZATION_VERSION
+
 
 CJK_RE = re.compile(r"[\u4e00-\u9fff]")
 SENTENCE_SPLIT_RE = re.compile(r"[。！？!?]+")
@@ -80,6 +82,7 @@ FeatureFn = Callable[[str], Counter[str]]
 def chunk_paths(dataset_root: Path) -> dict[str, Path]:
     return {
         "clean": dataset_root / "unmasked" / "chunks.clean.jsonl",
+        "train_global_masked": dataset_root / "masked" / "chunks.train_global_masked.jsonl",
         "entity_masked": dataset_root / "masked" / "chunks.entity_masked.jsonl",
         "entity_masked_v2": dataset_root / "masked" / "chunks.entity_masked_v2.jsonl",
         "entity_masked_v3": dataset_root / "masked" / "chunks.entity_masked_v3.jsonl",
@@ -95,6 +98,16 @@ def jsonl_records(path: Path):
                 yield json.loads(line)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{path}:{line_no}: invalid JSONL: {exc}") from exc
+
+
+def require_current_punctuation_normalization(path: Path) -> None:
+    for line_no, record in enumerate(jsonl_records(path), start=1):
+        observed = str(record.get("punctuation_normalization", ""))
+        if observed != PUNCTUATION_NORMALIZATION_VERSION:
+            raise ValueError(
+                f"{path}:{line_no} uses punctuation normalization "
+                f"{observed or '<missing>'}; rebuild the current corpus before benchmarking"
+            )
 
 
 def cjk_len(text: str) -> int:
@@ -617,8 +630,8 @@ def main() -> int:
     parser.add_argument("--dataset-root", type=Path, default=Path("datasets"))
     parser.add_argument("--output-dir", type=Path, default=Path("generated/style_research/benchmarks/author_style_baselines"))
     parser.add_argument("--target-author", default=TARGET_AUTHOR_DEFAULT)
-    parser.add_argument("--views", default="clean,entity_masked", help="Comma-separated views to benchmark.")
-    parser.add_argument("--masked-view", default="entity_masked", help="Masked view to compare against clean in the gap table.")
+    parser.add_argument("--views", default="clean,entity_masked_v3", help="Comma-separated views to benchmark.")
+    parser.add_argument("--masked-view", default="entity_masked_v3", help="Masked view to compare against clean in the gap table.")
     parser.add_argument("--report-only", action="store_true", help="Regenerate Markdown and charts from an existing author_baseline_results.json without rerunning classifiers.")
     parser.add_argument("--max-char-profile-features", type=int, default=2500)
     parser.add_argument("--max-interpretable-profile-features", type=int, default=800)
@@ -629,6 +642,8 @@ def main() -> int:
     missing = [str(paths[view]) for view in views if view not in paths or not paths[view].exists()]
     if missing:
         raise SystemExit("missing chunk files: " + ", ".join(missing))
+    for view in views:
+        require_current_punctuation_normalization(paths[view])
 
     specs = default_run_specs(
         views,

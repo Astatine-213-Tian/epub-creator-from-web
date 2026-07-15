@@ -24,7 +24,15 @@ RESIDUE_RE = re.compile(
     re.I,
 )
 PLACEHOLDERS = ("<CONTENT>", "<TERM>", "<NAME>", "<PLACE>", "<ORG>", "<NUM>", "<LATIN>")
-VIEWS = ("clean", "entity_masked", "entity_masked_v2", "entity_masked_v3", "topic_distorted", "structure_only")
+VIEWS = (
+    "clean",
+    "train_global_masked",
+    "entity_masked",
+    "entity_masked_v2",
+    "entity_masked_v3",
+    "topic_distorted",
+    "structure_only",
+)
 
 
 @dataclass(frozen=True)
@@ -69,6 +77,7 @@ def jsonl_records(path: Path):
 def chunk_paths(dataset_root: Path) -> dict[str, Path]:
     return {
         "clean": dataset_root / "unmasked" / "chunks.clean.jsonl",
+        "train_global_masked": dataset_root / "masked" / "chunks.train_global_masked.jsonl",
         "entity_masked": dataset_root / "masked" / "chunks.entity_masked.jsonl",
         "entity_masked_v2": dataset_root / "masked" / "chunks.entity_masked_v2.jsonl",
         "entity_masked_v3": dataset_root / "masked" / "chunks.entity_masked_v3.jsonl",
@@ -129,7 +138,7 @@ def view_stats(view: str, path: Path) -> dict[str, Any]:
             stats["placeholder_counts"][placeholder] += text.count(placeholder)
         if view in {"topic_distorted", "structure_only"}:
             stats["generic_wen"] += text.count("文")
-        if view == "entity_masked_v3":
+        if view in {"train_global_masked", "entity_masked_v3"}:
             stats["generic_mou"] += text.count("某")
     stats["author_count"] = len(stats["authors"])
     stats["book_count"] = len(stats["books"])

@@ -21,6 +21,7 @@ from unittest.mock import patch
 
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.author_style_meter_contract import CURRENT_SCORER_ID
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -39,7 +40,7 @@ GENERATED_METHODS = (
     "aligned_pairs_style_definition_full_regeneration",
     "content_plan_combined_full_regeneration",
 )
-SCORER_ID = "class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1"
+SCORER_ID = CURRENT_SCORER_ID
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 NUMBER_RE = re.compile(r"\d+(?:[.,:/-]\d+)*")
 CHINESE_NUMERALS = set("\u96f6\u3007\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u4e07\u4ebf\u5146\u51e0\u5eff\u5345\u534c")

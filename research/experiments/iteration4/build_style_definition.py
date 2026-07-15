@@ -29,7 +29,7 @@ SEED = 20260715
 DISCOVERY_BOOKS = 21
 MIN_ABS_Z = 0.50
 MIN_DISCOVERY_RECURRENCE = 2 / 3
-MIN_VALIDATION_RECURRENCE = 5 / 8
+MIN_VALIDATION_RECURRENCE = 2 / 3
 MIN_SUPPORT = 50
 MAX_EXAMPLE_CJK = 360
 EXAMPLE_PARAGRAPHS = 3
@@ -278,8 +278,10 @@ def build_profiles(
                 add_profile_row(target_discovery, row)
         else:
             add_profile_row(comparison_authors[author], row)
-    if len(target_books) != 29:
-        raise ValueError(f"Expected 29 target train books, found {len(target_books)}")
+    if len(target_books) <= DISCOVERY_BOOKS:
+        raise ValueError(
+            f"Need more than {DISCOVERY_BOOKS} target train books, found {len(target_books)}"
+        )
     if len(comparison_authors) != 49:
         raise ValueError(
             f"Expected 49 comparison train authors, found {len(comparison_authors)}"
@@ -532,8 +534,10 @@ def build(experiment_root: Path) -> dict[str, Any]:
         },
         key=stable_order,
     )
-    if len(target_titles) != 29:
-        raise ValueError(f"Expected 29 target train books, found {len(target_titles)}")
+    if len(target_titles) <= DISCOVERY_BOOKS:
+        raise ValueError(
+            f"Need more than {DISCOVERY_BOOKS} target train books, found {len(target_titles)}"
+        )
     discovery_books = target_titles[:DISCOVERY_BOOKS]
     validation_books = target_titles[DISCOVERY_BOOKS:]
     discovery_profile, target_books, comparison_authors = build_profiles(
@@ -554,7 +558,7 @@ def build(experiment_root: Path) -> dict[str, Any]:
         "target_label": "target_author_style",
         "source_view": "entity_masked_v3",
         "evidence_policy": {
-            "target_train_books": 29,
+            "target_train_books": len(target_titles),
             "comparison_train_authors": 49,
             "discovery_books": len(discovery_books),
             "validation_books": len(validation_books),

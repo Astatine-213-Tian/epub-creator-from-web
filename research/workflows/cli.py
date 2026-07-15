@@ -23,17 +23,21 @@ COMMANDS = {
         "workflows.mask_quality_report",
         "Render masking-quality samples and statistics.",
     ),
-    "authorship-baseline": (
-        "workflows.benchmark_author_style",
-        "Run the interpretable historical authorship baselines.",
+    "mask-artifact-audit": (
+        "workflows.audit_mask_artifacts",
+        "Test whether mask tokens or run lengths inflate authorship accuracy.",
     ),
     "authorship-supervised": (
         "workflows.benchmark_author_style_supervised",
-        "Run the maintained supervised authorship benchmark.",
+        "Run the canonical classifier on the current normalized corpus.",
     ),
     "authorship-report": (
-        "workflows.report_author_classifier_retest",
+        "workflows.report_author_style_meter",
         "Render the canonical authorship-meter report artifacts.",
+    ),
+    "interpretable-profiles": (
+        "workflows.analyze_interpretable_author_profiles",
+        "Build book-weighted author profile evidence and publication figures.",
     ),
     "export-production": (
         "workflows.export_production_style_transfer_assets",
@@ -46,11 +50,15 @@ COMMANDS = {
 }
 
 QUICK_TEST_MODULES = (
+    "tests.test_author_classifier_corpus_contract",
+    "tests.test_author_style_report",
+    "tests.test_dataset_cleaning",
     "tests.test_dataset_manifest_paths",
-    "tests.experiments.iteration5.test_apply_content_plan_combined_to_translation_run",
-    "tests.experiments.iteration5.test_merge_semantic_fallback_repairs",
-    "tests.experiments.iteration5.test_evaluate_method4_application",
-    "tests.experiments.iteration5.test_transfer_lora_reference_benchmark_v2",
+    "tests.test_interpretable_author_profiles",
+    "tests.test_mask_artifact_ablation",
+    "tests.experiments.validation.test_apply_content_plan_combined_to_translation_run",
+    "tests.experiments.validation.test_merge_semantic_fallback_repairs",
+    "tests.experiments.validation.test_evaluate_method4_application",
 )
 
 
@@ -61,7 +69,7 @@ def print_help() -> None:
     width = max(len(command) for command in (*COMMANDS, "verify"))
     for command, (_module, description) in COMMANDS.items():
         print(f"  {command:<{width}}  {description}")
-    print(f"  {'verify':<{width}}  Run the frozen leakage gate and quick tests.")
+    print(f"  {'verify':<{width}}  Rebuild the current corpus and run quick tests.")
     print()
     print("Use '<command> --help' for workflow-specific options.")
 
@@ -78,14 +86,20 @@ def run_verify(arguments: list[str]) -> None:
         [
             sys.executable,
             "-m",
-            "experiments.iteration1.style_transfer_research",
-            "validate",
+            "workflows.audit_style_dataset",
+            "--stage",
+            "all",
         ],
         cwd=RESEARCH_ROOT,
         check=True,
     )
     subprocess.run(
         [sys.executable, "-m", "unittest", *QUICK_TEST_MODULES],
+        cwd=RESEARCH_ROOT,
+        check=True,
+    )
+    subprocess.run(
+        [sys.executable, "-m", "workflows.verify_current_research"],
         cwd=RESEARCH_ROOT,
         check=True,
     )

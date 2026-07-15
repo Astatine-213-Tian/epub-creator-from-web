@@ -96,7 +96,11 @@ def iter_jsonl(path: Path):
 
 def target_mask_terms(path: Path, target_author: str) -> set[str]:
     payload = read_json(path)
-    terms: set[str] = set()
+    terms: set[str] = {
+        str(value)
+        for value in payload.get("global_terms", {}).get("entity_terms_v2", [])
+        if str(value)
+    }
     books = payload.get("books", [])
     records = books.values() if isinstance(books, dict) else books
     for record in records:
@@ -139,7 +143,7 @@ def surface_category(
         return "function_grammar"
     if any(term == cjk or term in feature for term in GENERAL_DISCOURSE_TERMS):
         return "general_discourse"
-    # Recurring characters can span several books in a series; four of 29 books
+    # Recurring characters can span several books in a series; several target books
     # is still too concentrated to treat a lexical n-gram as author-general.
     low_dispersion_limit = max(4, round(target_book_total * 0.15))
     if target_book_count <= low_dispersion_limit:

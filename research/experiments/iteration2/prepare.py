@@ -12,6 +12,7 @@ from typing import Any, Iterable, Sequence
 
 
 from experiments.shared.paths import RESEARCH_ROOT
+from workflows.author_style_meter_contract import CURRENT_SCORER_ID
 
 
 REPO_ROOT = RESEARCH_ROOT
@@ -225,8 +226,18 @@ def build_pair_candidates() -> dict[str, list[dict[str, Any]]]:
                 "quality_flags": list(row.get("quality_flags", [])),
             }
         )
-    if len(grouped) != 29:
-        raise ValueError(f"Expected 29 target train books, found {len(grouped)}")
+    splits = read_json(REPO_ROOT / "generated/style_research/corpus/splits.json")
+    expected_titles = {
+        str(row["title"])
+        for row in splits["train"]
+        if row.get("author") == TARGET_AUTHOR
+    }
+    if set(grouped) != expected_titles:
+        raise ValueError(
+            "Target train books differ between current splits and masked chunks: "
+            f"missing={sorted(expected_titles - set(grouped))}, "
+            f"extra={sorted(set(grouped) - expected_titles)}"
+        )
     return grouped
 
 
@@ -560,7 +571,7 @@ def copy_base_runtime_artifacts() -> None:
     for directory in ("prompts", "schemas"):
         for source in (BASE_ROOT / directory).glob("*.v1.*"):
             copy_file(source, ITERATION_ROOT / directory / source.name)
-    scorer = "class_balanced_sgd_hinge_exact_char_ngrams_min_df_20.v1"
+    scorer = CURRENT_SCORER_ID
     source_scorer = BASE_ROOT / "scorers" / scorer
     destination_scorer = ITERATION_ROOT / "scorers" / scorer
     destination_scorer.mkdir(parents=True, exist_ok=True)

@@ -1,395 +1,305 @@
-# Author-Style Classifier Retest on 50-Author BL Corpus
+# Author-Style Classifier on the Current Cleaned Corpus
 
-Generated: 2026-07-10
+Generated: 2026-07-15T03:31:27-04:00
 
 ## Abstract
 
-This retest evaluates whether author identity remains recoverable after entity masking and whether the classifier is strong enough to serve as a proxy style meter for later author-style transfer experiments. The strongest run is an exact character n-gram TF-IDF model with SGD hinge loss on `entity_masked_v3`, reaching 88.2% chunk accuracy, 84.1% balanced accuracy, and 94.3% book-majority accuracy over 50 authors. For target-author style-transfer scoring, the recommended meter is the class-balanced exact n-gram hinge model, which trades a small amount of overall accuracy for higher target-author F1.
+This retest measures whether author identity remains recoverable after corpus cleanup, canonical Chinese punctuation normalization, cross-book passage decontamination, and train-only global masking. The benchmark uses book-level splits over 50 authors. The selected scorer removes mask spans before extracting exact character 2-4 gram TF-IDF features. The strongest mask-stripped run reaches 90.0% chunk accuracy, 87.5% balanced accuracy, and 98.1% book-majority accuracy.
 
 ## Dataset
 
-- Manifest books: 200
-- Cleaned books: 200
+- Manifest books: 198
+- Cleaned books: 198
 - Authors: 50
-- Usable books at >=50k cleaned CJK characters: 199
-- Primary books at >=120k cleaned CJK characters: 196
-- Book split counts: {'train': 89, 'dev': 53, 'test': 53, 'proxy_transfer': 4, 'excluded': 1}
-- Clean chunks: 87174
-- `entity_masked_v3` chunks: 87174
+- Usable books at >=50k cleaned CJK characters: 198
+- Primary books at >=120k cleaned CJK characters: 195
+- Book split counts: {'train': 88, 'dev': 53, 'test': 53, 'proxy_transfer': 4, 'excluded': 0}
+- Clean chunks: 87137
+- Train-global-masked chunks: 87137
+- Diagnostic global-plus-local chunks: 87137
+- Punctuation normalization: `canonical_zh_v1`
+- Books changed by punctuation normalization: 195
+- Cross-book duplicate fingerprints removed: 1362
+- Cross-book duplicate lines removed: 4877
+- Remaining checked duplicate fingerprints: 0
 
-The split is book-level: chunks from a given book remain in one split. This is stricter than random chunk splitting and is intended to reduce within-book leakage.
+Every book is assigned wholly to train, development, test, or target-author proxy holdout. No book contributes chunks to more than one split.
 
 ## Methods
 
-- Exact character n-grams: sklearn `TfidfVectorizer`, character 2-4 grams, `max_features=80000`, `min_df=20`, sublinear TF-IDF, real vocabulary, no hash collisions.
-- Hashed character n-grams: sklearn `HashingVectorizer`, character 2-4 grams, 262144 hash buckets, `alternate_sign=False`, TF-IDF normalization.
-- Interpretable baselines: punctuation/dialogue, sentence/paragraph length, function-character, richer Chinese function-word lexicon, function words plus characters, and combined interpretable feature families.
-- Classifiers: SGD hinge, unweighted SGD hinge, SGD logistic, unweighted SGD logistic, passive-aggressive, and ComplementNB where applicable.
-- Metrics: chunk-level accuracy, balanced accuracy, macro F1, target-author F1/recall, majority-class baseline, and book-level majority-vote accuracy.
+- Selected features: exact character 2-4 grams extracted only within unmasked spans   after every `某` run is removed; `TfidfVectorizer`, `max_features=80000`,   `min_df=20`, sublinear TF-IDF, and no hash collisions.
+- Text normalization: whitespace is removed for n-gram extraction. Dataset cleanup   canonicalizes equivalent punctuation encodings while preserving punctuation roles.
+- Classifiers: SGD hinge with and without class balancing; random seed 13.
+- Mask fitting: one global content vocabulary is learned from train books only and then   applied identically to every split. It is the only current scorer input view.
+- Diagnostic views: clean text and global-plus-book-local v3 are retained to measure   content and preprocessing effects; v3 is not eligible for scorer selection.
+- Metrics: chunk accuracy, balanced accuracy, macro F1, target-author precision/recall/F1,   and book-level majority-vote accuracy.
 
 ## Main Result
 
-Highest overall classifier: **SGD linear SVM (unweighted) / Character n-grams** on `entity_masked_v3`.
+Highest mask-stripped classifier: **SGD linear SVM / Exact character n-grams within unmasked spans only** on `train_global_masked`.
 
-- Chunk accuracy: 88.2%
-- Balanced accuracy: 84.1%
-- Book-majority accuracy: 94.3%
-- Target-author F1: 85.2%
+- Chunk accuracy: 90.0%
+- Balanced accuracy: 87.5%
+- Book-majority accuracy: 98.1%
+- Target-author F1: 89.5%
 
-Recommended target-author proxy meter: **SGD linear SVM / Character n-grams** on `entity_masked_v3`.
+Selected provisional authorship proxy: **SGD linear SVM (unweighted) / Exact character n-grams within unmasked spans only** on `train_global_masked`.
 
-- Chunk accuracy: 87.8%
-- Balanced accuracy: 83.6%
-- Macro F1: 82.3%
-- Book-majority accuracy: 90.6%
-- Target-author F1: 85.9%
+- Chunk accuracy: 89.8%
+- Balanced accuracy: 87.9%
+- Macro F1: 87.4%
+- Book-majority accuracy: 96.2%
+- Target-author precision: 80.3%
+- Target-author F1: 89.1%
 - Target-author recall: 100.0%
-- Majority baseline: 6.0%
+- Majority baseline: 5.9%
 - Features: 80000
 
-![Masked chunk accuracy](../../generated/style_research/benchmarks/author_classifier_retest_50authors_report/charts/masked_chunk_accuracy.svg)
+![Train-global-masked chunk accuracy](../../generated/style_research/benchmarks/author_style_supervised_50authors_cleaned/report_charts/masked_chunk_accuracy.svg)
 
-![Masked balanced accuracy](../../generated/style_research/benchmarks/author_classifier_retest_50authors_report/charts/masked_balanced_accuracy.svg)
+![Train-global-masked balanced accuracy](../../generated/style_research/benchmarks/author_style_supervised_50authors_cleaned/report_charts/masked_balanced_accuracy.svg)
+
+## All Current Runs
+
+| Rank | View | Classifier | Features | Chunk acc. | Balanced acc. | Book acc. | Target F1 | Target recall | Majority baseline |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|
+| 1 | train_global_masked | SGD linear SVM | Exact character n-grams within unmasked spans only | 90.0% | 87.5% | 98.1% | 89.5% | 100.0% | 5.9% |
+| 2 | train_global_masked | SGD linear SVM (unweighted) | Exact character n-grams within unmasked spans only | 89.8% | 87.9% | 96.2% | 89.1% | 100.0% | 5.9% |
+| 3 | entity_masked_v3 | SGD linear SVM (unweighted) | Character n-grams | 89.4% | 86.1% | 98.1% | 88.5% | 100.0% | 5.9% |
+| 4 | entity_masked_v3 | SGD linear SVM | Character n-grams | 89.1% | 85.7% | 100.0% | 90.0% | 100.0% | 5.9% |
+| 5 | entity_masked_v3 | SGD linear SVM (unweighted) | Exact character n-grams within unmasked spans only | 89.0% | 85.5% | 98.1% | 83.9% | 100.0% | 5.9% |
+| 6 | entity_masked_v3 | SGD linear SVM | Exact character n-grams within unmasked spans only | 88.8% | 84.8% | 100.0% | 87.2% | 100.0% | 5.9% |
+| 7 | train_global_masked | SGD linear SVM (unweighted) | Character n-grams | 86.6% | 85.0% | 96.2% | 92.0% | 100.0% | 5.9% |
+| 8 | train_global_masked | SGD linear SVM | Character n-grams | 85.5% | 83.3% | 92.5% | 90.8% | 100.0% | 5.9% |
+| 9 | clean | SGD linear SVM | Character n-grams | 72.1% | 63.7% | 79.2% | 57.7% | 100.0% | 5.9% |
+| 10 | clean | SGD linear SVM (unweighted) | Character n-grams | 71.1% | 62.7% | 81.1% | 55.8% | 100.0% | 5.9% |
 
 ## Masked vs Clean
 
-The strongest n-gram models score higher on masked text than clean text. This is surprising but plausible: entity masking removes book-specific names and topical anchors that can make train/test books from the same author less distributionally consistent. It does not by itself prove the model is purely stylistic, but it does show author signal survives content masking strongly.
+Global masking removes many book-specific names and setting terms. Performance must therefore be interpreted as content-resistant author signal, not as proof that every learned feature is literary style.
 
 | Classifier | Features | Clean chunk acc. | Masked chunk acc. | Clean - masked | Masked balanced acc. |
 |---|---|---:|---:|---:|---:|
-| SGD linear SVM (unweighted) | Character n-grams | 71.4% | 88.2% | -16.8pp | 84.1% |
-| SGD linear SVM | Character n-grams | 70.7% | 87.8% | -17.1pp | 83.6% |
-| SGD linear SVM | Character n-grams (hashed) | 64.1% | 85.0% | -20.9pp | 80.5% |
-| SGD linear SVM (unweighted) | Character n-grams (hashed) | 63.7% | 84.0% | -20.3pp | 78.7% |
-| Passive-aggressive linear classifier | Character n-grams (hashed) | 55.6% | 81.7% | -26.1pp | 76.4% |
-| Passive-aggressive linear classifier | Combined + function words | 69.7% | 69.5% | +0.3pp | 63.9% |
-| SGD logistic regression | Character n-grams (hashed) | 33.9% | 67.8% | -33.8pp | 58.8% |
-| SGD linear SVM | Combined + function words | 67.6% | 67.2% | +0.4pp | 62.9% |
-| SGD linear SVM (unweighted) | Combined + function words | 67.3% | 65.4% | +1.9pp | 61.5% |
-| Passive-aggressive linear classifier | Function words + characters | 60.0% | 60.0% | +0.0pp | 53.9% |
-| SGD linear SVM (unweighted) | Function words + characters | 57.5% | 59.7% | -2.1pp | 52.5% |
-| SGD logistic regression | Combined + function words | 59.7% | 59.3% | +0.4pp | 58.5% |
-| SGD linear SVM | Function words + characters | 60.4% | 58.3% | +2.1pp | 54.2% |
-| Passive-aggressive linear classifier | Combined interpretable | 56.3% | 57.7% | -1.5pp | 53.4% |
-| SGD linear SVM (unweighted) | Combined interpretable | 56.0% | 55.0% | +1.0pp | 49.5% |
-| SGD logistic regression | Function words + characters | 55.4% | 54.9% | +0.5pp | 51.2% |
-| SGD linear SVM | Combined interpretable | 54.3% | 54.9% | -0.6pp | 52.7% |
-| SGD logistic regression (unweighted) | Character n-grams (hashed) | 27.0% | 51.3% | -24.2pp | 39.6% |
-| SGD logistic regression | Combined interpretable | 50.0% | 50.0% | -0.0pp | 49.1% |
-| SGD linear SVM (unweighted) | Function-character | 45.7% | 45.0% | +0.7pp | 35.4% |
-| Complement Naive Bayes | Character n-grams (hashed) | 42.5% | 44.1% | -1.6pp | 27.5% |
-| Passive-aggressive linear classifier | Function-character | 43.1% | 42.6% | +0.5pp | 36.5% |
-| SGD linear SVM | Function-character | 44.5% | 42.5% | +2.0pp | 37.0% |
-| SGD logistic regression | Function-character | 39.7% | 40.6% | -0.9pp | 35.2% |
-| SGD logistic regression | Chinese function words | 40.4% | 39.4% | +1.0pp | 37.8% |
-| SGD linear SVM (unweighted) | Chinese function words | 41.0% | 38.9% | +2.0pp | 34.3% |
-| SGD linear SVM | Chinese function words | 39.7% | 38.5% | +1.2pp | 36.4% |
-| Passive-aggressive linear classifier | Chinese function words | 38.2% | 38.0% | +0.2pp | 34.9% |
-| Complement Naive Bayes | Function words + characters | 25.4% | 25.2% | +0.2pp | 14.4% |
-| Complement Naive Bayes | Combined + function words | 24.5% | 24.4% | +0.1pp | 15.7% |
-| Complement Naive Bayes | Chinese function words | 23.9% | 23.6% | +0.2pp | 13.8% |
-| SGD logistic regression | Punctuation/dialogue | 21.5% | 21.5% | -0.0pp | 21.9% |
-| Complement Naive Bayes | Function-character | 19.1% | 19.2% | -0.1pp | 8.9% |
-| Complement Naive Bayes | Combined interpretable | 17.4% | 17.4% | -0.0pp | 10.7% |
-| SGD logistic regression | Sentence/paragraph length | 16.7% | 16.7% | +0.0pp | 15.3% |
-| Complement Naive Bayes | Punctuation/dialogue | 13.9% | 14.0% | -0.1pp | 7.9% |
-| Complement Naive Bayes | Sentence/paragraph length | 7.9% | 7.9% | +0.0pp | 4.1% |
+| SGD linear SVM (unweighted) | Character n-grams | 71.1% | 86.6% | -15.4pp | 85.0% |
+| SGD linear SVM | Character n-grams | 72.1% | 85.5% | -13.4pp | 83.3% |
 
-![Clean to masked gap](../../generated/style_research/benchmarks/author_classifier_retest_50authors_report/charts/clean_to_masked_gap.svg)
+![Clean to masked gap](../../generated/style_research/benchmarks/author_style_supervised_50authors_cleaned/report_charts/clean_to_masked_gap.svg)
 
-## Method Comparison
+## Masking Ablation
 
-| Rank | View | Classifier | Features | Chunk acc. | Balanced acc. | Book acc. | Target F1 | Target recall | Majority baseline |
-|---:|---|---|---|---:|---:|---:|---:|---:|---:|
-| 1 | entity_masked_v3 | SGD linear SVM (unweighted) | Character n-grams | 88.2% | 84.1% | 94.3% | 85.2% | 100.0% | 6.0% |
-| 2 | entity_masked_v3 | SGD linear SVM | Character n-grams | 87.8% | 83.6% | 90.6% | 85.9% | 100.0% | 6.0% |
-| 3 | entity_masked_v3 | SGD linear SVM | Character n-grams (hashed) | 85.0% | 80.5% | 92.5% | 77.5% | 100.0% | 6.0% |
-| 4 | entity_masked_v3 | SGD linear SVM (unweighted) | Character n-grams (hashed) | 84.0% | 78.7% | 90.6% | 70.7% | 100.0% | 6.0% |
-| 5 | entity_masked_v3 | Passive-aggressive linear classifier | Character n-grams (hashed) | 81.7% | 76.4% | 86.8% | 67.8% | 100.0% | 6.0% |
-| 6 | entity_masked_v3 | Passive-aggressive linear classifier | Combined + function words | 69.5% | 63.9% | 92.5% | 78.7% | 98.7% | 6.0% |
-| 7 | entity_masked_v3 | SGD logistic regression | Character n-grams (hashed) | 67.8% | 58.8% | 69.8% | 53.5% | 99.7% | 6.0% |
-| 8 | entity_masked_v3 | SGD linear SVM | Combined + function words | 67.2% | 62.9% | 92.5% | 79.3% | 96.4% | 6.0% |
-| 9 | entity_masked_v3 | SGD linear SVM (unweighted) | Combined + function words | 65.4% | 61.5% | 92.5% | 78.1% | 98.2% | 6.0% |
-| 10 | entity_masked_v3 | Passive-aggressive linear classifier | Function words + characters | 60.0% | 53.9% | 90.6% | 84.3% | 90.1% | 6.0% |
-| 11 | entity_masked_v3 | SGD linear SVM (unweighted) | Function words + characters | 59.7% | 52.5% | 88.7% | 69.1% | 98.4% | 6.0% |
-| 12 | entity_masked_v3 | SGD logistic regression | Combined + function words | 59.3% | 58.5% | 88.7% | 78.5% | 93.3% | 6.0% |
-| 13 | entity_masked_v3 | SGD linear SVM | Function words + characters | 58.3% | 54.2% | 96.2% | 83.0% | 91.5% | 6.0% |
-| 14 | entity_masked_v3 | Passive-aggressive linear classifier | Combined interpretable | 57.7% | 53.4% | 84.9% | 75.1% | 92.0% | 6.0% |
-| 15 | entity_masked_v3 | SGD linear SVM (unweighted) | Combined interpretable | 55.0% | 49.5% | 79.2% | 62.4% | 96.8% | 6.0% |
-| 16 | entity_masked_v3 | SGD logistic regression | Function words + characters | 54.9% | 51.2% | 90.6% | 81.0% | 91.1% | 6.0% |
-| 17 | entity_masked_v3 | SGD linear SVM | Combined interpretable | 54.9% | 52.7% | 81.1% | 74.4% | 89.4% | 6.0% |
-| 18 | entity_masked_v3 | SGD logistic regression (unweighted) | Character n-grams (hashed) | 51.3% | 39.6% | 49.1% | 26.9% | 100.0% | 6.0% |
-| 19 | entity_masked_v3 | SGD logistic regression | Combined interpretable | 50.0% | 49.1% | 81.1% | 73.9% | 87.3% | 6.0% |
-| 20 | entity_masked_v3 | SGD linear SVM (unweighted) | Function-character | 45.0% | 35.4% | 69.8% | 52.8% | 95.9% | 6.0% |
-| 21 | entity_masked_v3 | Complement Naive Bayes | Character n-grams (hashed) | 44.1% | 27.5% | 30.2% | 53.1% | 99.8% | 6.0% |
-| 22 | entity_masked_v3 | Passive-aggressive linear classifier | Function-character | 42.6% | 36.5% | 71.7% | 68.0% | 85.4% | 6.0% |
-| 23 | entity_masked_v3 | SGD linear SVM | Function-character | 42.5% | 37.0% | 77.4% | 72.7% | 80.4% | 6.0% |
-| 24 | entity_masked_v3 | SGD logistic regression | Function-character | 40.6% | 35.2% | 69.8% | 70.7% | 80.0% | 6.0% |
-| 25 | entity_masked_v3 | SGD logistic regression | Chinese function words | 39.4% | 37.8% | 94.3% | 63.4% | 66.4% | 6.0% |
-| 26 | entity_masked_v3 | SGD linear SVM (unweighted) | Chinese function words | 38.9% | 34.3% | 77.4% | 53.4% | 86.8% | 6.0% |
-| 27 | entity_masked_v3 | SGD linear SVM | Chinese function words | 38.5% | 36.4% | 94.3% | 60.8% | 66.2% | 6.0% |
-| 28 | entity_masked_v3 | Passive-aggressive linear classifier | Chinese function words | 38.0% | 34.9% | 86.8% | 58.8% | 62.2% | 6.0% |
-| 29 | entity_masked_v3 | Complement Naive Bayes | Function words + characters | 25.2% | 14.4% | 22.6% | 38.8% | 92.7% | 6.0% |
-| 30 | entity_masked_v3 | Complement Naive Bayes | Combined + function words | 24.4% | 15.7% | 24.5% | 34.7% | 93.5% | 6.0% |
-| 31 | entity_masked_v3 | Complement Naive Bayes | Chinese function words | 23.6% | 13.8% | 24.5% | 37.5% | 89.7% | 6.0% |
-| 32 | entity_masked_v3 | SGD logistic regression | Punctuation/dialogue | 21.5% | 21.9% | 47.2% | 30.5% | 24.8% | 6.0% |
-| 33 | entity_masked_v3 | Complement Naive Bayes | Function-character | 19.2% | 8.9% | 15.1% | 41.1% | 86.3% | 6.0% |
-| 34 | entity_masked_v3 | Complement Naive Bayes | Combined interpretable | 17.4% | 10.7% | 17.0% | 27.7% | 88.7% | 6.0% |
-| 35 | entity_masked_v3 | SGD logistic regression | Sentence/paragraph length | 16.7% | 15.3% | 28.3% | 26.3% | 19.8% | 6.0% |
-| 36 | entity_masked_v3 | Complement Naive Bayes | Punctuation/dialogue | 14.0% | 7.9% | 13.2% | 21.0% | 79.6% | 6.0% |
-| 37 | entity_masked_v3 | Complement Naive Bayes | Sentence/paragraph length | 7.9% | 4.1% | 9.4% | 15.3% | 73.8% | 6.0% |
+The parent benchmark compares the fixed train-global vocabulary with the ineligible book-local supplement. Separate collapsed-run, topology-only, and mask-stripped controls then test whether mask artifacts explain the retained author signal.
 
-## Overall Ranking
+| Classifier | Features | Train-global only | Global + label-blind local | Combined - global |
+|---|---|---:|---:|---:|
+| SGD linear SVM | Character n-grams | 85.5% | 89.1% | +3.6pp |
+| SGD linear SVM | Exact character n-grams within unmasked spans only | 90.0% | 88.8% | -1.2pp |
+| SGD linear SVM (unweighted) | Character n-grams | 86.6% | 89.4% | +2.9pp |
+| SGD linear SVM (unweighted) | Exact character n-grams within unmasked spans only | 89.8% | 89.0% | -0.7pp |
 
-| Rank | View | Classifier | Features | Chunk acc. | Balanced acc. | Book acc. | Target F1 | Target recall | Majority baseline |
-|---:|---|---|---|---:|---:|---:|---:|---:|---:|
-| 1 | entity_masked_v3 | SGD linear SVM (unweighted) | Character n-grams | 88.2% | 84.1% | 94.3% | 85.2% | 100.0% | 6.0% |
-| 2 | entity_masked_v3 | SGD linear SVM | Character n-grams | 87.8% | 83.6% | 90.6% | 85.9% | 100.0% | 6.0% |
-| 3 | entity_masked_v3 | SGD linear SVM | Character n-grams (hashed) | 85.0% | 80.5% | 92.5% | 77.5% | 100.0% | 6.0% |
-| 4 | entity_masked_v3 | SGD linear SVM (unweighted) | Character n-grams (hashed) | 84.0% | 78.7% | 90.6% | 70.7% | 100.0% | 6.0% |
-| 5 | entity_masked_v3 | Passive-aggressive linear classifier | Character n-grams (hashed) | 81.7% | 76.4% | 86.8% | 67.8% | 100.0% | 6.0% |
-| 6 | clean | SGD linear SVM (unweighted) | Character n-grams | 71.4% | 63.5% | 83.0% | 53.3% | 100.0% | 6.0% |
-| 7 | clean | SGD linear SVM | Character n-grams | 70.7% | 63.3% | 77.4% | 56.0% | 100.0% | 6.0% |
-| 8 | clean | Passive-aggressive linear classifier | Combined + function words | 69.7% | 64.6% | 90.6% | 80.3% | 98.7% | 6.0% |
-| 9 | entity_masked_v3 | Passive-aggressive linear classifier | Combined + function words | 69.5% | 63.9% | 92.5% | 78.7% | 98.7% | 6.0% |
-| 10 | entity_masked_v3 | SGD logistic regression | Character n-grams (hashed) | 67.8% | 58.8% | 69.8% | 53.5% | 99.7% | 6.0% |
-| 11 | clean | SGD linear SVM | Combined + function words | 67.6% | 63.3% | 90.6% | 86.4% | 95.1% | 6.0% |
-| 12 | clean | SGD linear SVM (unweighted) | Combined + function words | 67.3% | 62.7% | 88.7% | 78.8% | 98.8% | 6.0% |
-| 13 | entity_masked_v3 | SGD linear SVM | Combined + function words | 67.2% | 62.9% | 92.5% | 79.3% | 96.4% | 6.0% |
-| 14 | entity_masked_v3 | SGD linear SVM (unweighted) | Combined + function words | 65.4% | 61.5% | 92.5% | 78.1% | 98.2% | 6.0% |
-| 15 | clean | SGD linear SVM | Character n-grams (hashed) | 64.1% | 56.9% | 67.9% | 37.3% | 100.0% | 6.0% |
+The final mask-stripped global run improves over the original global run by +3.20pp test accuracy. Its development accuracy is 87.94% and development balanced accuracy is 84.57%. All registered v1 and v2 mask-artifact checks pass.
 
-## Per-Author Weak Spots
+## Per-Author Results
 
-Lowest-recall authors under the recommended method:
+All 50 authors under the recommended method, ordered from lowest to highest recall:
 
 | Author | Precision | Recall | F1 | Support | TP | FP | FN |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| 吾九殿 | 100.0% | 5.8% | 10.9% | 468 | 27 | 0 | 441 |
-| 青色羽翼 | 97.7% | 15.1% | 26.1% | 837 | 126 | 3 | 711 |
-| 酱子贝 | 98.0% | 20.6% | 34.0% | 238 | 49 | 1 | 189 |
-| 语笑阑珊 | 63.8% | 29.7% | 40.5% | 475 | 141 | 80 | 334 |
-| 多金少女猫 | 99.3% | 32.7% | 49.2% | 459 | 150 | 1 | 309 |
-| 龙柒 | 87.5% | 41.8% | 56.6% | 638 | 267 | 38 | 371 |
-| 一十四洲 | 75.7% | 47.3% | 58.2% | 368 | 174 | 56 | 194 |
-| 红口白牙 | 95.9% | 57.3% | 71.7% | 288 | 165 | 7 | 123 |
-| 唐酒卿 | 88.4% | 71.8% | 79.2% | 616 | 442 | 58 | 174 |
-| 李温酒 | 99.5% | 74.0% | 84.9% | 1490 | 1102 | 5 | 388 |
-| 绿野千鹤 | 90.9% | 75.2% | 82.3% | 266 | 200 | 20 | 66 |
-| 北南 | 69.5% | 79.0% | 74.0% | 257 | 203 | 89 | 54 |
-| 小霄 | 100.0% | 80.2% | 89.0% | 378 | 303 | 0 | 75 |
-| 七流 | 65.4% | 83.9% | 73.6% | 598 | 502 | 265 | 96 |
-| 引路星 | 96.6% | 84.0% | 89.8% | 200 | 168 | 6 | 32 |
-| 骑鲸南去 | 97.5% | 86.0% | 91.4% | 833 | 716 | 18 | 117 |
-| 莫晨欢 | 96.4% | 87.4% | 91.7% | 770 | 673 | 25 | 97 |
-| 吕天逸 | 86.0% | 88.3% | 87.1% | 230 | 203 | 33 | 27 |
-| 公子于歌 | 97.6% | 90.8% | 94.1% | 457 | 415 | 10 | 42 |
-| 微风几许 | 80.3% | 91.2% | 85.4% | 205 | 187 | 46 | 18 |
+| 青色羽翼 | 95.9% | 25.1% | 39.8% | 837 | 210 | 9 | 627 |
+| 语笑阑珊 | 93.8% | 25.5% | 40.1% | 475 | 121 | 8 | 354 |
+| 李温酒 | 98.2% | 52.1% | 68.1% | 1490 | 776 | 14 | 714 |
+| 龙柒 | 91.7% | 60.3% | 72.8% | 638 | 385 | 35 | 253 |
+| 多金少女猫 | 99.3% | 65.4% | 78.8% | 459 | 300 | 2 | 159 |
+| 红口白牙 | 97.9% | 65.6% | 78.6% | 288 | 189 | 4 | 99 |
+| 北南 | 87.4% | 67.3% | 76.0% | 257 | 173 | 25 | 84 |
+| 一十四洲 | 77.9% | 70.9% | 74.3% | 368 | 261 | 74 | 107 |
+| 唐酒卿 | 94.5% | 71.9% | 81.7% | 616 | 443 | 26 | 173 |
+| 引路星 | 96.8% | 76.5% | 85.5% | 200 | 153 | 5 | 47 |
+| 酱子贝 | 90.1% | 80.3% | 84.9% | 238 | 191 | 21 | 47 |
+| 吾九殿 | 99.7% | 82.9% | 90.5% | 468 | 388 | 1 | 80 |
+| 骑鲸南去 | 98.6% | 84.3% | 90.9% | 833 | 702 | 10 | 131 |
+| 微风几许 | 87.9% | 85.4% | 86.6% | 205 | 175 | 24 | 30 |
+| 公子于歌 | 95.3% | 88.8% | 92.0% | 457 | 406 | 20 | 51 |
+| 妾在山阳 | 98.1% | 89.8% | 93.8% | 937 | 841 | 16 | 96 |
+| 小霄 | 100.0% | 90.4% | 94.9% | 374 | 338 | 0 | 36 |
+| 若星若辰 | 97.7% | 90.4% | 93.9% | 426 | 385 | 9 | 41 |
+| 吕天逸 | 81.9% | 90.4% | 86.0% | 230 | 208 | 46 | 22 |
+| 七流 | 46.0% | 90.5% | 61.0% | 598 | 541 | 634 | 57 |
+| 莫晨欢 | 97.4% | 90.6% | 93.9% | 770 | 698 | 19 | 72 |
+| 绿野千鹤 | 76.1% | 92.1% | 83.3% | 266 | 245 | 77 | 21 |
+| 漫漫何其多 | 97.8% | 94.4% | 96.1% | 285 | 269 | 6 | 16 |
+| 蝶之灵 | 65.6% | 95.4% | 77.8% | 1405 | 1341 | 703 | 64 |
+| 墨香铜臭 | 93.1% | 96.1% | 94.6% | 635 | 610 | 45 | 25 |
+| 望三山 | 98.0% | 96.2% | 97.1% | 554 | 533 | 11 | 21 |
+| black_di | 89.2% | 96.3% | 92.6% | 189 | 182 | 22 | 7 |
+| 西西特 | 99.7% | 96.7% | 98.2% | 2217 | 2143 | 6 | 74 |
+| 颜凉雨 | 98.3% | 97.1% | 97.7% | 730 | 709 | 12 | 21 |
+| 衣落成火 | 95.3% | 97.8% | 96.5% | 2349 | 2297 | 113 | 52 |
+| 春风遥 | 94.8% | 98.1% | 96.4% | 672 | 659 | 36 | 13 |
+| 比卡比 | 62.9% | 98.1% | 76.7% | 320 | 314 | 185 | 6 |
+| 碉堡堡 | 98.8% | 98.3% | 98.5% | 860 | 845 | 10 | 15 |
+| 青衣杏林 | 99.3% | 98.3% | 98.8% | 2759 | 2712 | 18 | 47 |
+| 拉棉花糖的兔子 | 67.2% | 98.4% | 79.9% | 383 | 377 | 184 | 6 |
+| 梦溪石 | 81.3% | 98.8% | 89.2% | 589 | 582 | 134 | 7 |
+| 马户子君 | 95.5% | 99.6% | 97.5% | 234 | 233 | 11 | 1 |
+| 坏猫霸霸 | 93.3% | 99.6% | 96.4% | 545 | 543 | 39 | 2 |
+| 木瓜黄 | 81.9% | 99.7% | 89.9% | 332 | 331 | 73 | 1 |
+| 桑沃 | 98.8% | 99.7% | 99.3% | 2381 | 2375 | 28 | 6 |
+| 西子绪 | 93.3% | 99.8% | 96.4% | 490 | 489 | 35 | 1 |
+| 稚楚 | 83.7% | 99.8% | 91.0% | 519 | 518 | 101 | 1 |
+| 非天夜翔 | 80.3% | 100.0% | 89.1% | 2134 | 2134 | 524 | 0 |
+| 风流书呆 | 90.9% | 100.0% | 95.2% | 1144 | 1144 | 115 | 0 |
+| 妄鸦 | 91.1% | 100.0% | 95.3% | 561 | 561 | 55 | 0 |
+| 墨西柯 | 92.2% | 100.0% | 95.9% | 341 | 341 | 29 | 0 |
+| 淮上 | 92.2% | 100.0% | 95.9% | 506 | 506 | 43 | 0 |
+| priest | 93.2% | 100.0% | 96.5% | 481 | 481 | 35 | 0 |
+| 木苏里 | 95.2% | 100.0% | 97.6% | 439 | 439 | 22 | 0 |
+| 巫哲 | 97.5% | 100.0% | 98.7% | 510 | 510 | 13 | 0 |
 
-![Per-author recall](../../generated/style_research/benchmarks/author_classifier_retest_50authors_report/charts/best_method_per_author_recall.svg)
+![Per-author recall](../../generated/style_research/benchmarks/author_style_supervised_50authors_cleaned/report_charts/best_method_per_author_recall.svg)
 
 ## Top Confusions
 
 | Gold author | Predicted author | Count |
 |---|---|---:|
-| 吾九殿 | 妄鸦 | 435 |
-| 龙柒 | 蝶之灵 | 335 |
-| 李温酒 | 蝶之灵 | 227 |
-| 青色羽翼 | 非天夜翔 | 183 |
-| 语笑阑珊 | 比卡比 | 152 |
-| 语笑阑珊 | 非天夜翔 | 123 |
-| 青色羽翼 | 七流 | 111 |
-| 青色羽翼 | 蝶之灵 | 103 |
-| 唐酒卿 | 非天夜翔 | 75 |
-| 一十四洲 | 妄鸦 | 72 |
+| 李温酒 | 蝶之灵 | 350 |
+| 李温酒 | 七流 | 296 |
+| 青色羽翼 | 七流 | 262 |
+| 龙柒 | 蝶之灵 | 245 |
+| 语笑阑珊 | 比卡比 | 134 |
+| 青色羽翼 | 非天夜翔 | 124 |
+| 唐酒卿 | 非天夜翔 | 107 |
+| 语笑阑珊 | 梦溪石 | 104 |
+| 北南 | 非天夜翔 | 73 |
+| 多金少女猫 | 衣落成火 | 55 |
 
 ## Interpretation
 
-- The previous concern that the classifier was too weak is addressed for this dataset and split: the best masked chunk-level result is above 80%, and the balanced accuracy is also above 80%.
-- N-grams are essential. Interpretable-only features are useful diagnostics but do not reach the target chunk-level accuracy.
-- Richer Chinese function-word features materially improve the interpretable baselines: the best combined-rich function-word run reaches 69.5% masked chunk accuracy / 63.9% balanced accuracy, and function words plus function characters reaches 84.3% target-author F1. This is useful as a guardrail, but still below the exact n-gram meter.
-- Exact n-grams outperform the hashed approximation in the final hinge run, so the exact model should be treated as the preferred proxy meter when runtime allows.
-- The clean-to-masked direction needs caution. Masked > clean suggests the masking process may improve cross-book consistency, but it also means we should keep monitoring whether masks introduce regular artifacts that classifiers exploit.
+- Use masked balanced accuracy and target-author F1 together; raw accuracy alone is   insufficient under uneven book and chunk counts.
+- Treat book-majority accuracy as a sanity check because most authors contribute only one   test book.
+- Character n-grams remain leakage-sensitive. Train-only masking, punctuation normalization,   exact decontamination, and mask-stripped extraction control known shortcuts but cannot   remove every topic, formatting, or source artifact.
+- This classifier is currently an authorship proxy, not a validated continuous style   meter. Generated-text calibration, uncertainty estimates, semantic fidelity, and   Chinese-readability evaluation remain separate requirements.
 
 ## Reproduction
 
 ```bash
 uv run author-style-research authorship-supervised \
-  --views clean,entity_masked_v3 \
-  --masked-view entity_masked_v3 \
-  --methods char_hashing,punctuation_dialogue,length_shape,function_chars,combined_interpretable \
-  --classifiers sgd_logistic,complement_nb \
-  --max-char-features 262144 \
-  --char-min-df 5 \
-  --output-dir generated/style_research/benchmarks/author_style_supervised_50authors_iter1_sgd_nb \
-  --jobs -1 --max-iter 3000
-
-uv run author-style-research authorship-supervised \
-  --views clean,entity_masked_v3 \
-  --masked-view entity_masked_v3 \
-  --methods char_hashing \
-  --classifiers sgd_logistic,sgd_logistic_unbalanced,sgd_hinge,sgd_hinge_unbalanced,passive_aggressive,complement_nb \
-  --max-char-features 262144 \
-  --char-min-df 5 \
-  --output-dir generated/style_research/benchmarks/author_style_supervised_50authors_iter2_hash_classifier_sweep \
-  --jobs -1 --max-iter 3000
-
-uv run author-style-research authorship-supervised \
-  --views clean,entity_masked_v3 \
+  --views clean,train_global_masked,entity_masked_v3 \
   --masked-view entity_masked_v3 \
   --methods char_ngrams \
   --classifiers sgd_hinge,sgd_hinge_unbalanced \
   --max-char-features 80000 \
   --char-min-df 20 \
-  --output-dir generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20 \
+  --output-dir generated/style_research/benchmarks/author_style_supervised_50authors_cleaned \
   --jobs -1 --max-iter 3000
 
-uv run author-style-research authorship-supervised \
-  --views clean,entity_masked_v3 \
-  --masked-view entity_masked_v3 \
-  --methods function_chars,function_words,function_words_plus_chars,combined_interpretable,combined_rich_function_words \
-  --classifiers sgd_logistic,sgd_hinge,sgd_hinge_unbalanced,passive_aggressive,complement_nb \
-  --output-dir generated/style_research/benchmarks/author_style_supervised_50authors_iter4_function_words \
-  --jobs -1 --max-iter 3000
+uv run author-style-research mask-artifact-audit --jobs -1
 
 uv run author-style-research authorship-report \
-  --evaluation-file generated/style_research/benchmarks/author_classifier_retest_50authors_report/evaluator_review.md \
-  --function-word-evaluation-file generated/style_research/benchmarks/author_classifier_retest_50authors_report/function_word_evaluator_review.md
+  --baseline-evaluation-file generated/style_research/benchmarks/author_style_supervised_50authors_cleaned/evaluator_review.md \
+  --evaluation-file generated/style_research/benchmarks/mask_artifact_ablation_v2/evaluator_review.md
 ```
 
 ## Independent Evaluation
 
-## Evaluation: Eternal Gate Author-Style Classifier Retest
+### Parent Benchmark Audit
 
-### 1. Accuracy Claim
+<!-- benchmark-result-sha256: 25d9d966bbd7987279693a18dfe4b75e3da274f991a3a092c13f5db2f3c9d727 -->
+<!-- evaluator-model: gpt-5.6-terra -->
 
-Yes, the claim is supported, but it should be stated as a masked 50-author supervised classification result, not a general proof of style quality.
+## Material Passport
 
-The strongest support is:
+- Verification Status: ANALYZED
+- Scope: code, tests, aggregate JSON, provenance, QA statistics, and confusion/per-author metrics only. No raw novel, cleaned full-book, or chunk text was inspected.
+- Result SHA-256 independently matched the supplied value.
+- The recorded benchmark-script and mask-plan hashes match the current files. The result binds 87,137 rows in each of the three evaluated views.
 
-- `author_style_supervised_50authors_iter3_exact_hinge_mindf20`
-- `sgd_hinge_unbalanced.char_ngrams.entity_masked_v3`
-- Test accuracy: **88.2%**
-- Balanced accuracy: **84.1%**
-- Macro F1: **83.5%**
-- Book test accuracy: **94.3%**
+## Independent Evaluation
 
-For target-author use, the class-balanced variant is preferable:
+### Decision
 
-- `sgd_hinge.char_ngrams.entity_masked_v3`
-- Test accuracy: **87.8%**
-- Balanced accuracy: **83.6%**
-- Target F1: **85.9%**
-- Target precision/recall: **75.4% / 100.0%**
+The prior global-mask leakage is fixed for the stated threat: global mask terms are fitted on the 88 training books only; held-out corpus statistics are disallowed; the transform does not use author labels. This is enforced both in code and in focused tests.
 
-### 2. Entity Masking
+Exact cross-book decontamination is a meaningful and adequate control for direct, sufficiently long exact passage reuse under its declared rule. It is not a complete control for near duplicates, shorter repeats, paraphrase, or source/formatting confounds.
 
-Author signal clearly survives entity masking. Surprisingly, the strongest char-ngram models improve after masking:
+The defensible provisional authorship proxy is the **unweighted SGD hinge classifier on `train_global_masked`**, not `entity_masked_v3`. This follows development-set selection and construct validity: it has the better development accuracy (86.27% vs. 85.83%), higher target F1 (92.00% vs. 88.46% on test), and does not adapt its term vocabulary to each evaluated book. The current test set must now be treated as spent for model/view choice.
 
-- Iter3 balanced exact hinge: clean **70.7% acc / 63.3% balanced acc / 56.0% target F1** vs masked **87.8% / 83.6% / 85.9%**.
-- Iter2 hashed hinge: clean **64.1% / 56.9% / 37.3% target F1** vs masked **85.0% / 80.5% / 77.5%**.
-- Interpretable features also survive masking: iter1 combined interpretable stays around **50.0% accuracy** and **73.9% masked target F1**.
+The >80% milestone is met for a bounded, held-out-book, 50-author attribution proxy. It is not sufficient to claim a continuous author-style meter for generated translations.
 
-The surprising direction is that masking helps rather than hurts. That may mean entity names were adding book/topic noise, but it also raises a preprocessing-signal risk: placeholder frequency and masking artifacts may themselves become author-correlated.
+### Evidence
 
-### 3. Methodological Caveats
+The benchmark contains 198 books from 50 authors: 88 train, 53 development, 53 test, and 4 target-author proxy-transfer books. Class imbalance is substantial: training support ranges from 78 to 5,465 chunks per author (about 70:1).
 
-The split is book-level, which is appropriate, but the effective test unit is still only **53 books**, not 35,812 independent samples. Chunk-level metrics should be treated as dense evidence, not independent replication.
+| View | Model | Dev accuracy / balanced accuracy / target F1 | Test accuracy / balanced accuracy / target F1 |
+|---|---|---:|---:|
+| Clean | Class-balanced | 78.11 / 68.19 / 64.38% | 72.13 / 63.67 / 57.65% |
+| Clean | Unweighted | 76.72 / 66.95 / 62.05% | 71.12 / 62.66 / 55.78% |
+| Train-global masked | Class-balanced | 85.17 / 81.57 / 90.73% | 85.50 / 83.32 / 90.79% |
+| Train-global masked | Unweighted | **86.27 / 82.57 / 92.00%** | **86.56 / 85.01 / 92.00%** |
+| Global + local v3 | Class-balanced | 86.05 / 83.11 / 90.59% | 89.06 / 85.69 / 89.99% |
+| Global + local v3 | Unweighted | 85.83 / 82.48 / 89.75% | 89.43 / 86.13 / 88.46% |
 
-Class imbalance is substantial. The target author has **29 train books / 5,650 train chunks**, while most authors have about three books total. This makes `非天夜翔` target recall easier to inflate; the target had **2,150 TP / 0 FN**, but still **703 FP** in the recommended balanced model.
+The clean-to-global gain is very large: +15.44 percentage points in unweighted test accuracy and +22.35 points in balanced accuracy. This supports the conclusion that clean character n-grams contain strong nuisance/topic/source signals; it does not, by itself, establish that the retained signal is literary style.
 
-Leakage risk remains. Entity masking removes many names/numbers, but raw text still may contain source boilerplate, genre/setting signals, recurrent placeholders, and topic residues. The masked performance increase should be audited, not simply celebrated.
+`entity_masked_v3` adds label-blind, book-local masking. Its unweighted test accuracy rises 2.87 points over global-only, but its development accuracy falls 0.44 points and its target F1 falls 3.54 points. More importantly, it preserves mask length and placement: QA statistics show 24.26 million generic mask characters (18.87% of CJK characters), versus 4.31 million (3.36%) in the global-only view. Character n-grams can learn this masking topology, density, and run-length structure.
 
-Hashing vs exact matters. Iter3 exact char n-grams with `min_df=20` outperform iter2 hashed features and are more auditable. Hashing should not be the preferred final meter.
+Decontamination removed 1,362 exact fingerprints, 4,877 lines, and 222,241 CJK characters across 28 books; zero fingerprints remained under the declared 1-line/80-CJK, 2-line/100-CJK, and 3-line/120-CJK rules. This directly addresses long exact copied passages across books.
 
-Book aggregation is promising but unstable: most authors contribute one test book, and target book-level support is only four test books. Report book-level results as a sanity check, not the main proof.
+Per-author performance remains uneven. Under the recommended global-only unweighted view, the weakest recalls are 青色羽翼 8.60% (F1 15.82%), 李温酒 35.17% (51.60%), 语笑阑珊 40.42% (54.78%), and 龙柒 41.69% (58.72%). Under v3, several remain weak, including 青色羽翼 23.89%, 多金少女猫 23.97%, and 语笑阑珊 34.74%. Aggregate accuracy therefore masks material author-specific failure.
 
-### 4. Recommended Meter
+### Threats to Validity
 
-Use **class-balanced `sgd_hinge` with exact character n-grams on `entity_masked_v3`, `min_df=20`** as the next proxy style-transfer meter.
+- The v3 local vocabulary is label-blind but is still computed from each test/development book. It is transductive, input-adaptive preprocessing rather than a fixed scorer input contract.
+- Exact decontamination misses paraphrase, partial overlaps below thresholds, segmentation-dependent matches, and shared source/platform/genre artifacts. It also uses all books before splitting; label-free, but still a cross-split corpus transform.
+- The test result contains 53 books, generally one book per non-target author. Book-majority results are therefore coarse: global-only unweighted is 51/53 (96.23%) and v3 unweighted 52/53 (98.11%). Approximate unclustered Wilson intervals are wide—about 87.2–99.0% and 90.0–99.6%, respectively—and chunk-level intervals would be anti-conservative because chunks within books are correlated.
+- The test set is exposed across six view/model comparisons and in report ranking. The hard-coded current v3 run makes present reporting deterministic, but does not demonstrate that the choice was registered before these test results were observed.
+- Target recall is 100%, but global-only has 371 target false positives and v3 has 557. A target-author F1 alone does not establish a usable deployment precision at the intended prevalence.
+- The benchmark evaluates discrete attribution only. It records hard predictions, not calibrated uncertainty or a monotonic score of “degree of target style.” Generated translations introduce domain shift, semantic-fidelity variation, and translationese that are not represented by this task.
 
-For generated-output experiments, report target-author **margin/rank and target chunk share aggregated by chapter/book**, not only hard 50-way accuracy. Keep the iter1 combined-interpretable/function-character models as guardrails: they are weaker but less dependent on high-dimensional lexical n-grams.
+### Fallacy Scan
 
-### 5. Confusion Checks To Highlight
+Coverage: **11/11 statistical fallacy checks completed.**
 
-Highlight false positives into the target author. In the recommended model, major `非天夜翔` false-positive sources include:
+| Check | Status | Assessment |
+|---|---|---|
+| Simpson’s paradox | CAUTION | Aggregate accuracy obscures extreme per-author failures; no reversal analysis or hierarchical estimate is reported. |
+| Ecological fallacy | CAUTION | Group-level attribution performance cannot establish style intensity for an individual generated translation. |
+| Berkson’s paradox | CAUTION | Eligibility requires sufficiently long, available books and at least three books per author; selection effects are plausible. |
+| Collider bias | CAUTION | Conditioning on cleaned-corpus eligibility and source-quality filters may induce associations between author, source, and retained text properties. |
+| Base-rate neglect | CAUTION | Balanced accuracy and majority baseline are reported, but deployment prevalence and calibrated target PPV are not. |
+| Regression to the mean | NOT DETECTED | No pre/post extreme-group intervention design is used. |
+| Survivorship bias | CAUTION | The selected 50 authors/books are a survivable, well-represented corpus, not a population sample of authors or translations. |
+| Look-elsewhere effect | CAUTION | Six test-facing comparisons are reported; no multiplicity control or held-out model-selection tier is documented. |
+| Garden of forking paths | CAUTION | Numerous cleaning, masking, and feature choices exist. No immutable time-stamped preregistration artifact was supplied for this audit. |
+| Correlation is not causation | CAUTION | Better masked attribution cannot be interpreted as masking causing measurement of literary style, nor as generated text becoming more author-like. |
+| Reverse causality | NOT DETECTED | No directional causal claim is required for the descriptive benchmark; avoid introducing one in interpretation. |
 
-- `青色羽翼 -> 非天夜翔`: 183 chunks
-- `语笑阑珊 -> 非天夜翔`: 123 chunks
-- `唐酒卿 -> 非天夜翔`: 75 chunks
+### Required Next Actions
 
-Also highlight persistent non-target confusion clusters:
+1. **Yes—require a mask-token-stripped or collapsed-mask ablation before finalizing the scorer.** Run it for global-only and v3, ideally alongside a length-matched random-mask control. Report mask density/run-length-only predictive performance.
+2. Freeze `train_global_masked` plus unweighted SGD hinge as the provisional proxy using the development result, with a versioned selection manifest. Do not select on the current test again.
+3. Treat the current test set as consumed; create a fresh final holdout or use repeated nested, book-stratified cross-validation for subsequent selection.
+4. Report book-cluster bootstrap confidence intervals, multiple seeds, per-author intervals, macro metrics, and full confusion matrices—not only aggregate accuracy.
+5. Extend decontamination to fuzzy/near-duplicate and source-provenance checks, while retaining the present exact-passages audit.
+6. Validate a continuous meter separately: calibrated margins/probabilities, generated-translation evaluation, semantic-fidelity and readability gates, and blinded human judgments with agreement and monotonicity tests.
+7. Investigate the weakest authors and recurrent confusions before using any aggregate score as a broad authorship claim.
 
-- `吾九殿 -> 妄鸦`: 435
-- `龙柒 -> 蝶之灵`: 335
-- `李温酒 -> 蝶之灵`: 227
+### Reproducibility
 
-Per-author low-recall checks should include `吾九殿`, `青色羽翼`, `酱子贝`, `语笑阑珊`, `多金少女猫`, `龙柒`, and `一十四洲`. Low-precision sink labels include `妄鸦`, `蝶之灵`, `比卡比`, and `非天夜翔`.
+The completed result is hash-bound to the supplied SHA-256 and records its mask-plan, benchmark-script, and chunk-file digests. Current benchmark-script and mask-plan digests match those bindings. I did not rerun training or inspect text-bearing inputs; accordingly, this is an analysis audit, not independent execution verification.
 
-### Inspected Paths
+### Final Mask-Artifact Audit
 
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter1_sgd_nb/supervised_author_baseline_results.md`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter1_sgd_nb/supervised_author_baseline_results.json`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter2_hash_classifier_sweep/supervised_author_baseline_results.md`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter2_hash_classifier_sweep/supervised_author_baseline_results.json`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20/supervised_author_baseline_results.md`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20/supervised_author_baseline_results.json`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20/supervised_masked_gap.csv`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20/confusion_matrices/sgd_hinge.char_ngrams.entity_masked_v3.test.csv`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter3_exact_hinge_mindf20/confusion_matrices/sgd_hinge_unbalanced.char_ngrams.entity_masked_v3.test.csv`
-- `generated/style_research/corpus/splits.json`
-- `generated/style_research/corpus/chunk_report.json`
-- `datasets/unmasked/chunks.clean.jsonl`
-- `datasets/masked/chunks.entity_masked_v3.jsonl`
+<!-- ablation-result-sha256: 6ea4253a30544414ea03926fbdaf47e0e05ce4accc68a21d4b5b18a2fea8763a -->
+<!-- evaluator-model: gpt-5.6-terra; reasoning: high; service-tier: priority; independent: true -->
 
-No workspace files were modified.
+## Audit decision
 
-## Independent Evaluation: Function-Word Extension
+**Pass.** The registered `train_global_masked` unweighted mask-stripped baseline passes every gate condition: dev accuracy/balanced accuracy exceed 80%, test balanced accuracy exceeds 80%, accuracy changes are improvements (−1.67pp dev; −3.20pp test), and the required prior controls pass.
 
-### What Was Tested
+**No further masking iteration is needed** for the bounded held-out-book attribution claim. The representation excludes mask tokens, mask-run/topology features, and cross-mask n-grams. This does not establish that all residual lexical-survival effects are absent.
 
-`function_words` is a hand-built Chinese function-phrase lexicon grouped into connective, modal/aspect, deictic/pronoun, particle phrase, and preposition/frame features. It counts exact regex phrase hits, group counts, phrase-density buckets, and diversity buckets.
-
-`function_words_plus_chars` combines those phrase features with the earlier single-character function-character inventory and function-character ratio bucket.
-
-`combined_rich_function_words` adds the richer function-word features to the broader interpretable bundle: punctuation/dialogue, sentence/paragraph length shape, and function characters.
-
-These are credible richer function-word features for an interpretable baseline: they are no longer only single high-frequency characters, and they capture connective/aspect/particle habits that can plausibly reflect style. They are still shallow, regex-based features, not a full Chinese grammatical analysis.
-
-### Best Masked Results
-
-| Scope | Best masked method | Chunk acc. | Balanced acc. | Macro F1 | Target F1 | Target P/R | Book acc. |
-|---|---|---:|---:|---:|---:|---:|---:|
-| Function-word extension, overall | `passive_aggressive` + `combined_rich_function_words` | 69.5% | 63.9% | 60.3% | 78.7% | 65.5% / 98.7% | 92.5% |
-| Function-word extension, target F1 | `passive_aggressive` + `function_words_plus_chars` | 60.0% | 53.9% | 50.6% | 84.3% | 79.2% / 90.1% | 90.6% |
-| Prior exact n-gram overall | unweighted `sgd_hinge` + exact char n-grams | 88.2% | 84.1% | 83.5% | 85.2% | recall 100.0% | 94.3% |
-| Prior target meter | balanced `sgd_hinge` + exact char n-grams | 87.8% | 83.6% | 82.3% | 85.9% | 75.4% / 100.0% | 90.6% |
-
-### Interpretation
-
-The richer function-word methods improve the interpretable side materially, but they do not change the prior conclusion. The best `combined_rich_function_words` run is still about 18.7 points behind exact n-grams in chunk accuracy and about 20.2 points behind in balanced accuracy. The best target-author F1 from `function_words_plus_chars` is close to the exact n-gram target F1, but its overall 50-way discrimination is much weaker.
-
-Exact character n-grams should remain the main style meter for this retest, preferably the class-balanced exact `sgd_hinge` model for target-author scoring.
-
-### Guardrail Use
-
-These methods are useful secondary guardrails because they are lower-dimensional, more interpretable, and less dependent on exact lexical fragments than n-grams. They can catch cases where generated text matches high-dimensional n-gram surface cues but misses broader connective, particle, punctuation, dialogue, or length-shape habits.
-
-The right use is as a corroborating signal: report them beside exact n-gram margin/rank or target share, not as the decisive classifier.
-
-### Caveats
-
-`combined_rich_function_words` is not a pure function-word meter; it includes punctuation/dialogue and length-shape features. `function_words` is regex substring matching with a hand-built lexicon, no segmentation, no syntactic disambiguation, and non-overlapping matches. Some function-word entries are broader phrase markers rather than strict function words.
-
-Interpretation also needs the earlier caveats: chunk-level metrics are dense evidence over a book-level split, not 35,812 independent test samples; book-level target support is small; `非天夜翔` has unusually strong target support; and masked-text performance can still exploit masking artifacts or residual genre/topic signals.
-
-### Inspected Paths
-
-- `workflows/benchmark_author_style.py`
-- `workflows/benchmark_author_style_supervised.py`
-- `generated/style_research/benchmarks/author_style_supervised_50authors_iter4_function_words/supervised_author_baseline_results.json`
-- `docs/reports/02_authorship_style_meter.md`
+**Still invalid:** claims that predictions or margins measure a continuous degree of generated-text style; claims of calibration or monotonic style scoring; and claims of validity under generated-text domain shift, translationese, semantic-fidelity variation, or readability variation.
 
 ## Conclusion
 
-Use the exact character n-gram + class-balanced SGD hinge classifier on `entity_masked_v3` as the next target-author proxy style meter. Keep the unweighted exact hinge model as the best overall 50-way classifier, and keep the hashed n-gram model as a faster iteration/debugging approximation. Do not proceed with interpretable-only scoring for style-transfer method selection because it is below the required chunk-level accuracy.
+Freeze **SGD linear SVM (unweighted) / Exact character n-grams within unmasked spans only** on `train_global_masked` as the versioned authorship-attribution proxy for generated-domain calibration. Its test metrics are descriptive, not a basis for choosing between classifiers. Do not promote it to a continuous style meter until generated-text and human-rating calibration are complete.

@@ -10,14 +10,14 @@ Detailed procedures, method definitions, per-arm results, graphs, retry statisti
 
 ## Iteration 1 Executive Result
 
-The author-identification prerequisite passed, but the first registered style-transfer screen did not. The exact masked character n-gram meter reaches **87.8%** 50-author test accuracy and **83.6%** balanced accuracy, yet none of the 11 non-control transfer methods met the joint screening gate. The frozen promotion decision is **`no_method_qualified`**, so confirmation and final validation have not started.
+The author-identification prerequisite passed, but the first registered style-transfer screen did not. On the current normalized corpus, the selected train-global mask-stripped character n-gram proxy reaches **89.8%** 50-author test accuracy and **87.9%** balanced accuracy. The Iteration-1 outputs were scored with an earlier pre-normalization scorer; those margin values and threshold decisions are retained only as historical evidence and must be rescored before reuse. The semantic-fidelity failures and the original **`no_method_qualified`** decision still explain why this iteration did not advance.
 
 | Stage | Data | Procedure | Result | Status |
 | --- | --- | --- | --- | --- |
-| 0. Corpus cleanup | 200 books, 50 authors | Clean, deduplicate, book-level split, six chunk views | 199 usable books chunked; 87,174 chunks; zero checked residue hits | complete |
-| 1. Author-style meter | 24,957 train / 23,683 dev / 35,812 test chunks | Compare n-grams and interpretable classifiers on clean and entity-masked text | Selected exact 2-4 character n-gram class-balanced hinge model: 87.8% test accuracy | complete |
-| 2. Generated-domain calibration | 32 held-out target passages | Original target Chinese versus production-compatible neutral Chinese | Threshold `0.218175`; sensitivity 100%; neutral FPR 0% | complete |
-| 3. Proxy screening | 24 own-author + 12 cross-author chunks | Neutral control plus 11 transfer interventions, one frozen output per method/sample | 396/396 non-control outputs valid; all methods 0% deterministic style success | complete, failed gate |
+| 0. Corpus cleanup | 198 books, 50 authors | Clean, normalize punctuation, deduplicate, book-level split, aligned clean and masked views | 198 usable books chunked; 87,137 chunks per view; zero checked residue hits | complete |
+| 1. Author-style meter | 24,796 train / 23,642 dev / 35,994 test chunks | Compare exact n-grams on clean and entity-masked text, then remove mask-marker features | Selected exact 2-4 character n-gram unweighted hinge model: 89.8% test accuracy | complete |
+| 2. Generated-domain calibration | 32 held-out target passages | Original target Chinese versus production-compatible neutral Chinese | Earlier threshold superseded; current scorer requires recalibration | historical only |
+| 3. Proxy screening | 24 own-author + 12 cross-author chunks | Neutral control plus 11 transfer interventions, one frozen output per method/sample | 396/396 non-control outputs valid; style-margin outcomes await current-scorer rescoring | historical outputs retained |
 | 4. Independent outcome audit | Frozen evaluation and promotion artifacts | Separate evaluator checks rule compliance and interpretation | NO-GO; empty shortlist is correct | complete |
 | 5. Refinement / repair | Would use shortlisted methods only | Lighter intensity and one critique repair | Not run because shortlist is empty | stopped by protocol |
 | 6. Confirmation | 104 own-author + 48 cross-author rows | Exact promoted methods only | Not opened | locked |
@@ -44,10 +44,10 @@ The **experimental unit is one contiguous prose chunk**, normally about 1,500 cl
 
 | Data role | Authors / books | Units | May influence | Access status |
 | --- | --- | ---: | --- | --- |
-| Classifier fit | 50 authors / 89 train books | 24,957 masked chunks | Vectorizer vocabulary and classifier weights | used |
-| Classifier development | 50 authors / 53 dev books | 23,683 masked chunks | Diagnostic model comparison | used |
-| Classifier book-disjoint benchmark | 50 authors / 53 test books | 35,812 masked chunks | Reported author-classifier metrics only | used; not available to transfer prompts |
-| Transfer evidence pool | 1 target author / 29 target train books, contrasted with 49 authors | 5,650 target + 19,307 comparison train chunks | Cards, retrieval, close reading, and style-meter weights | used |
+| Classifier fit | 50 authors / 88 train books | 24,796 masked chunks | Vectorizer vocabulary and classifier weights | used |
+| Classifier development | 50 authors / 53 dev books | 23,642 masked chunks | Diagnostic model comparison | used |
+| Classifier book-disjoint benchmark | 50 authors / 53 test books | 35,994 masked chunks | Reported author-classifier metrics only | used; not available to transfer prompts |
+| Transfer evidence pool | 1 target author / 28 target train books, contrasted with 49 authors | 5,465 target + 19,331 comparison train chunks | Cards, retrieval, close reading, and style-meter weights | used |
 | Proxy benchmark pool | 13 authors / 20 books | 220 sampled chunks | Calibration, screening, or confirmation according to frozen IDs | allocated |
 | Generated-domain calibration | 1 target author / 8 proxy books | 32 chunks, 4 per book | One frozen target-margin threshold | used once |
 | Iteration-1 screening | 13 authors / 20 books | 24 own-author + 12 cross-author chunks | Method-family promotion decision | used |
@@ -72,60 +72,56 @@ No style-transfer LLM was fine-tuned in iteration 1. Here, **training evidence**
 
 ### Source corpus
 
-The current corpus contains **200 books by 50 authors**. Every retained author has at least three books. Cleaning operates on copies under `generated/style_research/corpus/`; raw TXT files under `datasets/raw/` are not modified. The cleaner removes chapter headings, author-note blocks, URL lines, and known source boilerplate. Exact cleaned-text duplicates: 0.
+The current corpus contains **198 books by 50 authors**. Every retained author has at least three books. Cleaning operates on copies under `generated/style_research/corpus/`; raw TXT files under `datasets/raw/` are not modified by the cleaner. The cleaner removes chapter headings, author-note blocks, URL lines, and known source boilerplate, then canonicalizes equivalent punctuation encodings. Exact cleaned-text duplicates: 0.
 
 | Split | Authors | Books | Chunks | Purpose |
 | --- | ---: | ---: | ---: | --- |
-| train | 50 | 89 | 24,957 | Fit classifiers and derive transfer evidence; only this split may supply target examples/cards |
-| dev | 50 | 53 | 23,683 | Classifier development diagnostics and four target proxy books |
-| test | 50 | 53 | 35,812 | Book-disjoint 50-author classifier benchmark; four target books reserved from transfer development |
-| proxy_transfer | 1 | 4 | 2,722 | Additional target-author proxy reconstruction books |
-| excluded | 1 | 1 | 0 | Too short for primary chunk benchmark |
+| train | 50 | 88 | 24,796 | Fit classifiers and derive transfer evidence; only this split may supply target examples/cards |
+| dev | 50 | 53 | 23,642 | Classifier development diagnostics and four target proxy books |
+| test | 50 | 53 | 35,994 | Book-disjoint 50-author classifier benchmark; four target books reserved from transfer development |
+| proxy_transfer | 1 | 4 | 2,705 | Additional target-author proxy reconstruction books |
+| excluded | 0 | 0 | 0 | No retained book is below the inclusion threshold |
 
 Chunks target 1,500 cleaned CJK characters with an 800-character minimum. Chunks from one book never cross train/dev/test boundaries. This prevents random chapter mixing from leaking book-specific language into evaluation.
 
 ### Target-author book allocation
 
-- **Style/card training, 29 books:** 国师帮帮忙, 天之战记, 二零一三（末日曙光）, 天地白驹, 灵魂深处闹革命, 大设定师, 鹰奴, 飘洋过海中国船, 银河咏叹曲, 王子病的春天, 破罐子破摔, 逆世界之书, 理想之城, 武将观察日记, 北城天街, 金牌助理, 江湾路七号男子宿舍, 幺儿, 锦衣卫, 江东合伙人, 我和妲己抢男人, 已枯之色, 放开那个受, 朝圣, 将军们的情书, 战七国, 江东双璧, 别过来（仙境幻想游记）, 星盘重启.
+- **Style/card training, 28 books:** 国师帮帮忙, 天之战记, 二零一三（末日曙光）, 天地白驹, 灵魂深处闹革命, 大设定师, 鹰奴, 飘洋过海中国船, 银河咏叹曲, 王子病的春天, 破罐子破摔, 逆世界之书, 理想之城, 武将观察日记, 北城天街, 金牌助理, 江湾路七号男子宿舍, 幺儿, 锦衣卫, 江东合伙人, 我和妲己抢男人, 放开那个受, 朝圣, 将军们的情书, 战七国, 江东双璧, 别过来（仙境幻想游记）, 星盘重启.
 - **Development proxy, 4 books:** 相见欢, 山有木兮, 乱世为王, 图灵密码.
 - **Additional proxy-transfer, 4 books:** 骑士之歌, 天宝伏妖录, 万物风华录, 清平梦华录.
 - **Transfer-held-out final-validation book reservation, 4 books:** 星辰骑士, 夺梦, 定海浮生录, 国家一级注册驱魔师上岗培训通知. The exact 80 rows are deliberately created only after a confirmation method passes and is locked.
-- **Excluded for length:** 西楚霸王.
 
 ### Content masking
 
-`entity_masked_v3` replaces names and author-concentrated content terms with length-preserving `某` spans. It retains 100% CJK length, has row parity with clean chunks, and has no malformed placeholder chunks. The masked view is used for the classifier and retrieval evidence to reduce theme, character, and book-identity learning. Masking is a control, not proof that all content signal has been removed.
+The current scorer view replaces globally selected content terms with length-preserving `某` spans using a vocabulary fit on train books only. Feature extraction then discards every mask span and forbids character sequences from bridging across it, so marker identity and run length cannot become classifier features. The book-local `entity_masked_v3` view remains diagnostic only. Masking is a control, not proof that all content signal has been removed.
 
 ## Stage 1: Author-Style Meter
 
-All classifier variants fit feature transforms and model weights on the same 24,957 `train` chunks. The 23,683 `dev` chunks and 35,812 `test` chunks are book-disjoint from training. Because several classifier families were iteratively compared using their reported test results, `test` is best interpreted as a **book-disjoint benchmark**, not a pristine selection-blind estimate. The four final books remain unopened to transfer generation, threshold calibration, and transfer-method selection, but their chunks did contribute to Stage 1 classifier benchmark metrics. Final validation is therefore a transfer-held-out replication, not a fully end-to-end selection-blind test.
+All current classifier variants fit feature transforms and model weights on the same 24,796 `train` chunks. The 23,642 `dev` chunks and 35,994 `test` chunks are book-disjoint from training. Because several classifier families were iteratively compared using their reported test results, `test` is best interpreted as a **book-disjoint benchmark**, not a pristine selection-blind estimate. The four final books remain unopened to transfer generation, threshold calibration, and transfer-method selection, but their chunks did contribute to Stage 1 classifier benchmark metrics. Final validation is therefore a transfer-held-out replication, not a fully end-to-end selection-blind test.
 
 ### Methods compared
 
 | Feature family | What it measures | Best masked chunk accuracy | Research role |
 | --- | --- | ---: | --- |
-| Exact character n-grams | Auditable TF-IDF over exact Chinese 2-4 character sequences | **88.2%** unweighted; **87.8%** class-balanced | Primary style meter |
-| Hashed character n-grams | Approximate 2-4 character n-grams in 262,144 hash buckets | 85.0% | Faster approximation; rejected as final meter |
-| Combined interpretable + richer function words | Punctuation, dialogue, length, function characters, multi-character function words | 69.5% | Diagnostic guardrail |
-| Function words + characters | Chinese function phrases plus high-frequency function characters | 60.0% | Grammar/function-word diagnostic |
-| Function characters only | Single-character low-semantic inventory | 45.0% | Weak interpretable baseline |
-| Chinese function words only | Multi-character connective, aspect, particle, deixis, and frame terms | 39.4% | Weak interpretable baseline |
-| Punctuation/dialogue only | Quote, dialogue, punctuation, and related rates | 21.5% | Diagnostic only |
-| Sentence/paragraph length only | Sentence and paragraph shape statistics | 16.7% | Diagnostic only |
+| Mask-stripped exact character n-grams | Auditable TF-IDF over exact Chinese 2-4 character sequences wholly inside unmasked spans | **89.8%** unweighted; **90.0%** class-balanced | Current attribution proxy and companion diagnostic |
+
+The hashed and interpretable feature-family figures from the earlier corpus are not
+carried forward here. They remain useful method history, but only the selected exact
+n-gram comparison was rerun after punctuation normalization and corpus cleanup.
 
 ### Selected meter
 
-The selected proxy is the **class-balanced SGD hinge classifier with exact character 2-4 grams on `entity_masked_v3`**, `min_df=20`, maximum 80,000 features. It was fit on train books and evaluated on book-disjoint benchmark books. The fit contains 5,650 target-author chunks and 19,307 comparison-author chunks; class balancing reduces the effect of that unequal training support.
+The selected proxy is the **unweighted SGD hinge classifier with mask-stripped exact character 2-4 grams on the train-global masked view**, `min_df=20`, maximum 80,000 features. It was fit on train books and evaluated on book-disjoint benchmark books. The fit contains 5,465 target-author chunks and 19,331 comparison-author chunks.
 
 | Metric | Result |
 | --- | ---: |
-| 50-author test chunk accuracy | 87.8% |
-| Balanced accuracy | 83.6% |
-| Macro F1 | 82.3% |
-| Book-majority accuracy | 90.6% |
-| Target-author F1 | 85.9% |
+| 50-author test chunk accuracy | 89.8% |
+| Balanced accuracy | 87.9% |
+| Macro F1 | 87.4% |
+| Book-majority accuracy | 96.2% |
+| Target-author F1 | 89.1% |
 | Target-author recall | 100.0% |
-| Majority-class baseline | 6.0% |
+| Majority-class baseline | 5.9% |
 
 This is a **proxy meter**, not a human style judgment and not a probability model. The raw hinge margin is reported as a decision margin. Interpretable features remain secondary guardrails because they are easier to understand but materially less accurate.
 
