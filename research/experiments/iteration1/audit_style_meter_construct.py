@@ -21,7 +21,7 @@ from experiments.shared.paths import RESEARCH_ROOT
 
 REPO_ROOT = RESEARCH_ROOT
 
-from benchmark_author_style import (  # noqa: E402
+from workflows.benchmark_author_style import (  # noqa: E402
     FUNCTION_CHARS,
     FUNCTION_WORDS,
     PUNCT_CHARS,
@@ -207,6 +207,92 @@ def write_svg(path: Path, category_rows: list[dict[str, Any]]) -> None:
     path.write_text("\n".join(elements) + "\n", encoding="utf-8")
 
 
+def write_top_features_svg(
+    path: Path, rows: list[dict[str, Any]], *, limit: int = 20
+) -> None:
+    selected = rows[:limit]
+    width = 1180
+    left = 220
+    right = 250
+    top = 126
+    row_height = 34
+    height = top + row_height * len(selected) + 72
+    chart_width = width - left - right
+    max_weight = max((float(row["coefficient"]) for row in selected), default=1.0)
+    colors = {
+        "dialogue_structure": "#0072b2",
+        "punctuation_only": "#56b4e9",
+        "function_grammar": "#009e73",
+        "general_discourse": "#6a994e",
+        "mask_artifact": "#c44e52",
+        "known_entity_or_topic_fragment": "#d55e00",
+        "low_book_dispersion_lexical": "#e69f00",
+        "recurrent_lexical_ambiguous": "#8172b2",
+    }
+    labels = {
+        "dialogue_structure": "对话结构",
+        "punctuation_only": "标点",
+        "function_grammar": "功能语法",
+        "general_discourse": "一般语篇",
+        "mask_artifact": "遮蔽伪影",
+        "known_entity_or_topic_fragment": "实体／题材风险",
+        "low_book_dispersion_lexical": "低跨书词汇",
+        "recurrent_lexical_ambiguous": "待解释词汇",
+    }
+    elements = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<rect width="100%" height="100%" fill="#ffffff"/>',
+        '<g font-family="Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif">',
+        '<text x="32" y="40" font-size="25" font-weight="700" fill="#17202a">非天夜翔：作者识别模型的前 20 个正向相邻字符片段</text>',
+        '<text x="32" y="70" font-size="15" fill="#4d5966">横条为目标类别的线性权重；权重表示判别贡献，不等于出现频率或完整风格定义</text>',
+    ]
+    legend = [
+        ("#0072b2", "对话结构"),
+        ("#009e73", "功能语法／一般语篇"),
+        ("#e69f00", "内容风险"),
+        ("#8172b2", "待解释词汇"),
+    ]
+    legend_x = 32
+    for color, label in legend:
+        elements.extend(
+            [
+                f'<rect x="{legend_x}" y="88" width="14" height="14" rx="2" fill="{color}"/>',
+                f'<text x="{legend_x + 21}" y="100" font-size="13" fill="#4d5966">{label}</text>',
+            ]
+        )
+        legend_x += 166
+
+    for index, row in enumerate(selected):
+        y = top + index * row_height
+        category = str(row["category"])
+        color = colors.get(category, "#7f8c8d")
+        coefficient = float(row["coefficient"])
+        bar_width = chart_width * safe_div(coefficient, max_weight)
+        feature = html.escape(str(row["feature"]))
+        category_label = labels.get(category, category)
+        if index % 2:
+            elements.append(
+                f'<rect x="24" y="{y - 4}" width="1132" height="31" fill="#f7f8f9"/>'
+            )
+        elements.extend(
+            [
+                f'<text x="45" y="{y + 18}" font-size="12" fill="#7a858f">{index + 1}</text>',
+                f'<text x="198" y="{y + 18}" text-anchor="end" font-size="16" font-weight="600" fill="#26323d">{feature}</text>',
+                f'<rect x="{left}" y="{y + 2}" width="{bar_width:.2f}" height="21" rx="2" fill="{color}" opacity="0.88"/>',
+                f'<text x="{left + bar_width + 8:.2f}" y="{y + 18}" font-size="13" font-weight="600" fill="#26323d">{coefficient:.2f}</text>',
+                f'<text x="1140" y="{y + 18}" text-anchor="end" font-size="12" fill="#5f6b75">{category_label}</text>',
+            ]
+        )
+    elements.extend(
+        [
+            f'<text x="32" y="{height - 25}" font-size="12" fill="#697784">诊断类别由确定性规则生成，并非人工金标准；相邻的二、三、四字片段会重叠。</text>',
+            "</g>",
+            "</svg>",
+        ]
+    )
+    path.write_text("\n".join(elements) + "\n", encoding="utf-8")
+
+
 def evaluation_context(path: Path | None) -> dict[str, Any] | None:
     if path is None:
         return None
@@ -381,9 +467,10 @@ def main() -> None:
         },
         "interpretation": (
             "Book-disjoint attribution accuracy demonstrates predictive signal, "
-            "but the target coefficient vector still contains mask artifacts and "
-            "lexical features with low target-book dispersion. The scorer therefore "
-            "cannot by itself distinguish authorial style from residual content."
+            "but the target coefficient vector still contains residual content "
+            "shortcuts and lexical features with low target-book dispersion. The "
+            "scorer therefore cannot by itself distinguish authorial style from "
+            "residual content."
         ),
         "evaluation_context": evaluation,
     }
@@ -391,6 +478,7 @@ def main() -> None:
     write_csv(output_dir / "target_positive_features.csv", rows)
     write_csv(output_dir / "category_summary.csv", category_rows)
     write_svg(output_dir / "category_weight_mass.svg", category_rows)
+    write_top_features_svg(output_dir / "top_positive_features.svg", rows)
     (output_dir / "audit.json").write_text(
         json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -415,6 +503,8 @@ def main() -> None:
         f"- Risk-flagged features among top 20: **{risky_top_20}/20**",
         f"- Risk-flagged features among top 50: **{risky_top_50}/50**",
         f"- Risk-flagged positive-weight share in top {len(rows)}: **{safe_div(risky_mass, total_mass):.1%}**",
+        "",
+        "![Highest-weight target features](top_positive_features.svg)",
         "",
         "![Positive feature weight by category](category_weight_mass.svg)",
         "",
@@ -449,10 +539,10 @@ def main() -> None:
             "",
             "The frozen model contains useful surface-style signal, especially",
             "dialogue punctuation, speech attribution, function grammar, and discourse",
-            "markers. It also assigns substantial positive weight to placeholder patterns,",
-            "known entity/topic fragments, and lexical sequences concentrated in few target",
-            "books. Book-disjoint accuracy therefore does not establish content-independent",
-            "style measurement.",
+            "markers. It can also assign positive weight to known entity/topic fragments",
+            "and lexical sequences concentrated in few target books. Placeholder artifacts",
+            "are reported as their own category when present. Book-disjoint accuracy",
+            "therefore does not establish content-independent style measurement.",
             "",
             "The Iteration-4 cross-author result is consistent with this diagnosis: methods",
             "can improve target margin while remaining far below threshold because source",
