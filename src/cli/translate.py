@@ -244,7 +244,11 @@ def _validate_with_optional_semantic_qa(
         progress.info(
             f"verified {provenance['validated_chunk_count']} style artifact binding(s)"
         )
-    summary = validate_translation_run(run_dir, allow_missing=allow_missing)
+    summary = validate_translation_run(
+        run_dir,
+        allow_missing=allow_missing,
+        config=config,
+    )
     progress.info(f"validated {len(summary['chunks'])} chunk(s)")
     if config and not skip_semantic_qa and is_author_style_transfer_run(run_dir):
         if not bool((config.get("semantic_compression") or {}).get("auto_review")):
@@ -271,8 +275,19 @@ def _validate_with_optional_semantic_qa(
             )
             if int(qa_summary["result_summary"]["applied_count"]) > 0:
                 progress.section("Validate Repaired")
-                summary = validate_translation_run(run_dir, allow_missing=allow_missing)
+                summary = validate_translation_run(
+                    run_dir,
+                    allow_missing=allow_missing,
+                    config=config,
+                )
                 progress.info(f"validated repaired run {len(summary['chunks'])} chunk(s)")
+    sentence_summary = summary.get("sentence_translations")
+    if sentence_summary:
+        progress.info(
+            "protected authoritative sentence translations "
+            f"({sentence_summary['occurrence_count']} occurrence(s), "
+            f"{sentence_summary['changed_occurrence_count']} changed)"
+        )
     return summary
 
 
@@ -506,7 +521,12 @@ def main(argv: list[str] | None = None) -> int:
                     progress=progress,
                 )
             progress.section("Validate Neutral")
-            validate_translation_run(semantic_run_dir, allow_missing=False)
+            validate_translation_run(
+                semantic_run_dir,
+                allow_missing=False,
+                config=config,
+                snapshot_dir=args.snapshot,
+            )
             _log_glossary(
                 progress, update_glossary_from_run(config, semantic_run_dir)
             )

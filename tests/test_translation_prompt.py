@@ -13,6 +13,14 @@ class TranslationPromptTests(unittest.TestCase):
     def test_prompt_keeps_payload_and_requires_conservative_candidates(self) -> None:
         payload = {
             "glossary": {"Oracle": "司命"},
+            "sentence_translations": [
+                {
+                    "source": ["A protected sentence."],
+                    "zh": ["作者钦定整句。"],
+                    "note": "creator translation",
+                    "confidence": "high",
+                }
+            ],
             "comment_notes": ["Risk: Oracle 的固定中译是司命。"],
             "items": [
                 {
@@ -32,6 +40,8 @@ class TranslationPromptTests(unittest.TestCase):
         self.assertIn('Ordinary examples to omit include "dried ginger"', prompt)
         self.assertIn('An invented herb such as "suluo root"', prompt)
         self.assertIn("Authoritative comments can establish the Chinese rendering", prompt)
+        self.assertIn("a separate protected-quotation layer", prompt)
+        self.assertIn("not a source of glossary_candidates", prompt)
         self.assertIn("Omit low-confidence candidates entirely", prompt)
         serialized_payload = prompt.split("INPUT JSON:\n", 1)[1]
         self.assertEqual(json.loads(serialized_payload), payload)

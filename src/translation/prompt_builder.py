@@ -8,6 +8,7 @@ from src.crawl.snapshot import load_chapter, load_comments, load_manifest, snaps
 from src.core.output import repo_root
 from src.translation.comments import selected_comment_notes
 from src.translation.glossary import glossary_terms, matched_terms
+from src.translation.sentence_translations import sentence_translation_entries
 
 
 def chunked(items: list[dict[str, Any]], size: int) -> list[list[dict[str, Any]]]:
@@ -57,6 +58,12 @@ GLOSSARY CANDIDATE CONTRACT:
 - Use high confidence only for explicit authoritative evidence or an unmistakable proper/invented term. Use medium for a clearly eligible term whose rendering still needs review. Omit low-confidence candidates entirely.
 - Return at most five candidates, ordered by importance.
 
+AUTHORITATIVE SENTENCE TRANSLATIONS:
+- sentence_translations is a separate protected-quotation layer, not glossary terminology and not a source of glossary_candidates.
+- Each source and zh value is a segment list. When consecutive input paragraphs exactly match the source segments, use the corresponding zh segment for each paragraph without rewording it.
+- When all source segments occur inside one longer English paragraph, include the concatenated protected Chinese segments exactly inside the translated paragraph.
+- Do not apply a protected sentence to approximate wording or a different sense.
+
 SEMANTIC DRAFT GOAL:
 - Treat the English as the semantic source.
 - Produce plain, natural Simplified Chinese that is easy to verify against the English.
@@ -87,6 +94,15 @@ def prepare_prompts(
 ) -> dict[str, Any]:
     manifest = load_manifest(snapshot_dir)
     terms = glossary_terms(glossary)
+    sentence_translations = [
+        {
+            "source": list(entry.source),
+            "zh": list(entry.zh),
+            "note": entry.note,
+            "confidence": entry.confidence,
+        }
+        for entry in sentence_translation_entries(glossary)
+    ]
     translation_config = config.get("translation", {})
     source_context = str(config.get("source_context") or translation_config.get("source_context") or "")
     chunk_size = int(translation_config.get("chunk_size") or 30)
@@ -150,6 +166,7 @@ def prepare_prompts(
                 "chapter_id": chapter_id,
                 "chapter_title": chapter.get("title") or "",
                 "glossary": terms,
+                "sentence_translations": sentence_translations,
                 "comment_notes": comment_notes,
                 "items": input_items,
             }

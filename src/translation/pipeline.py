@@ -10,6 +10,7 @@ from src.translation.epub_builder import build_bilingual_epub
 from src.translation.glossary import load_glossary, merge_glossary_candidates
 from src.translation.prompt_builder import prepare_prompts
 from src.translation.semantic_compression import semantic_qa_summary_is_current
+from src.translation.sentence_translations import apply_sentence_translation_overrides
 from src.translation.style_transfer import (
     is_author_style_transfer_run,
     prepare_style_transfer_run,
@@ -81,8 +82,57 @@ def prepare_author_style_transfer_run(
     return style_run_dir
 
 
-def validate_translation_run(run_dir: Path, *, allow_missing: bool = False) -> dict[str, Any]:
-    return validate_and_merge(run_dir.expanduser(), allow_missing=allow_missing)
+def validate_translation_run(
+    run_dir: Path,
+    *,
+    allow_missing: bool = False,
+    config: dict[str, Any] | None = None,
+    snapshot_dir: Path | None = None,
+) -> dict[str, Any]:
+    run_dir = run_dir.expanduser().resolve()
+    summary = validate_and_merge(run_dir, allow_missing=allow_missing)
+    if config is not None:
+        sentence_summary = protect_sentence_translations(
+            run_dir=run_dir,
+            config=config,
+            snapshot_dir=snapshot_dir,
+        )
+        summary["sentence_translations"] = {
+            "entry_count": sentence_summary["entry_count"],
+            "occurrence_count": sentence_summary["occurrence_count"],
+            "changed_occurrence_count": sentence_summary[
+                "changed_occurrence_count"
+            ],
+            "unresolved_count": len(sentence_summary["unresolved"]),
+        }
+    return summary
+
+
+def protect_sentence_translations(
+    *,
+    run_dir: Path,
+    config: dict[str, Any],
+    snapshot_dir: Path | None = None,
+) -> dict[str, Any]:
+    run_dir = run_dir.expanduser().resolve()
+    glossary = load_glossary(config_path(config, "glossary_path"))
+    if snapshot_dir is None:
+        run_manifest = json.loads(
+            (run_dir / "run_manifest.json").read_text(encoding="utf-8")
+        )
+        raw_snapshot_dir = run_manifest.get("snapshot_dir")
+        if not raw_snapshot_dir:
+            raise ValueError(
+                f"translation run has no snapshot_dir: {run_dir / 'run_manifest.json'}"
+            )
+        snapshot_dir = Path(str(raw_snapshot_dir)).expanduser()
+        if not snapshot_dir.is_absolute():
+            snapshot_dir = repo_root() / snapshot_dir
+    return apply_sentence_translation_overrides(
+        run_dir=run_dir,
+        snapshot_dir=snapshot_dir,
+        glossary=glossary,
+    )
 
 
 def update_glossary_from_run(config: dict[str, Any], run_dir: Path) -> dict[str, int] | None:
@@ -108,7 +158,8 @@ def build_epub_from_run(
     config: dict[str, Any],
     output: Path | None,
 ) -> Path:
-    validate_and_merge(run_dir.expanduser(), allow_missing=False)
+    run_dir = run_dir.expanduser().resolve()
+    validate_and_merge(run_dir, allow_missing=False)
     if is_author_style_transfer_run(run_dir):
         validate_style_transfer_provenance(run_dir)
         semantic_config = config.get("semantic_compression") or {}
@@ -128,6 +179,11 @@ def build_epub_from_run(
                 "author style-transfer output has no current semantic QA summary; "
                 "run `book-translate validate --config ...` before building"
             )
+    protect_sentence_translations(
+        run_dir=run_dir,
+        config=config,
+        snapshot_dir=snapshot_dir,
+    )
     manifest = load_manifest(snapshot_dir)
     return build_bilingual_epub(
         snapshot_dir=snapshot_dir,

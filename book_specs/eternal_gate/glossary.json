@@ -1200,17 +1200,6 @@
       "confidence": "high",
       "source_chunk": "07_001"
     },
-    "Loving you is worth any fate, even being torn apart.": {
-      "zh": "和你相爱，粉身碎骨也值得。",
-      "note": "user-provided author reply for PanaW's chapter 8 comment; use as the fixed translation of Tetsu's line in chapter 7.",
-      "confidence": "high",
-      "source_comment": "217391511"
-    },
-    "If ever should I taste of love’s sweet savor, All things I shall forsake and seek no more the Eternal Gate.": {
-      "zh": "若有朝品尝爱情的滋味，我将舍弃万物，不再奔往永恒之门。",
-      "note": "user-provided author-confirmed translation for Gran's poem; preserve this wording wherever the two-line quotation appears.",
-      "confidence": "high"
-    },
     "flint": {
       "zh": "火石",
       "note": "第58段出现的取火用具，后续可能反复用于野外或地下场景。",
@@ -1344,6 +1333,31 @@
       "source_chunk": "08_008"
     }
   },
+  "sentence_translations": [
+    {
+      "source": [
+        "Loving you is worth any fate, even being torn apart."
+      ],
+      "zh": [
+        "和你相爱，粉身碎骨也值得。"
+      ],
+      "note": "user-provided author reply for PanaW's chapter 8 comment; use as the fixed translation of Tetsu's line in chapter 7.",
+      "confidence": "high",
+      "source_comment": "217391511"
+    },
+    {
+      "source": [
+        "If ever should I taste of love’s sweet savor,",
+        "All things I shall forsake and seek no more the Eternal Gate."
+      ],
+      "zh": [
+        "若有朝品尝爱情的滋味，",
+        "我将舍弃万物，不再奔往永恒之门。"
+      ],
+      "note": "user-provided author-confirmed translation for Gran's poem; preserve this wording wherever the two-line quotation appears.",
+      "confidence": "high"
+    }
+  ],
   "translation_run": {
     "method": "crawl snapshot + reusable chunked Codex translation with local glossary, Patreon comments, and local vector references",
     "glossary_path": "book_specs/eternal_gate/glossary.json"
