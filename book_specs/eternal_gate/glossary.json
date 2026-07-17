@@ -128,6 +128,12 @@
       "zh": "狭海",
       "note": "setting"
     },
+    "thousand seas": {
+      "zh": "千海",
+      "note": "Patreon source revision replaced the earlier 'seven seas' wording in chapters 8 and 9; keep this recurring geographic expression consistent.",
+      "confidence": "high",
+      "source_chunk": "10_007"
+    },
     "Tidecrest City": {
       "zh": "潮冠城",
       "note": "provisional city name"
