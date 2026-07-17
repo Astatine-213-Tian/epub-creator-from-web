@@ -42,6 +42,21 @@ SCOPE:
 - Do not include the English original in zh.
 - If you cannot translate an item, set zh to an empty string. Do not write a refusal, placeholder, or explanation.
 
+GLOSSARY CANDIDATE CONTRACT:
+- glossary_candidates is a conservative proposal list, not a list of vocabulary translated in this chunk.
+- The default is an empty list. Most chunks should return no candidates. Never add candidates merely to fill the field.
+- A candidate is eligible only when its source is an exact span from a current items[].english value, it is not already covered by the supplied glossary or an alias, and a fixed Chinese rendering is needed for story-level consistency.
+- Eligible candidates are limited to story entities and proper names; named places, organizations, events, texts, and artifacts; invented species, materials, objects, rituals, or worldbuilding concepts; context-specific formal titles or ranks with a non-obvious Chinese rendering; and canonical translations explicitly established by an authoritative comment.
+- A standalone proper-name form may be proposed when an existing longer glossary entry does not already cover it as an alias.
+- Exclude ordinary dictionary vocabulary even when it repeats: common animals, foods, real herbs, clothing, weapons, buildings, objects, jobs, actions, descriptions, body parts, and natural phenomena are not glossary terms.
+- Exclude author, translator, editor, or platform metadata; publication notices; full sentences; incidental descriptive phrases; and compositional phrases whose Chinese follows mechanically from existing glossary entries.
+- Recurrence or a guess that something "may recur" is not sufficient. The reason must identify the specific naming, identity, worldbuilding, or ambiguity risk that requires a canonical translation.
+- Do not infer a title or term by extracting an ambiguous subphrase from a larger phrase. For example, do not infer "grand scholars" as a rank merely from "grand scholars' tent" unless the current items independently establish that rank.
+- Ordinary examples to omit include "dried ginger", "ephedra", "torch", "spring thaw", and "cavern". An invented herb such as "suluo root", a named organization, or an author-confirmed non-literal office such as "Oracle" may qualify.
+- Authoritative comments can establish the Chinese rendering and high confidence, but the English source term must still appear in a current item and satisfy the eligibility rules above.
+- Use high confidence only for explicit authoritative evidence or an unmistakable proper/invented term. Use medium for a clearly eligible term whose rendering still needs review. Omit low-confidence candidates entirely.
+- Return at most five candidates, ordered by importance.
+
 SEMANTIC DRAFT GOAL:
 - Treat the English as the semantic source.
 - Produce plain, natural Simplified Chinese that is easy to verify against the English.

@@ -32,6 +32,29 @@ def _match_text(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", text).casefold()
 
 
+def _contains_lookup_key(haystack: str, lookup_key: str) -> bool:
+    if not lookup_key:
+        return False
+
+    start = 0
+    while (position := haystack.find(lookup_key, start)) >= 0:
+        end = position + len(lookup_key)
+        left_boundary = (
+            not lookup_key[0].isalnum()
+            or position == 0
+            or not haystack[position - 1].isalnum()
+        )
+        right_boundary = (
+            not lookup_key[-1].isalnum()
+            or end == len(haystack)
+            or not haystack[end].isalnum()
+        )
+        if left_boundary and right_boundary:
+            return True
+        start = position + 1
+    return False
+
+
 def _alias_identity(source: str) -> str:
     text = unicodedata.normalize("NFKC", source)
     return _WHITESPACE_RE.sub(" ", text).strip().casefold()
@@ -174,14 +197,15 @@ def matched_terms(text: str, terms: dict[str, str]) -> dict[str, str]:
     if isinstance(terms, GlossaryTermMap):
         matches: dict[str, str] = {}
         for lookup_key, source in terms.lookup_to_source.items():
-            if lookup_key and lookup_key in haystack and source in terms:
+            if _contains_lookup_key(haystack, lookup_key) and source in terms:
                 matches[source] = terms[source]
         return matches
 
     return {
         source: target
         for source, target in terms.items()
-        if (lookup_key := normalize_lookup_key(source)) and lookup_key in haystack
+        if (lookup_key := normalize_lookup_key(source))
+        and _contains_lookup_key(haystack, lookup_key)
     }
 
 

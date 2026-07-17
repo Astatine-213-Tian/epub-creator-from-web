@@ -1344,17 +1344,6 @@
       "source_chunk": "08_008"
     }
   },
-  "glossary_conflicts": [
-    {
-      "normalized_key": "regent",
-      "canonical_source": "regent",
-      "canonical_zh": "摄政王",
-      "conflicting_source": "Regent",
-      "conflicting_zh": "摄政",
-      "note": "Unresolved existing glossary collision; keep canonical regent => 摄政王 unless translation evidence supports a distinct term.",
-      "source_chunk": "05_001"
-    }
-  ],
   "translation_run": {
     "method": "crawl snapshot + reusable chunked Codex translation with local glossary, Patreon comments, and local vector references",
     "glossary_path": "book_specs/eternal_gate/glossary.json"
