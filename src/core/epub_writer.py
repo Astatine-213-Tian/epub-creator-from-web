@@ -7,6 +7,7 @@ from typing import Iterable
 
 from ebooklib import epub
 
+from .epub_normalizer import normalize_new_epub
 from .models import Volume
 
 
@@ -193,3 +194,4 @@ def write_epub(
     book.add_item(epub.EpubNav())
     book.spine = spine
     epub.write_epub(str(out_path), book, {})
+    normalize_new_epub(out_path)

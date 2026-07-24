@@ -5,8 +5,8 @@ description: >
   to patch EPUB archives for Chinese novel formatting issues: volume/fanwai/houji
   TOC hierarchy, nav.xhtml and toc.ncx sync, spine ordering, duplicate intro or
   volume marker cleanup, decorative ending marker cleanup and centering, chapter
-  title normalization, author/book-name title cleanup, and validation of files
-  under the project epub/ directory.
+  title normalization, author/book-name title cleanup, mixed-width Chinese/Latin
+  spacing, English-comma spacing, and EPUB validation.
 ---
 
 # EPUB Reformatter
@@ -43,7 +43,7 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
   - body-only markers such as `番外卷...`
 - When `番外卷...` is found inside a chapter body, treat the next chapter as the start of `番外`, remove the marker text, and keep the group name simply `番外`.
 - If the `番外` boundary is ambiguous after inspecting TOC labels and chapter body markers, stop and confirm the start chapter with the user instead of guessing.
-- Merge consecutive multipart fanwai chapters when they share the same base title and differ only by part suffix, for example `第114章 沧浪之龙（一）`, `第115章 沧浪之龙（二）`, etc. The merged chapter title should drop the part suffix, each original part should be separated by a centered divider such as `（一）`, `（二）`, and all following numbered chapter titles must be renumbered incrementally across chapter XHTML, nav, and NCX.
+- Merge consecutive multipart fanwai chapters when they share the same base title and differ only by part suffix, for example `第114章 沧浪之龙（一）`, `第115章 沧浪之龙（二）`, etc. The merged chapter title should drop the part suffix, each original part should be separated by a centered and bold divider such as **`（一）`**, **`（二）`**, and all following numbered chapter titles must be renumbered incrementally across chapter XHTML, nav, and NCX. In XHTML, use semantic bold markup such as `<p style="text-align: center; text-indent: 0;"><strong>（一）</strong></p>` while preserving the book's equivalent existing centered style when one is available.
 - `后记` should be top-level and should appear before any `番外` group.
 - `尾声` usually belongs to the last main volume. If the user says it should be top-level, place it before `后记` and before `番外`.
 - `序言` / `序章` / prologue text is chapter-like content, not intro metadata. Treat it like chapter 0: split it into its own top-level chapter before `第1章`, add it to spine/nav/toc, and remove it from `intro.xhtml`.
@@ -78,6 +78,21 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
 - In fanwai chapter titles, remove the current book title if it repeats, for example `相见欢番外...` -> `番外...`. Preserve other referenced book names in crossover titles.
 - Prettify standalone decorative ending markers when the boundary is obvious: insert middle dots between the book, volume, or section title and terminal words such as `终`, `完`, `正文完`, or `全文完`. Restore missing volume-title separators when the source collapsed them, for example `卷四羽觞醉月终` -> `卷四·羽觞醉月·终`. Normalize marker wrappers made from any number of ASCII hyphens to exactly `——` on each side, for example `--相见欢终--` -> `——相见欢·终——` and `-----卷四羽觞醉月终-----` -> `——卷四·羽觞醉月·终——`. Preserve existing correct separators, for example `——卷四·羽觞醉月·终——`. Center the marker paragraph in the chapter XHTML, using the book's existing centered paragraph style if available or a minimal `text-align: center` style if not. Patch body text only unless the marker also appears in `nav.xhtml` or `toc.ncx`. If the intended boundary is ambiguous, confirm before changing it.
 
+## Mixed-Width Spacing Rules
+
+- When the user asks for proper spacing between full-width Chinese and half-width characters, scan parsed visible text across the whole EPUB for the complete defect family, not only the cited example.
+- Insert exactly one ASCII space at a direct boundary between a Han character and a half-width Latin letter, Greek letter, or Arabic digit in either direction, for example:
+  - `主星VCU07` -> `主星 VCU07`
+  - `E7头顶` -> `E7 头顶`
+  - `仙女座β星系` -> `仙女座 β 星系`
+  - `光纪元20103年` -> `光纪元 20103 年`
+- Keep full-width Chinese punctuation flush with the adjacent token, for example `主星 VCU07。”`; do not insert a space before `。`, `，`, `”`, or similar punctuation.
+- Preserve punctuation inside half-width tokens such as `B-11`, `F+`, and `γ-B11`. Do not force spaces around hyphens, operators, percent signs, tildes, or other ASCII punctuation merely because they touch Chinese text.
+- Preserve ASCII commas in coordinate, tuple, and code-like runs, but ensure exactly one space after each comma: `X337,Y160,Z19 γ-B11` -> `X337, Y160, Z19 γ-B11` and `(0,0,0)` -> `(0, 0, 0)`. Continue to convert an ASCII comma to `，` when it is instead acting as punctuation in Chinese prose.
+- For a body-text request, default to chapter paragraph text. If a mixed-width defect occurs in a visible chapter title, update the chapter XHTML title/heading, `nav.xhtml`, and `toc.ncx` together.
+- Parse XHTML and inspect text nodes or element text; do not scan raw archive bytes or markup. Preserve inline elements and edit their text/tail nodes without flattening the structure.
+- Before rewriting, record match counts and examples by pattern. After rewriting, rerun the same parsed-text audit and require zero direct Han/half-width alphanumeric boundaries and zero ASCII commas without a following space in coordinate/code-like runs.
+
 ## Numbering Repairs
 
 - If the validator reports duplicate numbered chapters and the first duplicate fills a gap, rename the first duplicate to the missing number across chapter XHTML, nav, and NCX.
@@ -96,5 +111,23 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
 ## Implementation Notes
 
 Prefer a short Python `zipfile` plus `xml.etree.ElementTree` patch script. Avoid broad regex rewrites of NCX; parse XML and rebuild nav points where possible. Keep namespace registration stable so EPUB files remain parseable.
+
+The shared EPUB writers call the single reusable normalizer automatically after
+creating a book. Its required order is:
+
+1. Apply deterministic punctuation, spacing, quote-direction, ad-removal, and
+   other context-safe normalization rules.
+2. Rescan the normalized XHTML rather than the raw source. Quote findings must
+   identify the exact paragraph plus neighboring context; do not use only
+   chapter-wide quote totals. Ignore Latin apostrophes such as `I’ll`, and
+   accept structurally valid multi-paragraph quotations.
+3. Automatically invoke a read-only Codex review for every remaining
+   `requires_codex_review` finding. Ask Codex to use Browser Act for suspicious
+   characters or corruption when source lookup is needed.
+4. Apply only exact, unique, high-confidence text replacements. Do not let the
+   review stage perform broad prose rewrites or direct structural archive edits.
+5. Normalize and validate again, and write the complete automatic fixes,
+   review decisions, kept findings, and genuinely unresolved cases to the
+   visible report under `reports/normalization/` for books under `books/`.
 
 When reporting completion, list changed books, hierarchy changes, and validation results. Mention any remaining validator warnings as source-numbering quirks only after inspecting them.

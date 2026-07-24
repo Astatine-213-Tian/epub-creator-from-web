@@ -1,5 +1,6 @@
 /books/
 /generated/
+/reports/normalization/
 /book_specs/author_styles/*/intermediate/
 /book_specs/author_styles/*/reference_book_index*.json
 /book_specs/author_styles/*/style_cards.json

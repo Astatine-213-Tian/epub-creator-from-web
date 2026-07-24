@@ -7,6 +7,7 @@ from typing import Any
 
 from ebooklib import epub
 
+from src.core.epub_normalizer import normalize_new_epub
 from src.core.epub_writer import cover_extension, render_paragraphs
 from src.core.output import resolve_output_path
 from src.crawl.snapshot import load_chapter, load_manifest, snapshot_chapter_ids
@@ -165,4 +166,5 @@ def build_bilingual_epub(
     book.add_item(epub.EpubNav())
     book.spine = spine
     epub.write_epub(str(out_path), book, {})
+    normalize_new_epub(out_path)
     return out_path

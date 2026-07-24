@@ -1,3 +1,4 @@
-display_name: EPUB Reformatter
-short_description: Repair EPUB TOC, nav, spine, and title formatting.
-default_prompt: Reformat and validate an EPUB in this project.
+interface:
+  display_name: "EPUB Reformatter"
+  short_description: "Repair EPUB structure and Chinese text formatting."
+  default_prompt: "Use $epub-reformatter to repair and validate formatting in a project EPUB."

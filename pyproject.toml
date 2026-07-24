@@ -24,6 +24,7 @@ book-ingest = "src.cli.ingest:main"
 book-crawl = "src.cli.crawl:main"
 book-translate = "src.cli.translate:main"
 book-dataset = "src.cli.dataset:main"
+book-normalize = "src.cli.normalize_epub:main"
 
 [tool.setuptools.packages.find]
 include = ["src*"]

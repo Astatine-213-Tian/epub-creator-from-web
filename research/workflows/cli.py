@@ -39,6 +39,10 @@ COMMANDS = {
         "workflows.analyze_interpretable_author_profiles",
         "Build book-weighted author profile evidence and publication figures.",
     ),
+    "author-drift": (
+        "workflows.analyze_author_style_drift",
+        "Measure target-author style drift across years and broad settings.",
+    ),
     "export-production": (
         "workflows.export_production_style_transfer_assets",
         "Export the minimized hash-locked production style bundle.",
@@ -54,6 +58,7 @@ QUICK_TEST_MODULES = (
     "tests.test_author_style_report",
     "tests.test_dataset_cleaning",
     "tests.test_dataset_manifest_paths",
+    "tests.test_author_style_drift",
     "tests.test_interpretable_author_profiles",
     "tests.test_mask_artifact_ablation",
     "tests.experiments.validation.test_apply_content_plan_combined_to_translation_run",

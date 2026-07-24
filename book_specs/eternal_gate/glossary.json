@@ -1337,6 +1337,31 @@
       "note": "武器名称在动作描写中出现，译为常规兵器名便于后续统一。",
       "confidence": "high",
       "source_chunk": "08_008"
+    },
+    "Arran": {
+      "zh": "阿伦",
+      "note": "新登场人物的专名，需要固定音译以保持后续称呼一致。",
+      "confidence": "medium",
+      "source_chunk": "12_005"
+    },
+    "phantom dragon": {
+      "zh": "幻龙",
+      "note": "原文明确定义其为闪哲之名在古千海语中的含义，属于角色命名设定，需要固定译法。",
+      "confidence": "high",
+      "source_chunk": "13_004"
+    },
+    "Tidecrest": {
+      "zh": "潮冠城",
+      "note": "此处作为派出间谍的地点简称独立出现，需要确认其与Tidecrest City为同一实体并固定简称译法。",
+      "confidence": "medium",
+      "source_chunk": "13_004"
+    },
+    "Take my soul. You’re my only god.": {
+      "zh": "将我灵魂取去，你是我唯一的神。",
+      "note": "Risk author-confirmed translation of Tetsu's Chapter 008 confession; also protected as part of the complete quotation under sentence_translations.",
+      "confidence": "high",
+      "source_chunk": "10_006",
+      "source_comment": "219216887"
     }
   },
   "sentence_translations": [
@@ -1362,6 +1387,17 @@
       ],
       "note": "user-provided author-confirmed translation for Gran's poem; preserve this wording wherever the two-line quotation appears.",
       "confidence": "high"
+    },
+    {
+      "source": [
+        "“Oh!” Tetsu was rather amused. “If that’s how it is, then take my soul. Do you want it? It’s yours. I won’t go to the Eternal Gate; it belongs to you. Take my soul. You’re my only god.”"
+      ],
+      "zh": [
+        "“哦！”闪哲反而觉得很有意思：“既然如此，将我的灵魂取走吧，想要吗？给你，不去永恒之门，归你了。将我灵魂取去，你是我唯一的神。”"
+      ],
+      "note": "Risk reply translating Tetsu's Chapter 008 confession; preserve the supplied wording as one source paragraph.",
+      "confidence": "high",
+      "source_comment": "219216887"
     }
   ],
   "translation_run": {
