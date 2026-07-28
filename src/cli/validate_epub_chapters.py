@@ -40,6 +40,7 @@ class ChapterRef:
     number_text: str
     number: int
     unit: str
+    fanwai_before: int = 0
 
 
 def normalize_text(value: str) -> str:
@@ -72,7 +73,13 @@ def parse_number(value: str) -> int:
     return chinese_to_int(value)
 
 
-def chapter_from_title(source: str, href: str, title: str) -> ChapterRef | None:
+def chapter_from_title(
+    source: str,
+    href: str,
+    title: str,
+    *,
+    fanwai_before: int = 0,
+) -> ChapterRef | None:
     match = CHINESE_CHAPTER_RE.search(title)
     if match:
         number_text, unit = match.groups()
@@ -89,6 +96,7 @@ def chapter_from_title(source: str, href: str, title: str) -> ChapterRef | None:
         number_text=number_text,
         number=parse_number(number_text),
         unit=unit,
+        fanwai_before=fanwai_before,
     )
 
 
@@ -113,15 +121,46 @@ def find_nav_entries(epub: ZipFile) -> list[ChapterRef]:
         if not name.endswith("nav.xhtml"):
             continue
         root = parse_xml(epub.read(name), name)
+        fanwai_anchors: set[int] = set()
+        for item in root.iter():
+            if local_name(item.tag) != "li":
+                continue
+            label = next(
+                (
+                    text_content(child)
+                    for child in item
+                    if local_name(child.tag) in {"a", "span"}
+                ),
+                "",
+            )
+            if "番外" not in label:
+                continue
+            fanwai_anchors.update(
+                id(descendant)
+                for descendant in item.iter()
+                if local_name(descendant.tag) == "a"
+            )
+
+        pending_fanwai_hrefs: set[str] = set()
         for element in root.iter():
             if local_name(element.tag) != "a":
                 continue
             href = element.attrib.get("href")
             if not href:
                 continue
-            chapter = chapter_from_title("nav", normalize_href(name, href), text_content(element))
+            normalized_href = normalize_href(name, href)
+            title = text_content(element)
+            chapter = chapter_from_title(
+                "nav",
+                normalized_href,
+                title,
+                fanwai_before=len(pending_fanwai_hrefs),
+            )
             if chapter:
                 entries.append(chapter)
+                pending_fanwai_hrefs.clear()
+            elif "番外" in title or id(element) in fanwai_anchors:
+                pending_fanwai_hrefs.add(normalized_href)
     return entries
 
 
@@ -205,6 +244,10 @@ def validate_sequence(entries: list[ChapterRef]) -> list[str]:
                 continue
             expected = previous.number + 1
             if current.number != expected:
+                missing = current.number - expected
+                if missing > 0 and current.fanwai_before >= missing:
+                    previous = current
+                    continue
                 issues.append(
                     f"number gap/order issue before {format_ref(current)}: "
                     f"previous {format_number(previous)}, expected {format_expected_number(unit, expected)}"

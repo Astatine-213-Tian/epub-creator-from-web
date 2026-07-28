@@ -6,7 +6,8 @@ description: >
   TOC hierarchy, nav.xhtml and toc.ncx sync, spine ordering, duplicate intro or
   volume marker cleanup, decorative ending marker cleanup and centering, chapter
   title normalization, author/book-name title cleanup, mixed-width Chinese/Latin
-  spacing, English-comma spacing, and EPUB validation.
+  spacing, English-comma spacing, Jinjiang-first package metadata enrichment,
+  and EPUB validation.
 ---
 
 # EPUB Reformatter
@@ -25,10 +26,13 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
 ## Workflow
 
 1. Inspect `nav.xhtml`, `toc.ncx`, `content.opf`, and the affected chapter XHTML.
-2. Decide hierarchy from actual chapter titles and source markers, not only parser output.
-3. Patch chapter files first, then rebuild `nav.xhtml` and `toc.ncx` from the intended hierarchy.
-4. If reading order changes, reorder `content.opf` spine to match.
-5. Validate:
+2. Enrich package metadata with `uv run book-enrich-metadata <epub>` or let
+   `uv run book-normalize <epub>` run it automatically. Use Jinjiang as the
+   authority and KadoKado only after a confirmed Jinjiang miss.
+3. Decide hierarchy from actual chapter titles and source markers, not only parser output.
+4. Patch chapter files first, then rebuild `nav.xhtml` and `toc.ncx` from the intended hierarchy.
+5. If reading order changes, reorder `content.opf` spine to match.
+6. Validate:
    - `python3 -m zipfile -t epub/<book>.epub`
    - XML parse `EPUB/nav.xhtml`, `EPUB/toc.ncx`, `EPUB/content.opf`, and changed chapter files
    - `uv run python src/cli/validate_epub_chapters.py epub/<book>.epub`
@@ -72,11 +76,42 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
   - Replace English commas `,` with Chinese commas `，` in Chinese visible chapter titles.
   - Collapse full-width or repeated spaces between `第N章` and title to one normal space.
   - Ensure there is one and only one normal space after the chapter number marker, for example `第12章 标题`.
+- In every `番外` chapter title, remove the leading `第N章` marker instead of
+  displaying main-text numbering. Apply this to chapter XHTML `<title>` and
+  heading text, `nav.xhtml`, and `toc.ncx` together. For example,
+  `第152章 番外一承前启后` becomes `番外一·承前启后`.
+- Separate a numbered `番外` marker from its following title with one middle
+  dot: `番外十一扬帆`, `番外十一 扬帆`, and `番外十一：扬帆` all become
+  `番外十一·扬帆`. Keep a bare numbered label such as `番外四` unchanged,
+  and preserve an existing correct middle dot.
 - When normalizing any visible chapter title, update all three places together: chapter XHTML `<title>`/heading, `EPUB/nav.xhtml`, and `EPUB/toc.ncx`. Do not fix only nav or only toc.
 - When the user asks for comma cleanup in the book content, normalize prose too: replace ASCII commas with Chinese commas when the comma is adjacent to Chinese characters or Chinese quotation/bracket punctuation, for example `说道,“` -> `说道，“` and `躺,迟小多` -> `躺，迟小多`.
 - Collapse repeated Chinese commas such as `，，` to a single `，`.
 - In fanwai chapter titles, remove the current book title if it repeats, for example `相见欢番外...` -> `番外...`. Preserve other referenced book names in crossover titles.
 - Prettify standalone decorative ending markers when the boundary is obvious: insert middle dots between the book, volume, or section title and terminal words such as `终`, `完`, `正文完`, or `全文完`. Restore missing volume-title separators when the source collapsed them, for example `卷四羽觞醉月终` -> `卷四·羽觞醉月·终`. Normalize marker wrappers made from any number of ASCII hyphens to exactly `——` on each side, for example `--相见欢终--` -> `——相见欢·终——` and `-----卷四羽觞醉月终-----` -> `——卷四·羽觞醉月·终——`. Preserve existing correct separators, for example `——卷四·羽觞醉月·终——`. Center the marker paragraph in the chapter XHTML, using the book's existing centered paragraph style if available or a minimal `text-align: center` style if not. Patch body text only unless the marker also appears in `nav.xhtml` or `toc.ncx`. If the intended boundary is ambiguous, confirm before changing it.
+
+## Metadata Enrichment Rules
+
+- Inspect the live `EPUB/content.opf` first. Treat `<dc:date>` as the
+  publication date and `dcterms:modified` as the archive edit timestamp.
+- Search Jinjiang by exact `dc:creator`, match the exact `dc:title` on that
+  author catalog, and use the established Jinjiang publication date by default.
+  A verified Jinjiang date replaces a conflicting local or KadoKado date.
+- Use KadoKado only when the Jinjiang author/title lookup completed without a
+  defensible match. Do not use KadoKado merely because Jinjiang was temporarily
+  unreachable.
+- Write official title, creator, `zh-CN`, publication date, source URL,
+  description, and ordered subjects. Keep subjects in the order `耽美`, the
+  Jinjiang theme/genre, then the Jinjiang time-area category.
+- Use the `〖...〗` label attached to a Jinjiang work as its EPUB 3 series name,
+  with its position among works bearing that same label. Write
+  `belongs-to-collection`, `collection-type=series`, and `group-position`.
+- For a locked Jinjiang row, accept a unique masked-title match under the
+  verified author, use its published date/source, preserve local description
+  and subjects when the source hides them, and report ambiguity instead of
+  guessing.
+- Patch only `EPUB/content.opf`, refresh `dcterms:modified`, preserve `mimetype`
+  as the first uncompressed ZIP member, and make the rewrite idempotent.
 
 ## Mixed-Width Spacing Rules
 
@@ -115,18 +150,29 @@ Prefer a short Python `zipfile` plus `xml.etree.ElementTree` patch script. Avoid
 The shared EPUB writers call the single reusable normalizer automatically after
 creating a book. Its required order is:
 
-1. Apply deterministic punctuation, spacing, quote-direction, ad-removal, and
+1. Run Jinjiang-first metadata enrichment and record the source, publication
+   date, and changed OPF fields in the normalization report.
+2. Apply deterministic punctuation, spacing, quote-direction, ad-removal, and
    other context-safe normalization rules.
-2. Rescan the normalized XHTML rather than the raw source. Quote findings must
+3. Rescan the normalized XHTML rather than the raw source. Quote findings must
    identify the exact paragraph plus neighboring context; do not use only
    chapter-wide quote totals. Ignore Latin apostrophes such as `I’ll`, and
    accept structurally valid multi-paragraph quotations.
-3. Automatically invoke a read-only Codex review for every remaining
+   - Keep trailing `作者有话说` / `作者有话要说` content, but exclude that
+     free-form tail from prose anomaly, quote, spacing, ad, and suspicious-
+     character review. Continue scanning it for standalone structural markers
+     such as `番外卷`.
+   - Do not report Unicode emoji or recognized 颜文字 components as bad
+     characters. In particular, preserve emoji joiners and Bopomofo-shaped
+     glyphs inside forms such as `/(ㄒoㄒ)/~~` or `ㄒ_____ㄒ`; still report the
+     same unusual characters when they occur in ordinary prose.
+4. Automatically invoke a read-only Codex review for every remaining
    `requires_codex_review` finding. Ask Codex to use Browser Act for suspicious
    characters or corruption when source lookup is needed.
-4. Apply only exact, unique, high-confidence text replacements. Do not let the
+5. Apply only exact, unique, high-confidence text replacements. Do not let the
    review stage perform broad prose rewrites or direct structural archive edits.
-5. Normalize and validate again, and write the complete automatic fixes,
+6. Normalize and validate again, and write the complete metadata changes,
+   automatic fixes,
    review decisions, kept findings, and genuinely unresolved cases to the
    visible report under `reports/normalization/` for books under `books/`.
 

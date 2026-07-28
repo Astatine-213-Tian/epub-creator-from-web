@@ -17,6 +17,7 @@ from src.core.epub_normalizer import (
 )
 from src.core.epub_writer import write_epub
 from src.core.models import Chapter, Volume
+from src.metadata.epub_enricher import MetadataEnrichmentReport
 
 
 CHAPTER = """<?xml version="1.0" encoding="utf-8"?>
@@ -598,6 +599,38 @@ class EpubNormalizerTests(unittest.TestCase):
                 any(issue.kind == "suspicious_ad" for issue in report.issues)
             )
 
+
+    def test_trailing_author_notes_and_emoticons_are_excluded_from_anomalies(
+        self,
+    ) -> None:
+        chapter = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>第1章 测试</title></head>
+  <body>
+    <h2>第1章 测试</h2>
+    <p>正文内容。</p>
+    <p>正文颜文字 /(ㄒoㄒ)/~~ 和 emoji 👩‍💻。</p>
+    <p>正文仍应报告坏字ㄉ。</p>
+    <p>作者有话要说：</p>
+    <p>自由格式 ㄒ_____ㄒ 和私用字都不进入报告。</p>
+  </body>
+</html>
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            epub_path = Path(temp) / "author-note.epub"
+            self._write_fixture(epub_path, chapter)
+            report = normalize_epub(epub_path, apply=False)
+
+        suspicious = [
+            issue
+            for issue in report.issues
+            if issue.kind == "suspicious_character"
+        ]
+        self.assertEqual(len(suspicious), 1)
+        self.assertIn("U+3109", suspicious[0].message)
+        self.assertNotIn("U+3112", suspicious[0].message)
+        self.assertNotIn("U+E788", suspicious[0].message)
+
     def test_intro_is_excluded_from_anomaly_reports_but_still_normalized(
         self,
     ) -> None:
@@ -633,6 +666,101 @@ class EpubNormalizerTests(unittest.TestCase):
                     for issue in report.issues
                 )
             )
+
+    def test_grouped_fanwai_titles_drop_number_but_keep_bare_entries(self) -> None:
+        cases = (
+            ("第114章 沧浪之龙", "沧浪之龙", 4),
+            ("第60章", "第60章", 0),
+        )
+        for source_title, expected_title, prefix_changes in cases:
+            with self.subTest(source_title=source_title):
+                with tempfile.TemporaryDirectory() as temp:
+                    epub_path = Path(temp) / "book.epub"
+                    chapter = CHAPTER.replace("第1章 小P孩", source_title)
+                    nav = f"""<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><nav><ol><li><a href="chap_01_001.xhtml">番外</a><ol>
+    <li><a href="chap_01_001.xhtml">{source_title}</a></li>
+  </ol></li></ol></nav></body>
+</html>
+"""
+                    ncx = f"""<?xml version="1.0" encoding="utf-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>
+  <navPoint id="fanwai"><navLabel><text>番外</text></navLabel>
+    <content src="chap_01_001.xhtml"/>
+    <navPoint id="n1"><navLabel><text>{source_title}</text></navLabel>
+      <content src="chap_01_001.xhtml"/></navPoint>
+  </navPoint>
+</navMap></ncx>
+"""
+                    self._write_fixture(epub_path, chapter, nav=nav, ncx=ncx)
+
+                    report = normalize_epub(epub_path)
+
+                    self.assertEqual(
+                        report.change_counts.get(
+                            "fanwai_chapter_number_removed",
+                            0,
+                        ),
+                        prefix_changes,
+                    )
+                    with zipfile.ZipFile(epub_path) as archive:
+                        outputs = (
+                            archive.read("EPUB/chap_01_001.xhtml").decode(),
+                            archive.read("EPUB/nav.xhtml").decode(),
+                            archive.read("EPUB/toc.ncx").decode(),
+                        )
+                    for output in outputs:
+                        self.assertIn(expected_title, output)
+                        if expected_title != source_title:
+                            self.assertNotIn(source_title, output)
+
+                    second = normalize_epub(epub_path)
+                    self.assertEqual(second.total_changes, 0)
+
+    def test_fanwai_titles_drop_chapter_number_and_use_middle_dot(self) -> None:
+        cases = (
+            ("第152章 番外一承前启后", "番外一·承前启后", 4),
+            ("第155章 番外四", "番外四", 0),
+            ("第158章 番外 1 飞天猫", "番外 1·飞天猫", 4),
+            ("第138章 番外 10", "番外 10", 0),
+            ("第142章 小番外二则", "小番外二则", 0),
+            ("第169章 番外十八·隋州", "番外十八·隋州", 0),
+        )
+        for source_title, expected_title, separator_changes in cases:
+            with self.subTest(source_title=source_title):
+                with tempfile.TemporaryDirectory() as temp:
+                    epub_path = Path(temp) / "book.epub"
+                    chapter = CHAPTER.replace("第1章 小P孩", source_title)
+                    nav = NAV.replace("第1章 小P孩", source_title)
+                    ncx = NCX.replace("第1章 小P孩", source_title)
+                    self._write_fixture(epub_path, chapter, nav=nav, ncx=ncx)
+
+                    report = normalize_epub(epub_path)
+
+                    self.assertEqual(
+                        report.change_counts["fanwai_chapter_number_removed"],
+                        4,
+                    )
+                    self.assertEqual(
+                        report.change_counts.get(
+                            "fanwai_title_separator_normalized",
+                            0,
+                        ),
+                        separator_changes,
+                    )
+                    with zipfile.ZipFile(epub_path) as archive:
+                        outputs = (
+                            archive.read("EPUB/chap_01_001.xhtml").decode(),
+                            archive.read("EPUB/nav.xhtml").decode(),
+                            archive.read("EPUB/toc.ncx").decode(),
+                        )
+                    for output in outputs:
+                        self.assertIn(expected_title, output)
+                        self.assertNotIn(source_title, output)
+
+                    second = normalize_epub(epub_path)
+                    self.assertEqual(second.total_changes, 0)
 
     def test_reformatter_skill_rules_fix_safe_cases_and_report_structure(
         self,
@@ -688,24 +816,33 @@ class EpubNormalizerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             epub_path = Path(temp) / "writer.epub"
             output = io.StringIO()
-            with contextlib.redirect_stdout(output):
-                write_epub(
-                    identifier="test",
-                    title="测试A书",
-                    author="测试作者",
-                    volumes=[
-                        Volume(
-                            title="",
-                            chapters=[
-                                Chapter(
-                                    title="第1章 小P孩",
-                                    paragraphs=["激 情,下一站."],
-                                )
-                            ],
-                        )
-                    ],
-                    out_path=epub_path,
-                )
+            metadata = MetadataEnrichmentReport(
+                path=epub_path,
+                applied=True,
+                status="unmatched",
+            )
+            with mock.patch(
+                "src.core.epub_normalizer.enrich_epub_metadata",
+                return_value=metadata,
+            ) as enrich:
+                with contextlib.redirect_stdout(output):
+                    write_epub(
+                        identifier="test",
+                        title="测试A书",
+                        author="测试作者",
+                        volumes=[
+                            Volume(
+                                title="",
+                                chapters=[
+                                    Chapter(
+                                        title="第1章 小P孩",
+                                        paragraphs=["激 情,下一站."],
+                                    )
+                                ],
+                            )
+                        ],
+                        out_path=epub_path,
+                    )
 
             with zipfile.ZipFile(epub_path) as archive:
                 chapter = next(
@@ -716,6 +853,8 @@ class EpubNormalizerTests(unittest.TestCase):
             self.assertIn("第1章 小 P 孩", chapter)
             self.assertIn("激情，下一站。", chapter)
             self.assertIn("NORMALIZE", output.getvalue())
+            self.assertIn("METADATA", output.getvalue())
+            enrich.assert_called_once_with(epub_path, backup_dir=None)
 
 
     def test_shared_writer_runs_codex_review_after_punctuation_normalization(
@@ -738,27 +877,36 @@ class EpubNormalizerTests(unittest.TestCase):
                 },
                 ensure_ascii=False,
             )
+            metadata = MetadataEnrichmentReport(
+                path=epub_path,
+                applied=True,
+                status="unmatched",
+            )
             with mock.patch(
-                "src.core.epub_normalizer._run_codex_review_prompt",
-                return_value=response,
-            ) as review:
-                write_epub(
-                    identifier="review-test",
-                    title="复核测试",
-                    author="测试作者",
-                    volumes=[
-                        Volume(
-                            title="",
-                            chapters=[
-                                Chapter(
-                                    title="第1章 测试",
-                                    paragraphs=["他说：“激 情, 下一站."],
-                                )
-                            ],
-                        )
-                    ],
-                    out_path=epub_path,
-                )
+                "src.core.epub_normalizer.enrich_epub_metadata",
+                return_value=metadata,
+            ):
+                with mock.patch(
+                    "src.core.epub_normalizer._run_codex_review_prompt",
+                    return_value=response,
+                ) as review:
+                    write_epub(
+                        identifier="review-test",
+                        title="复核测试",
+                        author="测试作者",
+                        volumes=[
+                            Volume(
+                                title="",
+                                chapters=[
+                                    Chapter(
+                                        title="第1章 测试",
+                                        paragraphs=["他说：“激 情, 下一站."],
+                                    )
+                                ],
+                            )
+                        ],
+                        out_path=epub_path,
+                    )
 
             self.assertEqual(review.call_count, 1)
             prompt = review.call_args.args[0]

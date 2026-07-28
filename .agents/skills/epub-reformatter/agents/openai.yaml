@@ -1,4 +1,4 @@
 interface:
   display_name: "EPUB Reformatter"
-  short_description: "Repair EPUB structure and Chinese text formatting."
-  default_prompt: "Use $epub-reformatter to repair and validate formatting in a project EPUB."
+  short_description: "Enrich metadata and repair EPUB structure and text."
+  default_prompt: "Use $epub-reformatter to enrich metadata, repair formatting, and validate a project EPUB."

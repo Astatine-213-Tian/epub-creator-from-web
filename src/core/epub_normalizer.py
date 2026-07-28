@@ -16,6 +16,11 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 from xml.etree import ElementTree as ET
 
+from src.metadata.epub_enricher import (
+    MetadataEnrichmentReport,
+    enrich_epub_metadata,
+)
+
 
 HAN_CLASS = (
     "\u3400-\u4dbf"
@@ -104,6 +109,22 @@ CHAPTER_LIKE_TITLE_RE = re.compile(
     r"|Chapter\s+\d+"
     r")",
     re.IGNORECASE,
+)
+CHAPTER_NUMBER_PREFIX_RE = re.compile(
+    r"^\s*第\s*(?:\d+|[零〇一二三四五六七八九十百千万两]+)\s*章[\s　]*"
+)
+FANWAI_CHAPTER_NUMBER_RE = re.compile(
+    CHAPTER_NUMBER_PREFIX_RE.pattern + r"(?=[^\n]*番外)"
+)
+FANWAI_NUMBERED_TITLE_RE = re.compile(
+    r"^(?P<prefix>\s*番外)[\s　]*"
+    r"(?P<number>"
+    r"(?:\d+)(?!\d)"
+    r"|(?:[零〇一二三四五六七八九十百千万两]+)"
+    r"(?![零〇一二三四五六七八九十百千万两])"
+    r")"
+    r"[\s　·.：:]*"
+    r"(?P<title>\S.*)$"
 )
 DECORATIVE_END_MARKER_RE = re.compile(
     r"^\s*(?:-{2,}|—{2,})\s*"
@@ -266,6 +287,7 @@ class NormalizationReport:
     codex_review_status: str = "not_requested"
     codex_review_error: str | None = None
     codex_review_decisions: list[dict[str, object]] = field(default_factory=list)
+    metadata_enrichment: MetadataEnrichmentReport | None = None
 
     @property
     def total_changes(self) -> int:
@@ -310,6 +332,11 @@ class NormalizationReport:
             "samples": dict(sorted(self.samples.items())),
             "issues": [issue.to_dict() for issue in self.issues],
             "xml_members_checked": self.xml_members_checked,
+            "metadata_enrichment": (
+                self.metadata_enrichment.to_dict()
+                if self.metadata_enrichment
+                else None
+            ),
             "codex_review": {
                 "status": self.codex_review_status,
                 "error": self.codex_review_error,
@@ -337,6 +364,8 @@ class NormalizationReport:
         ]
         for kind, count in sorted(self.change_counts.items()):
             lines.append(f"  fix {kind}: {count}")
+        if self.metadata_enrichment is not None:
+            lines.append(f"  {self.metadata_enrichment.format_text()}")
         if self.codex_review_status != "not_requested":
             reviewed = sum(
                 not issue.requires_codex_review for issue in self.issues
@@ -853,6 +882,41 @@ def _normalize_ascii_punctuation(
     return normalized
 
 
+def _normalize_fanwai_title(
+    text: str,
+    *,
+    force: bool,
+    member: str,
+    report: NormalizationReport,
+) -> str:
+    prefix_pattern = CHAPTER_NUMBER_PREFIX_RE if force else FANWAI_CHAPTER_NUMBER_RE
+    without_number, removed = prefix_pattern.subn("", text, count=1)
+    report.record_change(
+        "fanwai_chapter_number_removed",
+        member,
+        removed,
+        text,
+        without_number,
+    )
+    text = without_number
+
+    match = FANWAI_NUMBERED_TITLE_RE.fullmatch(text)
+    if match is None:
+        return text
+    number = match.group("number")
+    number_spacing = " " if number.isascii() and number.isdigit() else ""
+    normalized = (
+        f"{match.group('prefix')}{number_spacing}{number}·{match.group('title')}"
+    )
+    report.record_change(
+        "fanwai_title_separator_normalized",
+        member,
+        int(normalized != text),
+        text,
+        normalized,
+    )
+    return normalized
+
 def _normalize_title_periods(
     text: str,
     *,
@@ -1164,10 +1228,17 @@ def _normalize_plain_text(
     remove_han_spaces: bool,
     title_punctuation: bool,
     end_marker: bool,
+    force_fanwai_title: bool,
     member: str,
     report: NormalizationReport,
 ) -> str:
     if title_punctuation:
+        text = _normalize_fanwai_title(
+            text,
+            force=force_fanwai_title,
+            member=member,
+            report=report,
+        )
         text = _normalize_title_periods(
             text,
             member=member,
@@ -1326,6 +1397,7 @@ def _normalize_fragment(
     remove_han_spaces: bool,
     title_punctuation: bool,
     end_marker: bool,
+    force_fanwai_title: bool,
     member: str,
     report: NormalizationReport,
 ) -> str:
@@ -1339,6 +1411,7 @@ def _normalize_fragment(
             remove_han_spaces=remove_han_spaces,
             title_punctuation=title_punctuation,
             end_marker=end_marker,
+            force_fanwai_title=force_fanwai_title,
             member=member,
             report=report,
         )
@@ -1469,10 +1542,74 @@ def _normalize_structural_paragraphs(
         text = text[:start] + after + text[end:]
 
 
+def _grouped_fanwai_title_labels(members: dict[str, bytes]) -> set[str]:
+    labels: set[str] = set()
+
+    def record_label(value: str) -> None:
+        match = CHAPTER_NUMBER_PREFIX_RE.match(value)
+        if match is not None and value[match.end() :].strip():
+            labels.add(value)
+
+    for member, data in members.items():
+        basename = Path(member).name
+        if basename == "nav.xhtml":
+            root = ET.fromstring(data)
+            for item in root.iter():
+                if _local_name(item.tag) != "li":
+                    continue
+                direct_labels = [
+                    child
+                    for child in list(item)
+                    if _local_name(child.tag) in {"a", "span"}
+                ]
+                if not direct_labels:
+                    continue
+                parent_label = "".join(direct_labels[0].itertext()).strip()
+                if parent_label != "番外":
+                    continue
+                for descendant in item.iter():
+                    if descendant is direct_labels[0] or _local_name(descendant.tag) != "a":
+                        continue
+                    record_label("".join(descendant.itertext()).strip())
+        elif basename == "toc.ncx":
+            root = ET.fromstring(data)
+            for point in root.iter():
+                if _local_name(point.tag) != "navPoint":
+                    continue
+                direct_label = next(
+                    (
+                        child
+                        for child in list(point)
+                        if _local_name(child.tag) == "navLabel"
+                    ),
+                    None,
+                )
+                if direct_label is None:
+                    continue
+                parent_label = "".join(direct_label.itertext()).strip()
+                if parent_label != "番外":
+                    continue
+                for descendant in point.iter():
+                    if descendant is point or _local_name(descendant.tag) != "navPoint":
+                        continue
+                    child_label = next(
+                        (
+                            child
+                            for child in list(descendant)
+                            if _local_name(child.tag) == "navLabel"
+                        ),
+                        None,
+                    )
+                    if child_label is not None:
+                        record_label("".join(child_label.itertext()).strip())
+    return labels
+
 def _normalize_member(
     member: str,
     data: bytes,
     report: NormalizationReport,
+    *,
+    grouped_fanwai_titles: set[str],
 ) -> bytes:
     tags = _surface_tags(member)
     if not tags:
@@ -1494,8 +1631,10 @@ def _normalize_member(
         tag = opening_tag.group(1).lower() if opening_tag else ""
         preserve_ordinals = tag in XHTML_TITLE_TAGS | NAV_TAGS | NCX_TAGS | OPF_TAGS
         visible = _visible_fragment_text(fragment).strip()
+        force_fanwai_title = visible in grouped_fanwai_titles
         title_punctuation = bool(
-            preserve_ordinals and CHAPTER_LIKE_TITLE_RE.match(visible)
+            preserve_ordinals
+            and (force_fanwai_title or CHAPTER_LIKE_TITLE_RE.match(visible))
         )
         marker_match = (
             DECORATIVE_END_MARKER_RE.fullmatch(visible)
@@ -1531,6 +1670,7 @@ def _normalize_member(
                 remove_han_spaces=remove_han_spaces,
                 title_punctuation=title_punctuation,
                 end_marker=end_marker,
+                force_fanwai_title=force_fanwai_title,
                 member=member,
                 report=report,
             )
@@ -1545,6 +1685,56 @@ def _normalize_member(
     ET.fromstring(normalized.encode("utf-8"))
     report.xml_members_checked += 1
     return normalized.encode("utf-8")
+
+
+def _is_emoji_codepoint(char: str) -> bool:
+    codepoint = ord(char)
+    return (
+        0x1F000 <= codepoint <= 0x1FAFF
+        or 0x2600 <= codepoint <= 0x27BF
+        or unicodedata.category(char) == "So"
+    )
+
+
+def _is_intentional_emoticon_character(text: str, index: int) -> bool:
+    char = text[index]
+    codepoint = ord(char)
+    if char in {"\u200c", "\u200d"}:
+        neighbors = text[max(0, index - 2) : min(len(text), index + 3)]
+        return any(_is_emoji_codepoint(value) for value in neighbors)
+    if not 0x3100 <= codepoint <= 0x312F:
+        return False
+    start = max(0, index - 16)
+    end = min(len(text), index + 17)
+    window = text[start:end]
+    local_index = index - start
+    left_paren = max(
+        window.rfind("(", 0, local_index + 1),
+        window.rfind("（", 0, local_index + 1),
+    )
+    right_candidates = [
+        position
+        for position in (
+            window.find(")", local_index),
+            window.find("）", local_index),
+        )
+        if position >= 0
+    ]
+    if left_paren >= 0 and right_candidates:
+        segment = window[left_paren : min(right_candidates) + 1]
+        if (
+            re.search(r"[_^oOTＴ﹏~～￣▽ω/\\]", segment)
+            or segment.count(char) >= 2
+        ):
+            return True
+    for token_match in re.finditer(r"[^\s，。！？；：]+", window):
+        if not token_match.start() <= local_index < token_match.end():
+            continue
+        token = token_match.group(0)
+        return token.count(char) >= 2 and bool(
+            re.search(r"[_~～/\\]", token)
+        )
+    return False
 
 
 def _bad_character_reason(char: str) -> str | None:
@@ -1581,15 +1771,53 @@ def _scan_member_issues(
     # already run, but prose-quality review findings from intro.xhtml are noise.
     if Path(member).name == "intro.xhtml":
         return
-    visible = "\n".join(
-        text
-        for text in root.itertext()
-        if text and text.strip()
-    )
+    paragraphs: list[str] = []
+    author_note_flags: list[bool] = []
+    review_paragraphs: list[str] = []
+    if member.endswith(".xhtml"):
+        paragraph_elements = [
+            element
+            for element in root.iter()
+            if _local_name(element.tag) == "p"
+        ]
+        paragraphs = [
+            "".join(element.itertext())
+            for element in paragraph_elements
+        ]
+        in_author_note = False
+        trailing_start = int(len(paragraphs) * 0.7)
+        for index, paragraph in enumerate(paragraphs):
+            if index >= trailing_start and (
+                AUTHOR_NOTE_MARKER_RE.search(paragraph)
+                or AUTHOR_NOTE_SIGNAL_RE.search(paragraph)
+            ):
+                in_author_note = True
+            author_note_flags.append(in_author_note)
+        review_paragraphs = [
+            paragraph
+            for paragraph, is_author_note in zip(
+                paragraphs,
+                author_note_flags,
+                strict=True,
+            )
+            if not is_author_note
+        ]
+        heading_texts = [
+            "".join(element.itertext())
+            for element in root.iter()
+            if _local_name(element.tag) in XHTML_TITLE_TAGS
+        ]
+        visible = "\n".join(heading_texts + review_paragraphs)
+    else:
+        visible = "\n".join(
+            text
+            for text in root.itertext()
+            if text and text.strip()
+        )
     bad: dict[tuple[str, str], tuple[int, str]] = {}
     for index, char in enumerate(visible):
         reason = _bad_character_reason(char)
-        if not reason:
+        if not reason or _is_intentional_emoticon_character(visible, index):
             continue
         key = (char, reason)
         count, sample = bad.get(key, (0, ""))
@@ -1617,25 +1845,7 @@ def _scan_member_issues(
         )
 
     if member.endswith(".xhtml"):
-        paragraph_elements = [
-            element
-            for element in root.iter()
-            if _local_name(element.tag) == "p"
-        ]
-        paragraphs = [
-            "".join(element.itertext())
-            for element in paragraph_elements
-        ]
-        prose = "\n".join(paragraphs)
-        author_note_flags: list[bool] = []
-        in_author_note = False
-        trailing_start = int(len(paragraphs) * 0.7)
-        for index, paragraph in enumerate(paragraphs):
-            if AUTHOR_NOTE_MARKER_RE.search(paragraph):
-                in_author_note = True
-            elif index >= trailing_start and AUTHOR_NOTE_SIGNAL_RE.search(paragraph):
-                in_author_note = True
-            author_note_flags.append(in_author_note)
+        prose = "\n".join(review_paragraphs)
         structural_markers = [
             paragraph.strip()
             for paragraph in paragraphs
@@ -1660,7 +1870,7 @@ def _scan_member_issues(
             )
         orphan_attribution_quotes = [
             paragraph
-            for paragraph in paragraphs
+            for paragraph in review_paragraphs
             if ORPHAN_ATTRIBUTION_OPEN_RE.search(paragraph)
         ]
         if orphan_attribution_quotes:
@@ -1827,7 +2037,7 @@ def _scan_member_issues(
                 paragraph_index,
                 opening_count,
                 closing_count,
-            ) in _quote_mismatch_indices(paragraphs, opening, closing):
+            ) in _quote_mismatch_indices(review_paragraphs, opening, closing):
                 report.issues.append(
                     NormalizationIssue(
                         kind="quote_mismatch",
@@ -1838,7 +2048,7 @@ def _scan_member_issues(
                             f"closing={closing_count}"
                         ),
                         excerpt=_quote_review_context(
-                            paragraphs,
+                            review_paragraphs,
                             paragraph_index,
                         ),
                         count=max(1, abs(opening_count - closing_count)),
@@ -1890,10 +2100,17 @@ def normalize_epub(
     rewritten: dict[str, bytes] = {}
     with zipfile.ZipFile(path, "r") as source:
         infos = source.infolist()
-        for info in infos:
-            data = source.read(info.filename)
-            normalized = _normalize_member(info.filename, data, report)
-            rewritten[info.filename] = normalized
+        original = {info.filename: source.read(info.filename) for info in infos}
+    grouped_fanwai_titles = _grouped_fanwai_title_labels(original)
+    for info in infos:
+        data = original[info.filename]
+        normalized = _normalize_member(
+            info.filename,
+            data,
+            report,
+            grouped_fanwai_titles=grouped_fanwai_titles,
+        )
+        rewritten[info.filename] = normalized
 
     for member, data in rewritten.items():
         _scan_member_issues(member, data, report)
@@ -2433,8 +2650,27 @@ def automatic_report_path(path: Path) -> Path:
     return root / "reports" / "normalization" / relative.with_suffix(".json")
 
 
+def attach_metadata_enrichment(
+    report: NormalizationReport,
+    metadata: MetadataEnrichmentReport,
+) -> NormalizationReport:
+    report.metadata_enrichment = metadata
+    member = metadata.opf_member or "EPUB/content.opf"
+    for field_name in metadata.changed_fields:
+        report.record_change(
+            f"metadata_{field_name}_updated",
+            member,
+            1,
+            str(metadata.before.get(field_name, "")),
+            str(metadata.after.get(field_name, "")),
+        )
+    return report
+
+
 def normalize_new_epub(path: Path) -> NormalizationReport:
+    metadata = enrich_epub_metadata(path, backup_dir=None)
     report = normalize_and_review_epub(path)
+    attach_metadata_enrichment(report, metadata)
     report_path = automatic_report_path(path)
     write_reports(report_path, [report])
     print(report.format_text())
