@@ -127,6 +127,9 @@ FANWAI_NUMBERED_TITLE_RE = re.compile(
     r"[\s　·.：:]*"
     r"(?P<title>\S.*)$"
 )
+GROUPED_FANWAI_PREFIX_RE = re.compile(
+    r"^\s*番外\s*[：:]\s*(?=\S)"
+)
 DECORATIVE_END_MARKER_RE = re.compile(
     r"^\s*(?:-{2,}|—{2,})\s*"
     r"(?P<label>[^—\-\n]{1,50}?)"
@@ -901,8 +904,25 @@ def _normalize_fanwai_title(
     )
     text = without_number
 
+    if force:
+        without_group_prefix, prefix_removed = GROUPED_FANWAI_PREFIX_RE.subn(
+            "",
+            text,
+            count=1,
+        )
+        report.record_change(
+            "fanwai_group_prefix_removed",
+            member,
+            prefix_removed,
+            text,
+            without_group_prefix,
+        )
+        text = without_group_prefix
+
     match = FANWAI_NUMBERED_TITLE_RE.fullmatch(text)
     if match is None:
+        return text
+    if text == "番外六一快乐" or match.group("title") in {"（完）", "(完)"}:
         return text
     number = match.group("number")
     number_spacing = " " if number.isascii() and number.isdigit() else ""
@@ -1548,7 +1568,10 @@ def _grouped_fanwai_title_labels(members: dict[str, bytes]) -> set[str]:
 
     def record_label(value: str) -> None:
         match = CHAPTER_NUMBER_PREFIX_RE.match(value)
-        if match is not None and value[match.end() :].strip():
+        if match is not None:
+            if value[match.end() :].strip():
+                labels.add(value)
+        elif value:
             labels.add(value)
 
     for member, data in members.items():
