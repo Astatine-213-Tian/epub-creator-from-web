@@ -65,6 +65,23 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
 
 ## Cleanup Rules
 
+- Every finished EPUB needs a reader-visible contents page in the spine, not
+  only device navigation metadata. For an EPUB 2 package that has `toc.ncx` but
+  no `nav.xhtml`, create `nav.xhtml` as a real XHTML contents page, register it
+  in the OPF manifest, insert it in the spine before the prologue or first main
+  chapter, and add an OPF guide reference with `type="toc"`. Keep the existing
+  NCX as the EPUB 2 device-navigation source.
+- When a flat EPUB 2 NCX has `序章` or `序言` followed by bare main-chapter
+  titles, and every NCX label exactly matches both the linked chapter
+  `<title>` and its first heading, add sequential Arabic prefixes beginning
+  with `第1章 ` after the prologue. Keep the prologue unnumbered and do not
+  number `番外`, `后记`, `尾声`, `终章`, `附录`, or other special sections.
+  If the NCX is nested, the labels are mixed numbered/unnumbered, or the
+  chapter surfaces disagree, report the ambiguity instead of guessing.
+- Center every visible main-chapter and prologue heading. Prefer the book's
+  existing centered heading class; otherwise add a minimal inline
+  `text-align: center; text-indent: 0` style. This affects the visible heading,
+  not ordinary body paragraphs.
 - Remove duplicate book title/author boilerplate from intro chapters, such as `《书名》作者：非天夜翔` or standalone `书名 非天夜翔`.
 - Remove repeated book title lines from intros when they duplicate EPUB metadata or reader excerpt headers.
 - Remove standalone volume-start markers from chapter bodies when the volume is represented in TOC, for example `卷一：鸿渐于陆`, `# 卷二·魔王`, `银河咏叹曲卷四 波拉利斯`.

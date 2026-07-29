@@ -17,6 +17,7 @@ from src.core.epub_normalizer import (
 )
 from src.core.epub_writer import write_epub
 from src.core.models import Chapter, Volume
+from src.cli.validate_epub_chapters import validate_epub
 from src.metadata.epub_enricher import MetadataEnrichmentReport
 
 
@@ -922,6 +923,98 @@ class EpubNormalizerTests(unittest.TestCase):
             self.assertEqual(report["codex_review"]["status"], "completed")
             self.assertEqual(report["codex_review"]["pending"], 0)
             self.assertTrue(report["codex_review"]["decisions"][0]["applied"])
+
+    def test_repairs_epub2_visible_toc_numbering_and_centered_headings(
+        self,
+    ) -> None:
+        def chapter(title: str) -> str:
+            return (
+                '<?xml version="1.0" encoding="utf-8"?>'
+                '<html xmlns="http://www.w3.org/1999/xhtml">'
+                f"<head><title>{title}</title></head>"
+                f'<body><h1 class="chapter">{title}</h1><p>正文。</p></body>'
+                "</html>"
+            )
+
+        opf = """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+  <manifest>
+    <item id="prologue" href="text/prologue.html" media-type="application/xhtml+xml"/>
+    <item id="chapter1" href="text/chapter1.html" media-type="application/xhtml+xml"/>
+    <item id="chapter2" href="text/chapter2.html" media-type="application/xhtml+xml"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="prologue"/>
+    <itemref idref="chapter1"/>
+    <itemref idref="chapter2"/>
+  </spine>
+</package>
+"""
+        ncx = """<?xml version="1.0" encoding="utf-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <navMap>
+    <navPoint id="n1"><navLabel><text>序章</text></navLabel><content src="text/prologue.html"/></navPoint>
+    <navPoint id="n2"><navLabel><text>鱼事</text></navLabel><content src="text/chapter1.html"/></navPoint>
+    <navPoint id="n3"><navLabel><text>射天</text></navLabel><content src="text/chapter2.html"/></navPoint>
+  </navMap>
+</ncx>
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            epub_path = Path(temp) / "epub2.epub"
+            with zipfile.ZipFile(epub_path, "w") as archive:
+                archive.writestr(
+                    "mimetype",
+                    "application/epub+zip",
+                    compress_type=zipfile.ZIP_STORED,
+                )
+                archive.writestr("content.opf", opf)
+                archive.writestr("toc.ncx", ncx)
+                archive.writestr("text/prologue.html", chapter("序章"))
+                archive.writestr("text/chapter1.html", chapter("鱼事"))
+                archive.writestr("text/chapter2.html", chapter("射天"))
+
+            report = normalize_epub(epub_path)
+
+            self.assertEqual(report.change_counts["visible_toc_page_added"], 1)
+            self.assertEqual(report.change_counts["visible_toc_registered"], 3)
+            self.assertEqual(report.change_counts["chapter_number_prefix_added"], 6)
+            self.assertEqual(report.change_counts["chapter_heading_centered"], 3)
+            self.assertFalse(report.issues)
+            with zipfile.ZipFile(epub_path) as archive:
+                self.assertEqual(archive.namelist()[0], "mimetype")
+                self.assertEqual(
+                    archive.getinfo("mimetype").compress_type,
+                    zipfile.ZIP_STORED,
+                )
+                nav_output = archive.read("nav.xhtml").decode()
+                ncx_output = archive.read("toc.ncx").decode()
+                opf_output = archive.read("content.opf").decode()
+                chapter_output = archive.read("text/chapter1.html").decode()
+            self.assertIn("<title>目录</title>", nav_output)
+            self.assertIn(">序章</a>", nav_output)
+            self.assertIn(">第1章 鱼事</a>", nav_output)
+            self.assertIn(">第2章 射天</a>", nav_output)
+            self.assertIn("<text>第1章 鱼事</text>", ncx_output)
+            self.assertIn('id="reader_toc" href="nav.xhtml"', opf_output)
+            self.assertLess(
+                opf_output.index('idref="reader_toc"'),
+                opf_output.index('idref="prologue"'),
+            )
+            self.assertIn(
+                '<reference type="toc" href="nav.xhtml" title="目录"/>',
+                opf_output,
+            )
+            self.assertIn("<title>第1章 鱼事</title>", chapter_output)
+            self.assertIn(">第1章 鱼事</h1>", chapter_output)
+            self.assertIn("text-align: center", chapter_output)
+
+            issues, count = validate_epub(epub_path)
+            self.assertEqual(issues, [])
+            self.assertEqual(count, 2)
+            rerun = normalize_epub(epub_path)
+            self.assertEqual(rerun.total_changes, 0)
+            self.assertEqual(rerun.issues, [])
 
     @staticmethod
     def _write_fixture(
