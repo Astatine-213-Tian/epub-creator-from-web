@@ -35,6 +35,19 @@ IGNORED_JJWXC_SERIES = {
     "角落里的那些事",
     "无所属系列",
 }
+GENERIC_JJWXC_SECTIONS = {
+    "正在连载",
+    "言情",
+    "纯爱",
+    "耽美",
+    "百合",
+    "无CP",
+    "全年龄向",
+    "短篇",
+    "暂时休息的文案们",
+    "已经锁了的文",
+    "评论文章",
+}
 TARGET_DC_TAGS = {
     f"{{{DC_NS}}}title",
     f"{{{DC_NS}}}creator",
@@ -51,6 +64,7 @@ MASKED_TITLE_RE = re.compile(r"[*＊]{2,}")
 JJWXC_BOOK_LINK_RE = re.compile(r"jump_book2\((\d+)")
 JJWXC_TITLE_RE = re.compile(r"《([^》]+)》")
 JJWXC_SERIES_RE = re.compile(r"〖([^〗]+)〗")
+JJWXC_SECTION_RE = re.compile(r"【([^】]+)】")
 JJWXC_DATE_RE = re.compile(r"发表时间：(\d{4}-\d{2}-\d{2})")
 JJWXC_TYPE_RE = re.compile(r"类型:([^\n]+?)(?:发表时间|进度|$)")
 T2S = OpenCC("t2s")
@@ -137,6 +151,17 @@ class MetadataEnrichmentReport:
 
 
 @dataclass(frozen=True)
+class _JjwxcCatalogEntry:
+    title: str
+    novel_id: str
+    date: str
+    raw_type: str
+    locked: bool
+    prefix: str | None
+    section: str | None
+
+
+@dataclass(frozen=True)
 class _JjwxcCandidate:
     title: str
     novel_id: str
@@ -218,35 +243,75 @@ def parse_jjwxc_author_search(html: str, author: str) -> str | None:
 
 def parse_jjwxc_author_catalog(html: str) -> list[_JjwxcCandidate]:
     soup = BeautifulSoup(html, "html.parser")
-    positions: Counter[str] = Counter()
-    candidates: list[_JjwxcCandidate] = []
+    entries: list[_JjwxcCatalogEntry] = []
     for table in soup.select("table.author.novel"):
         text = " ".join(table.stripped_strings)
         link = table.find("a", onclick=JJWXC_BOOK_LINK_RE)
         if not isinstance(link, Tag):
             continue
+        link_text = link.get_text(" ", strip=True)
         id_match = JJWXC_BOOK_LINK_RE.search(str(link.get("onclick", "")))
-        title_match = JJWXC_TITLE_RE.search(link.get_text(" ", strip=True))
+        title_match = JJWXC_TITLE_RE.search(link_text)
         date_match = JJWXC_DATE_RE.search(text)
         if not id_match or not title_match or not date_match:
             continue
         type_match = JJWXC_TYPE_RE.search(text)
-        series_match = JJWXC_SERIES_RE.search(link.get_text(" ", strip=True))
-        series = series_match.group(1).strip() if series_match else None
-        if series in IGNORED_JJWXC_SERIES:
-            series = None
-        position: int | None = None
-        if series:
-            positions[series] += 1
-            position = positions[series]
+        prefix_match = JJWXC_SERIES_RE.search(link_text)
+        prefix = prefix_match.group(1).strip() if prefix_match else None
+        if prefix in IGNORED_JJWXC_SERIES:
+            prefix = None
+        section_table = table.find_previous("table", class_="series")
+        section_match = (
+            JJWXC_SECTION_RE.search(section_table.get_text(" ", strip=True))
+            if isinstance(section_table, Tag)
+            else None
+        )
+        section = section_match.group(1).strip() if section_match else None
         source_title = title_match.group(1).strip()
-        candidates.append(
-            _JjwxcCandidate(
+        entries.append(
+            _JjwxcCatalogEntry(
                 title=source_title,
                 novel_id=id_match.group(1),
                 date=date_match.group(1),
                 raw_type=type_match.group(1).strip() if type_match else "",
                 locked=bool(MASKED_TITLE_RE.search(source_title) or "[锁]" in text),
+                prefix=prefix,
+                section=section,
+            )
+        )
+
+    prefix_counts = Counter(
+        (entry.section, entry.prefix)
+        for entry in entries
+        if entry.prefix is not None
+    )
+    positions: Counter[str] = Counter()
+    candidates: list[_JjwxcCandidate] = []
+    for entry in entries:
+        if entry.section in IGNORED_JJWXC_SERIES:
+            series = None
+        else:
+            section_series = (
+                entry.section
+                if entry.section and entry.section not in GENERIC_JJWXC_SECTIONS
+                else None
+            )
+            repeated_prefix = (
+                entry.prefix is not None
+                and prefix_counts[(entry.section, entry.prefix)] > 1
+            )
+            series = entry.prefix if repeated_prefix else section_series or entry.prefix
+        position: int | None = None
+        if series:
+            positions[series] += 1
+            position = positions[series]
+        candidates.append(
+            _JjwxcCandidate(
+                title=entry.title,
+                novel_id=entry.novel_id,
+                date=entry.date,
+                raw_type=entry.raw_type,
+                locked=entry.locked,
                 series=series,
                 series_position=position,
             )
@@ -368,6 +433,8 @@ class MetadataLookup:
                     parsed_type.time_area,
                 ]
             )
+        if "耽美" in subjects:
+            subjects = tuple(subject for subject in subjects if subject != "爱情")
         return SourceMetadata(
             provider="jinjiang",
             title=(

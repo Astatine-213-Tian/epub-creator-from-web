@@ -46,6 +46,9 @@ AUTHOR_SEARCH = """
 
 AUTHOR_CATALOG = """
 <html><body>
+  <table class="author series">
+    <tr><td colspan="3" style="font-weight: bold;">【耽美】</td></tr>
+  </table>
   <table class="author novel">
     <tr><td>
       <a onclick="jump_book2(2423737,425111)">〖剑胆琴心〗《千秋》</a>
@@ -59,6 +62,43 @@ AUTHOR_CATALOG = """
     </td></tr>
     <tr><td>类型:原创-纯爱-古色古香-传奇-主受</td></tr>
     <tr><td>发表时间：2018-04-30 15:47:00</td></tr>
+  </table>
+</body></html>
+"""
+
+
+HEADER_SERIES_CATALOG = """
+<html><body>
+  <table class="author series">
+    <tr><td colspan="3" style="font-weight: bold;">【山海幻世】</td></tr>
+  </table>
+  <table class="author novel">
+    <tr><td>
+      <a onclick="jump_book2(7437872,293673)">〖龙吟〗《万物风华录》</a>
+    </td></tr>
+    <tr><td>类型:原创-纯爱-近代现代-爱情-主受</td></tr>
+    <tr><td>发表时间：2022-01-01 00:00:00</td></tr>
+  </table>
+  <table class="author novel">
+    <tr><td>
+      <a onclick="jump_book2(3848563,293673)">〖心灯〗《定海浮生录》</a>
+    </td></tr>
+    <tr><td>类型:原创-纯爱-古色古香-传奇-主受</td></tr>
+    <tr><td>发表时间：2018-01-01 00:00:00</td></tr>
+  </table>
+  <table class="author novel">
+    <tr><td>
+      <a onclick="jump_book2(3145450,293673)">〖真火〗《天宝伏妖录》</a>
+    </td></tr>
+    <tr><td>类型:原创-纯爱-古色古香-传奇-主受</td></tr>
+    <tr><td>发表时间：2016-01-01 00:00:00</td></tr>
+  </table>
+  <table class="author series">
+    <tr><td colspan="3" style="font-weight: bold;">【角落里的事】</td></tr>
+  </table>
+  <table class="author novel">
+    <tr><td><a onclick="jump_book2(9999,293673)">〖同志〗《北城天街》</a></td></tr>
+    <tr><td>发表时间：2015-01-01 00:00:00</td></tr>
   </table>
 </body></html>
 """
@@ -95,6 +135,55 @@ class EpubMetadataEnricherTests(unittest.TestCase):
             candidates[0].raw_type,
             "原创-纯爱-架空历史-传奇-主受",
         )
+
+    def test_uses_meaningful_catalog_section_for_unique_book_prefixes(self) -> None:
+        candidates = parse_jjwxc_author_catalog(HEADER_SERIES_CATALOG)
+
+        self.assertEqual(
+            [candidate.series for candidate in candidates],
+            ["山海幻世", "山海幻世", "山海幻世", None],
+        )
+        self.assertEqual(
+            [candidate.series_position for candidate in candidates],
+            [1, 2, 3, None],
+        )
+
+    def test_jinjiang_omits_aiqing_when_danmei_is_present(self) -> None:
+        catalog = """
+        <html><body>
+          <table class="author novel">
+            <tr><td><a onclick="jump_book2(2423737,425111)">《千秋》</a></td></tr>
+            <tr><td>类型:原创-纯爱-近代现代-爱情-主受</td></tr>
+            <tr><td>发表时间：2015-10-27 20:00:00 [锁]</td></tr>
+          </table>
+        </body></html>
+        """
+        package = PackageMetadata(
+            title="千秋",
+            author="梦溪石",
+            language="zh-CN",
+            date="",
+            source="",
+            description="",
+            subjects=(),
+            series=None,
+            series_position=None,
+        )
+        lookup = MetadataLookup(
+            author_ids={"梦溪石": "425111"},
+            kadokado=False,
+        )
+        lookup._catalog_cache["425111"] = parse_jjwxc_author_catalog(catalog)
+
+        danmei = lookup.find(package)
+        self.assertIsNotNone(danmei)
+        assert danmei is not None
+        self.assertEqual(danmei.subjects, ("耽美", "近代现代"))
+
+        non_danmei = lookup.find(package, primary_subject="言情")
+        self.assertIsNotNone(non_danmei)
+        assert non_danmei is not None
+        self.assertEqual(non_danmei.subjects, ("言情", "爱情", "近代现代"))
 
     def test_jinjiang_date_overwrites_existing_date_and_is_idempotent(self) -> None:
         source = SourceMetadata(
