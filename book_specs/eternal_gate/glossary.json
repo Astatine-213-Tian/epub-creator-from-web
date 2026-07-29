@@ -1315,10 +1315,11 @@
       "source_chunk": "08_007"
     },
     "Bjorn Yngvarr": {
-      "zh": "比约恩·英瓦尔",
-      "note": "艾尼伯大领主人名，按常见北欧名音译处理。",
-      "confidence": "medium",
-      "source_chunk": "08_007"
+      "zh": "熊爵",
+      "note": "Risk 在 Chapter 012 评论中确认读者提出的“熊爵”对应非常精准。",
+      "confidence": "high",
+      "source_chunk": "14_003",
+      "source_comment": "219516522"
     },
     "wineskin": {
       "zh": "酒囊",
@@ -1362,6 +1363,26 @@
       "confidence": "high",
       "source_chunk": "10_006",
       "source_comment": "219216887"
+    },
+    "Divine Word of Destruction": {
+      "zh": "毁灭神言",
+      "note": "反复出现的特定神言名称，需与其他神言保持明确区分。",
+      "confidence": "high",
+      "source_chunk": "14_001"
+    },
+    "Yngvarr": {
+      "zh": "熊爵",
+      "note": "Bjorn Yngvarr 单独出现时沿用 Risk 评论确认的“熊爵”。",
+      "confidence": "high",
+      "source_chunk": "14_004",
+      "source_comment": "219516522"
+    },
+    "Bjorn": {
+      "zh": "熊爵",
+      "note": "Bjorn Yngvarr 只以 Bjorn 简称出现时沿用 Risk 评论确认的“熊爵”。",
+      "confidence": "high",
+      "source_chunk": "10_004",
+      "source_comment": "219516522"
     }
   },
   "sentence_translations": [
