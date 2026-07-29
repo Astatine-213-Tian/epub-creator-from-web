@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import tempfile
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -294,26 +295,54 @@ def run_zhenhun(target: str, options: ParserOptions) -> Path:
     )
 
 
-def run_ibusread(target: str, options: ParserOptions) -> Path:
-    from src.providers.ibusread import parser
+def run_zlibrary(target: str, options: ParserOptions) -> Path:
+    from src.cli.dataset import extract_epub_text
+    from src.core.epub_normalizer import normalize_new_epub
+    from src.providers.zlibrary import parser
 
-    delay = options.delay if options.delay is not None else 0.25
-    concurrency = options.concurrency if options.concurrency is not None else 4
-    book_url = parser._resolve_book_url(target)
-    meta, volumes = parser.crawl_book(
-        book_url,
-        delay=delay,
-        concurrency=concurrency,
+    delay = options.delay if options.delay is not None else 0.5
+    meta, epub_bytes = asyncio.run(
+        parser.download_epub(
+            parser._resolve_book_url(target),
+            headless=options.headless,
+            delay=delay,
+        )
+    )
+    formats = requested_formats(options)
+    epub_path = resolve_output(options, meta.title, meta.author) if "epub" in formats else None
+    txt_path = (
+        resolve_requested_txt_output(options, title=meta.title, author=meta.author)
+        if "txt" in formats
+        else None
     )
 
-    return emit_requested_outputs(
-        options=options,
-        title=meta.title,
-        author=meta.author,
-        volumes=volumes,
-        build_epub=lambda out_path: parser.build_epub(meta, volumes, out_path),
-        intro_paragraphs=meta.intro_paragraphs,
-    )
+    with tempfile.TemporaryDirectory(prefix="booklib-zlibrary-output-") as tmp:
+        source_path = Path(tmp) / f"{meta.book_id}.epub"
+        source_path.write_bytes(epub_bytes)
+        extraction_path = source_path
+        if epub_path and (not options.prevent_overwrite or not epub_path.exists()):
+            epub_path.parent.mkdir(parents=True, exist_ok=True)
+            staging_path = epub_path.with_suffix(f"{epub_path.suffix}.tmp")
+            staging_path.write_bytes(epub_bytes)
+            staging_path.replace(epub_path)
+            normalize_new_epub(epub_path)
+            extraction_path = epub_path
+        elif epub_path:
+            extraction_path = epub_path
+
+        if txt_path and (not options.prevent_overwrite or not txt_path.exists()):
+            _title, _author, text = extract_epub_text(extraction_path)
+            txt_path.parent.mkdir(parents=True, exist_ok=True)
+            txt_path.write_text(
+                f"{meta.title}\n作者：{meta.author}\n\n{text.strip()}\n",
+                encoding="utf-8",
+            )
+
+    if epub_path:
+        return epub_path
+    if txt_path:
+        return txt_path
+    raise ValueError("no output formats requested")
 
 
 def run_patreon(target: str, options: ParserOptions) -> Path:
@@ -385,10 +414,10 @@ PARSERS: tuple[ParserSpec, ...] = (
         run=run_zhenhun,
     ),
     ParserSpec(
-        name="ibusread",
-        domains=("ibusread.com",),
-        description="ibusread.com API-backed novels",
-        run=run_ibusread,
+        name="zlibrary",
+        domains=("1lib.sk", "z-lib.sk", "z-library.sk"),
+        description="Z-Library browser-backed EPUB editions",
+        run=run_zlibrary,
     ),
     ParserSpec(
         name="patreon",
