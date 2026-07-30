@@ -71,6 +71,12 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
   in the OPF manifest, insert it in the spine before the prologue or first main
   chapter, and add an OPF guide reference with `type="toc"`. Keep the existing
   NCX as the EPUB 2 device-navigation source.
+- For EPUB 3 Apple Books compatibility, keep the navigation vocabulary on the
+  canonical literal `epub` prefix: declare
+  `xmlns:epub="http://www.idpf.org/2007/ops"` and use
+  `<nav epub:type="toc">`. Rewrite serializer-generated aliases such as
+  `xmlns:ns1` / `ns1:type`; even though the namespace URI is equivalent XML,
+  Apple Books may render an empty Contents panel for that form.
 - When a flat EPUB 2 NCX has `序章` or `序言` followed by bare main-chapter
   titles, and every NCX label exactly matches both the linked chapter
   `<title>` and its first heading, add sequential Arabic prefixes beginning
@@ -101,6 +107,21 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
   dot: `番外十一扬帆`, `番外十一 扬帆`, and `番外十一：扬帆` all become
   `番外十一·扬帆`. Keep a bare numbered label such as `番外四` unchanged,
   and preserve an existing correct middle dot.
+- Write numbered `番外` markers with Chinese numerals and no intervening
+  space: `番外 1 飞天猫`, `番外1·飞天猫`, and `番外 1·飞天猫` all become
+  `番外一·飞天猫`; a bare `番外 10` becomes `番外十`.
+- In a visible `番外` title, replace a colon immediately after `番外` with a
+  middle dot: `番外：蜜月流水账` becomes `番外·蜜月流水账`, and
+  `2021 年中秋节番外：前年风月满江湖` becomes
+  `2021 年中秋节番外·前年风月满江湖`.
+- In a visible Mid-Autumn `番外` title, write `年` after a four-digit year:
+  `2022 中秋番外·游园` becomes `2022 年中秋番外·游园`. Apply this only
+  when the year is immediately followed by `中秋番外` or `中秋节番外`.
+- Remove a single stray terminal separator from a `番外` title instead of
+  converting or preserving it, for example
+  `2018 年戊戌年中秋番外·啷里个啷.` and
+  `2018 年戊戌年中秋番外·啷里个啷·` both become
+  `2018 年戊戌年中秋番外·啷里个啷`. Preserve a real ellipsis.
 - When normalizing any visible chapter title, update all three places together: chapter XHTML `<title>`/heading, `EPUB/nav.xhtml`, and `EPUB/toc.ncx`. Do not fix only nav or only toc.
 - When the user asks for comma cleanup in the book content, normalize prose too: replace ASCII commas with Chinese commas when the comma is adjacent to Chinese characters or Chinese quotation/bracket punctuation, for example `说道,“` -> `说道，“` and `躺,迟小多` -> `躺，迟小多`.
 - Collapse repeated Chinese commas such as `，，` to a single `，`.

@@ -118,17 +118,25 @@ FANWAI_CHAPTER_NUMBER_RE = re.compile(
     CHAPTER_NUMBER_PREFIX_RE.pattern + r"(?=[^\n]*番外)"
 )
 FANWAI_NUMBERED_TITLE_RE = re.compile(
-    r"^(?P<prefix>\s*番外)[\s　]*"
+    r"^(?P<prefix>\s*番外)(?P<number_spacing>[\s　]*)"
     r"(?P<number>"
     r"(?:\d+)(?!\d)"
     r"|(?:[零〇一二三四五六七八九十百千万两]+)"
     r"(?![零〇一二三四五六七八九十百千万两])"
     r")"
-    r"[\s　·.：:]*"
-    r"(?P<title>\S.*)$"
+    r"(?P<separator>[\s　·.：:]*)"
+    r"(?P<title>\S.*)?$"
 )
-GROUPED_FANWAI_PREFIX_RE = re.compile(
-    r"^\s*番外\s*[：:]\s*(?=\S)"
+FANWAI_TRAILING_SEPARATOR_RE = re.compile(r"(?<![.·])[.·]$")
+FANWAI_COLON_SEPARATOR_RE = re.compile(
+    r"(?<=番外)[\s　]*[：:][\s　]*(?=\S)"
+)
+FANWAI_MISSING_YEAR_RE = re.compile(
+    r"(?<!\d)(?P<year>(?:19|20)\d{2})[\s　]*(?=中秋(?:节)?番外)"
+)
+EPUB_OPS_NAMESPACE_DECL_RE = re.compile(
+    r'xmlns:(?P<prefix>[A-Za-z_][\w.-]*)='
+    r'(?P<quote>["\'])http://www\.idpf\.org/2007/ops(?P=quote)'
 )
 DECORATIVE_END_MARKER_RE = re.compile(
     r"^\s*(?:-{2,}|—{2,})\s*"
@@ -886,6 +894,29 @@ def _normalize_ascii_punctuation(
     return normalized
 
 
+def _arabic_to_chinese_numeral(value: int) -> str:
+    if value < 0 or value > 9999:
+        return str(value)
+    if value == 0:
+        return "零"
+
+    digits = "零一二三四五六七八九"
+    output: list[str] = []
+    zero_pending = False
+    remaining = value
+    for place, unit in ((1000, "千"), (100, "百"), (10, "十"), (1, "")):
+        digit, remaining = divmod(remaining, place)
+        if digit:
+            if zero_pending:
+                output.append("零")
+            output.extend((digits[digit], unit))
+            zero_pending = False
+        elif output and remaining:
+            zero_pending = True
+    normalized = "".join(output)
+    return normalized[1:] if normalized.startswith("一十") else normalized
+
+
 def _normalize_fanwai_title(
     text: str,
     *,
@@ -904,39 +935,113 @@ def _normalize_fanwai_title(
     )
     text = without_number
 
-    if force:
-        without_group_prefix, prefix_removed = GROUPED_FANWAI_PREFIX_RE.subn(
-            "",
-            text,
-            count=1,
-        )
-        report.record_change(
-            "fanwai_group_prefix_removed",
-            member,
-            prefix_removed,
-            text,
-            without_group_prefix,
-        )
-        text = without_group_prefix
+    text = _apply_regex(
+        text,
+        FANWAI_COLON_SEPARATOR_RE,
+        "·",
+        kind="fanwai_colon_to_middle_dot",
+        member=member,
+        report=report,
+    )
+
+    without_trailing_separator, trailing_separator_removed = (
+        FANWAI_TRAILING_SEPARATOR_RE.subn("", text, count=1)
+    )
+    report.record_change(
+        "fanwai_trailing_separator_removed",
+        member,
+        trailing_separator_removed,
+        text,
+        without_trailing_separator,
+    )
+    text = without_trailing_separator
+
+    text = _apply_regex(
+        text,
+        FANWAI_MISSING_YEAR_RE,
+        r"\g<year> 年",
+        kind="fanwai_middle_autumn_year_added",
+        member=member,
+        report=report,
+    )
 
     match = FANWAI_NUMBERED_TITLE_RE.fullmatch(text)
     if match is None:
         return text
     if text == "番外六一快乐" or match.group("title") in {"（完）", "(完)"}:
-        return text
+        title = match.group("title") or ""
+        separator = match.group("separator")
+    else:
+        title = match.group("title") or ""
+        separator = "·" if title else ""
+
     number = match.group("number")
-    number_spacing = " " if number.isascii() and number.isdigit() else ""
-    normalized = (
-        f"{match.group('prefix')}{number_spacing}{number}·{match.group('title')}"
+    report.record_change(
+        "fanwai_number_spacing_removed",
+        member,
+        int(bool(match.group("number_spacing"))),
+        text,
+        text.replace(
+            f"{match.group('prefix')}{match.group('number_spacing')}{number}",
+            f"{match.group('prefix')}{number}",
+            1,
+        ),
     )
+    normalized_number = (
+        _arabic_to_chinese_numeral(int(number))
+        if number.isascii() and number.isdigit()
+        else number
+    )
+    report.record_change(
+        "fanwai_number_to_chinese",
+        member,
+        int(normalized_number != number),
+        number,
+        normalized_number,
+    )
+    normalized = f"{match.group('prefix')}{normalized_number}{separator}{title}"
     report.record_change(
         "fanwai_title_separator_normalized",
         member,
-        int(normalized != text),
+        int(separator != match.group("separator")),
         text,
         normalized,
     )
     return normalized
+
+
+def _normalize_nav_epub_namespace_prefix(
+    text: str,
+    *,
+    member: str,
+    report: NormalizationReport,
+) -> str:
+    match = EPUB_OPS_NAMESPACE_DECL_RE.search(text)
+    if match is None or match.group("prefix") == "epub":
+        return text
+
+    prefix = match.group("prefix")
+    normalized = EPUB_OPS_NAMESPACE_DECL_RE.sub(
+        'xmlns:epub="http://www.idpf.org/2007/ops"',
+        text,
+        count=1,
+    )
+    qualified_name_re = re.compile(
+        rf"(?P<boundary>[<\s/]){re.escape(prefix)}:(?=[A-Za-z_])"
+    )
+    normalized, qualified_names = qualified_name_re.subn(
+        r"\g<boundary>epub:",
+        normalized,
+    )
+    report.record_change(
+        "nav_epub_namespace_prefix_normalized",
+        member,
+        1 + qualified_names,
+        text,
+        normalized,
+    )
+    return normalized
+
 
 def _normalize_title_periods(
     text: str,
@@ -1639,6 +1744,12 @@ def _normalize_member(
     if not tags:
         return data
     text = data.decode("utf-8")
+    if Path(member).name == "nav.xhtml":
+        text = _normalize_nav_epub_namespace_prefix(
+            text,
+            member=member,
+            report=report,
+        )
     if member.endswith(".xhtml"):
         text = _normalize_structural_paragraphs(
             text,
@@ -1658,7 +1769,11 @@ def _normalize_member(
         force_fanwai_title = visible in grouped_fanwai_titles
         title_punctuation = bool(
             preserve_ordinals
-            and (force_fanwai_title or CHAPTER_LIKE_TITLE_RE.match(visible))
+            and (
+                force_fanwai_title
+                or "番外" in visible
+                or CHAPTER_LIKE_TITLE_RE.match(visible)
+            )
         )
         marker_match = (
             DECORATIVE_END_MARKER_RE.fullmatch(visible)
