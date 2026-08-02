@@ -153,6 +153,35 @@ class EpubNormalizerTests(unittest.TestCase):
             self.assertGreater(report.total_changes, 0)
             self.assertEqual(epub_path.read_bytes(), before)
 
+    def test_white_circle_in_chinese_numeral_run_becomes_ideographic_zero(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            epub_path = Path(temp) / "unicode-zero.epub"
+            self._write_fixture(
+                epub_path,
+                """<html><body>
+                <p>西元二○四六，香港元朗区，夜。</p>
+                <p>编号一○，旧年份二○○六。</p>
+                <p>几何符号○和装饰○○保留。</p>
+                </body></html>""",
+            )
+
+            report = normalize_epub(epub_path)
+
+            self.assertEqual(
+                report.change_counts["white_circle_to_ideographic_zero"],
+                4,
+            )
+            with zipfile.ZipFile(epub_path) as archive:
+                chapter = archive.read("EPUB/chap_01_001.xhtml").decode()
+            self.assertIn("西元二〇四六，香港元朗区，夜。", chapter)
+            self.assertIn("编号一〇，旧年份二〇〇六。", chapter)
+            self.assertIn("几何符号○和装饰○○保留。", chapter)
+
+            second = normalize_epub(epub_path)
+            self.assertEqual(second.total_changes, 0)
+
     def test_unresolved_quote_mismatch_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             epub_path = Path(temp) / "book.epub"
@@ -726,21 +755,42 @@ class EpubNormalizerTests(unittest.TestCase):
                 "2021 年中秋节番外·前年风月满江湖",
                 4,
                 0,
+                0,
+                0,
             ),
             (
                 "2022 中秋番外·游园",
                 "2022 年中秋番外·游园",
                 0,
                 4,
+                0,
+                0,
             ),
             (
                 "2017中秋番外：贺中秋",
                 "2017 年中秋番外·贺中秋",
                 4,
                 4,
+                0,
+                0,
+            ),
+            (
+                "2017 中秋·番外贺中秋·月中霜里斗婵娟",
+                "2017 年中秋番外·贺中秋·月中霜里斗婵娟",
+                0,
+                4,
+                4,
+                4,
             ),
         )
-        for source_title, expected_title, colon_changes, year_changes in cases:
+        for (
+            source_title,
+            expected_title,
+            colon_changes,
+            year_changes,
+            internal_separator_changes,
+            title_separator_changes,
+        ) in cases:
             with self.subTest(source_title=source_title):
                 with tempfile.TemporaryDirectory() as temp:
                     epub_path = Path(temp) / "book.epub"
@@ -764,6 +814,20 @@ class EpubNormalizerTests(unittest.TestCase):
                             0,
                         ),
                         year_changes,
+                    )
+                    self.assertEqual(
+                        report.change_counts.get(
+                            "fanwai_middle_autumn_internal_separator_removed",
+                            0,
+                        ),
+                        internal_separator_changes,
+                    )
+                    self.assertEqual(
+                        report.change_counts.get(
+                            "fanwai_middle_autumn_title_separator_added",
+                            0,
+                        ),
+                        title_separator_changes,
                     )
                     with zipfile.ZipFile(epub_path) as archive:
                         outputs = (
@@ -927,12 +991,22 @@ class EpubNormalizerTests(unittest.TestCase):
             second = normalize_epub(epub_path)
             self.assertEqual(second.total_changes, 0)
 
-    def test_grouped_fanwai_titles_use_middle_dot_after_prefix(self) -> None:
+    def test_grouped_fanwai_titles_drop_redundant_prefix(self) -> None:
         cases = (
-            ("第73章 番外：打飞机奇遇记 1", "番外·打飞机奇遇记 1", 4),
-            ("番外: 蜜月流水账", "番外·蜜月流水账", 0),
+            ("第73章 番外：打飞机奇遇记 1", "打飞机奇遇记 1", 4, 4, 4),
+            ("番外: 蜜月流水账", "蜜月流水账", 0, 4, 4),
+            ("番外一·故事开始", "一·故事开始", 0, 0, 4),
+            ("番外——野旷天低树，江清月近人", "野旷天低树，江清月近人", 0, 0, 4),
+            ("加笔番外", "加笔番外", 0, 0, 0),
+            ("番外", "番外", 0, 0, 0),
         )
-        for source_title, expected_title, number_changes in cases:
+        for (
+            source_title,
+            expected_title,
+            number_changes,
+            colon_changes,
+            prefix_changes,
+        ) in cases:
             with self.subTest(source_title=source_title):
                 with tempfile.TemporaryDirectory() as temp:
                     epub_path = Path(temp) / "book.epub"
@@ -965,8 +1039,12 @@ class EpubNormalizerTests(unittest.TestCase):
                         number_changes,
                     )
                     self.assertEqual(
-                        report.change_counts["fanwai_colon_to_middle_dot"],
-                        4,
+                        report.change_counts.get("fanwai_colon_to_middle_dot", 0),
+                        colon_changes,
+                    )
+                    self.assertEqual(
+                        report.change_counts.get("fanwai_group_prefix_removed", 0),
+                        prefix_changes,
                     )
                     with zipfile.ZipFile(epub_path) as archive:
                         outputs = (
@@ -976,7 +1054,8 @@ class EpubNormalizerTests(unittest.TestCase):
                         )
                     for output in outputs:
                         self.assertIn(expected_title, output)
-                        self.assertNotIn(source_title, output)
+                        if expected_title != source_title:
+                            self.assertNotIn(source_title, output)
                     self.assertIn(">番外</a>", outputs[1])
 
                     second = normalize_epub(epub_path)

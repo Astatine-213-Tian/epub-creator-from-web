@@ -69,6 +69,7 @@ ASCII_BRACKET_WITH_HAN_RE = re.compile(
     rf"\[(?P<body>[^\[\]\n]*[{HAN_CLASS}][^\[\]\n]*)\]"
 )
 REPEATED_CHINESE_COMMA_RE = re.compile(r"，{2,}")
+CHINESE_DIGIT_RUN_RE = re.compile(r"[零〇○一二三四五六七八九]{2,}")
 RESOURCE_GROUP_AD_RE = re.compile(
     r"(?:耽美小说)?资源群\s*[:：]\s*\d{5,}",
     re.IGNORECASE,
@@ -133,6 +134,13 @@ FANWAI_COLON_SEPARATOR_RE = re.compile(
 )
 FANWAI_MISSING_YEAR_RE = re.compile(
     r"(?<!\d)(?P<year>(?:19|20)\d{2})[\s　]*(?=中秋(?:节)?番外)"
+)
+GROUPED_FANWAI_PREFIX_RE = re.compile(r"^\s*番外[\s　·.：:—–－-]*")
+MIDDLE_AUTUMN_FANWAI_INTERNAL_SEPARATOR_RE = re.compile(
+    r"(?P<prefix>中秋(?:节)?)[\s　·]+(?=番外)"
+)
+MIDDLE_AUTUMN_FANWAI_TITLE_SEPARATOR_RE = re.compile(
+    r"(?P<prefix>中秋(?:节)?番外)[\s　：:]*(?=[^·\s])"
 )
 EPUB_OPS_NAMESPACE_DECL_RE = re.compile(
     r'xmlns:(?P<prefix>[A-Za-z_][\w.-]*)='
@@ -581,6 +589,34 @@ def _apply_regex(
     return text
 
 
+def _normalize_chinese_numeral_zero(
+    text: str,
+    *,
+    member: str,
+    report: NormalizationReport,
+) -> str:
+    before = text
+    count = 0
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal count
+        value = match.group(0)
+        if "○" not in value or value == "○" * len(value):
+            return value
+        count += value.count("○")
+        return value.replace("○", "〇")
+
+    text = CHINESE_DIGIT_RUN_RE.sub(replace, text)
+    report.record_change(
+        "white_circle_to_ideographic_zero",
+        member,
+        count,
+        before,
+        text,
+    )
+    return text
+
+
 def _normalize_contextual_quote_directions(
     text: str,
     *,
@@ -944,6 +980,15 @@ def _normalize_fanwai_title(
         report=report,
     )
 
+    text = _apply_regex(
+        text,
+        MIDDLE_AUTUMN_FANWAI_INTERNAL_SEPARATOR_RE,
+        r"\g<prefix>",
+        kind="fanwai_middle_autumn_internal_separator_removed",
+        member=member,
+        report=report,
+    )
+
     without_trailing_separator, trailing_separator_removed = (
         FANWAI_TRAILING_SEPARATOR_RE.subn("", text, count=1)
     )
@@ -964,50 +1009,71 @@ def _normalize_fanwai_title(
         member=member,
         report=report,
     )
+    text = _apply_regex(
+        text,
+        MIDDLE_AUTUMN_FANWAI_TITLE_SEPARATOR_RE,
+        r"\g<prefix>·",
+        kind="fanwai_middle_autumn_title_separator_added",
+        member=member,
+        report=report,
+    )
 
     match = FANWAI_NUMBERED_TITLE_RE.fullmatch(text)
-    if match is None:
-        return text
-    if text == "番外六一快乐" or match.group("title") in {"（完）", "(完)"}:
-        title = match.group("title") or ""
-        separator = match.group("separator")
-    else:
-        title = match.group("title") or ""
-        separator = "·" if title else ""
+    if match is not None:
+        if text == "番外六一快乐" or match.group("title") in {"（完）", "(完)"}:
+            title = match.group("title") or ""
+            separator = match.group("separator")
+        else:
+            title = match.group("title") or ""
+            separator = "·" if title else ""
 
-    number = match.group("number")
-    report.record_change(
-        "fanwai_number_spacing_removed",
-        member,
-        int(bool(match.group("number_spacing"))),
-        text,
-        text.replace(
-            f"{match.group('prefix')}{match.group('number_spacing')}{number}",
-            f"{match.group('prefix')}{number}",
-            1,
-        ),
-    )
-    normalized_number = (
-        _arabic_to_chinese_numeral(int(number))
-        if number.isascii() and number.isdigit()
-        else number
-    )
-    report.record_change(
-        "fanwai_number_to_chinese",
-        member,
-        int(normalized_number != number),
-        number,
-        normalized_number,
-    )
-    normalized = f"{match.group('prefix')}{normalized_number}{separator}{title}"
-    report.record_change(
-        "fanwai_title_separator_normalized",
-        member,
-        int(separator != match.group("separator")),
-        text,
-        normalized,
-    )
-    return normalized
+        number = match.group("number")
+        report.record_change(
+            "fanwai_number_spacing_removed",
+            member,
+            int(bool(match.group("number_spacing"))),
+            text,
+            text.replace(
+                f"{match.group('prefix')}{match.group('number_spacing')}{number}",
+                f"{match.group('prefix')}{number}",
+                1,
+            ),
+        )
+        normalized_number = (
+            _arabic_to_chinese_numeral(int(number))
+            if number.isascii() and number.isdigit()
+            else number
+        )
+        report.record_change(
+            "fanwai_number_to_chinese",
+            member,
+            int(normalized_number != number),
+            number,
+            normalized_number,
+        )
+        normalized = f"{match.group('prefix')}{normalized_number}{separator}{title}"
+        report.record_change(
+            "fanwai_title_separator_normalized",
+            member,
+            int(separator != match.group("separator")),
+            text,
+            normalized,
+        )
+        text = normalized
+
+    if force:
+        prefix = GROUPED_FANWAI_PREFIX_RE.match(text)
+        without_prefix = text[prefix.end() :] if prefix is not None else text
+        if without_prefix:
+            report.record_change(
+                "fanwai_group_prefix_removed",
+                member,
+                int(without_prefix != text),
+                text,
+                without_prefix,
+            )
+            text = without_prefix
+    return text
 
 
 def _normalize_nav_epub_namespace_prefix(
@@ -1358,6 +1424,11 @@ def _normalize_plain_text(
     member: str,
     report: NormalizationReport,
 ) -> str:
+    text = _normalize_chinese_numeral_zero(
+        text,
+        member=member,
+        report=report,
+    )
     if title_punctuation:
         text = _normalize_fanwai_title(
             text,
