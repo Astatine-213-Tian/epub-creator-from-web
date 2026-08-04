@@ -90,6 +90,10 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
   not ordinary body paragraphs.
 - Remove duplicate book title/author boilerplate from intro chapters, such as `《书名》作者：非天夜翔` or standalone `书名 非天夜翔`.
 - Remove repeated book title lines from intros when they duplicate EPUB metadata or reader excerpt headers.
+- Keep `作者有话说` and `作者有话要说` headings in their own paragraph. If a heading is
+  attached to the end of preceding prose, split it before the heading; never
+  merge a preceding paragraph into an author-note paragraph during structural
+  cleanup. Do not treat incidental prose such as `这里作者有话说 4000` as a heading.
 - Remove standalone volume-start markers from chapter bodies when the volume is represented in TOC, for example `卷一：鸿渐于陆`, `# 卷二·魔王`, `银河咏叹曲卷四 波拉利斯`.
 - After parsing a volume marker, do not leave it in the previous chapter's main body. It may exist as a separate generated volume heading in `nav.xhtml`/`toc.ncx`, but it should not appear as reader body text inside the previous chapter or intro unless the user explicitly wants body volume pages.
 - Do not remove prose that merely mentions a volume, such as `第四卷里...`.

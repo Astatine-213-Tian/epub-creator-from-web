@@ -75,6 +75,10 @@ RESOURCE_GROUP_AD_RE = re.compile(
     re.IGNORECASE,
 )
 AUTHOR_NOTE_MARKER_RE = re.compile(r"作者有话(?:要)?说")
+AUTHOR_NOTE_HEADING_RE = re.compile(r"作者有话(?:要)?说(?=\s*[:：])")
+AUTHOR_NOTE_PARAGRAPH_RE = re.compile(
+    r"^\s*作者有话(?:要)?说(?:\s*[:：]|\s+|$)"
+)
 AUTHOR_NOTE_SIGNAL_RE = re.compile(
     r"(?:感谢大家.{0,20}(?:陪伴|支持)|"
     r"本书连载期间|个人志|预售|下本(?:书)?见|晋江同步连载)"
@@ -1668,6 +1672,38 @@ def _visible_fragment_text(fragment: str) -> str:
     return "".join(root.itertext())
 
 
+def _author_note_heading_offset(fragment: str) -> int | None:
+    """Find an author-note heading in a plain-text part of an XHTML fragment."""
+    cursor = 0
+    for token in TOKEN_RE.finditer(fragment):
+        plain = fragment[cursor : token.start()]
+        match = AUTHOR_NOTE_HEADING_RE.search(plain)
+        if match is not None:
+            return cursor + match.start()
+        cursor = token.end()
+    match = AUTHOR_NOTE_HEADING_RE.search(fragment[cursor:])
+    if match is None:
+        return None
+    return cursor + match.start()
+
+
+def _fragment_is_well_formed(fragment: str) -> bool:
+    prefixes = {
+        prefix
+        for prefix in re.findall(r"</?([A-Za-z_][\w.-]*):", fragment)
+        if prefix != "xml"
+    }
+    declarations = "".join(
+        f' xmlns:{prefix}="urn:epub-normalizer:{prefix}"'
+        for prefix in sorted(prefixes)
+    )
+    try:
+        ET.fromstring(f"<root{declarations}>{fragment}</root>")
+    except ET.ParseError:
+        return False
+    return True
+
+
 def _center_paragraph_opening(opening: str) -> str:
     style_match = re.search(r"""(\sstyle\s*=\s*)(["'])(.*?)\2""", opening)
     additions = []
@@ -1695,6 +1731,43 @@ def _normalize_structural_paragraphs(
     while True:
         paragraphs = list(PARAGRAPH_RE.finditer(text))
         replacement: tuple[int, int, str, str, str] | None = None
+        for paragraph in paragraphs:
+            body = paragraph.group("body")
+            marker_offset = _author_note_heading_offset(body)
+            if marker_offset is None:
+                continue
+            before_body = body[:marker_offset].rstrip()
+            author_note_body = body[marker_offset:].lstrip()
+            if not _visible_fragment_text(before_body).strip():
+                continue
+            if not (
+                _fragment_is_well_formed(before_body)
+                and _fragment_is_well_formed(author_note_body)
+            ):
+                continue
+            before = text[paragraph.start() : paragraph.end()]
+            after = (
+                paragraph.group("open")
+                + before_body
+                + paragraph.group("close")
+                + "\n"
+                + paragraph.group("open")
+                + author_note_body
+                + paragraph.group("close")
+            )
+            replacement = (
+                paragraph.start(),
+                paragraph.end(),
+                after,
+                "author_note_paragraph_break_inserted",
+                before,
+            )
+            break
+        if replacement is not None:
+            start, end, after, kind, before = replacement
+            report.record_change(kind, member, 1, before, after)
+            text = text[:start] + after + text[end:]
+            continue
         for first, second in zip(paragraphs, paragraphs[1:]):
             if text[first.end() : second.start()].strip():
                 continue
@@ -1716,7 +1789,11 @@ def _normalize_structural_paragraphs(
                     before,
                 )
                 break
-            if first_text.endswith(("，", ",")) and second_text:
+            if (
+                first_text.endswith(("，", ","))
+                and second_text
+                and AUTHOR_NOTE_PARAGRAPH_RE.match(second_text) is None
+            ):
                 before = text[first.start() : second.end()]
                 after = (
                     first.group("open")

@@ -629,6 +629,36 @@ class EpubNormalizerTests(unittest.TestCase):
                 any(issue.kind == "suspicious_ad" for issue in report.issues)
             )
 
+    def test_author_note_headings_are_kept_on_separate_paragraphs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            epub_path = Path(temp) / "author-note-break.epub"
+            self._write_fixture(
+                epub_path,
+                """<html><body>
+                <p>正文结束。作者有话说：第一条。</p>
+                <p>上一句还没结束，</p>
+                <p>作者有话要说：第二条。</p>
+                <p>这里作者有话说 4000，正文 4000。</p>
+                </body></html>""",
+            )
+
+            report = normalize_epub(epub_path)
+
+            with zipfile.ZipFile(epub_path) as archive:
+                chapter = archive.read("EPUB/chap_01_001.xhtml").decode()
+            self.assertIn("<p>正文结束。</p>\n<p>作者有话说：第一条。</p>", chapter)
+            self.assertIn("<p>上一句还没结束，</p>", chapter)
+            self.assertIn("<p>作者有话要说：第二条。</p>", chapter)
+            self.assertIn("这里作者有话说 4000，正文 4000。", chapter)
+            self.assertEqual(
+                report.change_counts["author_note_paragraph_break_inserted"],
+                1,
+            )
+            self.assertEqual(report.change_counts["comma_paragraph_break_merged"], 0)
+
+            second = normalize_epub(epub_path)
+            self.assertEqual(second.total_changes, 0)
+
 
     def test_trailing_author_notes_and_emoticons_are_excluded_from_anomalies(
         self,
