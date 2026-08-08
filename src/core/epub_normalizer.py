@@ -187,6 +187,10 @@ PARAGRAPH_RE = re.compile(
     r"(?P<close></(?:[A-Za-z_][\w.-]*:)?p>)",
     re.DOTALL,
 )
+ZH_TRANSLATION_CLASS_RE = re.compile(
+    r"\bclass\s*=\s*([\"'])[^\"']*\bzh-translation\b[^\"']*\1",
+    re.IGNORECASE,
+)
 STRAIGHT_DOUBLE_QUOTE_RE = re.compile(
     rf'"([^"\n]*[{HAN_CLASS}][^"\n]*)"'
 )
@@ -829,8 +833,8 @@ def _normalize_ascii_punctuation(
             if not (_is_narrow_alnum(previous) and _is_narrow_alnum(following)) and (
                 _is_han(previous)
                 or _is_han(following)
-                or previous in "”’）》】」』"
-                or following in "“‘《【「『"
+                or previous in ("”", "’", "》", "）", "】", "」", "』")
+                or following in ("“", "‘", "《", "【", "「", "『")
             ):
                 char = "，"
                 comma_count += 1
@@ -1793,6 +1797,8 @@ def _normalize_structural_paragraphs(
                 first_text.endswith(("，", ","))
                 and second_text
                 and AUTHOR_NOTE_PARAGRAPH_RE.match(second_text) is None
+                and ZH_TRANSLATION_CLASS_RE.search(first.group("open")) is None
+                and ZH_TRANSLATION_CLASS_RE.search(second.group("open")) is None
             ):
                 before = text[first.start() : second.end()]
                 after = (

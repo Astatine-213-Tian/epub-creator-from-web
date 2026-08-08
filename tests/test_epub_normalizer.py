@@ -659,6 +659,37 @@ class EpubNormalizerTests(unittest.TestCase):
             second = normalize_epub(epub_path)
             self.assertEqual(second.total_changes, 0)
 
+    def test_bilingual_translation_paragraphs_are_not_merged_across_commas(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            epub_path = Path(temp) / "bilingual-poem.epub"
+            self._write_fixture(
+                epub_path,
+                """<html><body>
+                <p><em>Line one,</em></p>
+                <p class="zh-translation" xml:lang="zh-CN">第一行，</p>
+                <p><em>Line two.</em></p>
+                <p class="zh-translation" xml:lang="zh-CN">第二行。</p>
+                </body></html>""",
+            )
+
+            report = normalize_epub(epub_path)
+
+            with zipfile.ZipFile(epub_path) as archive:
+                chapter = archive.read("EPUB/chap_01_001.xhtml").decode()
+            self.assertRegex(
+                chapter,
+                r'<p><em>Line one,</em></p>\s*'
+                r'<p class="zh-translation" xml:lang="zh-CN">第一行，</p>\s*'
+                r'<p><em>Line two\.</em></p>\s*'
+                r'<p class="zh-translation" xml:lang="zh-CN">第二行。</p>',
+            )
+            self.assertEqual(report.change_counts["comma_paragraph_break_merged"], 0)
+
+            second = normalize_epub(epub_path)
+            self.assertEqual(second.total_changes, 0)
+
 
     def test_trailing_author_notes_and_emoticons_are_excluded_from_anomalies(
         self,
