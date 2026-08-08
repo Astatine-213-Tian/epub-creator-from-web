@@ -1585,7 +1585,7 @@
     },
     "Wind Dragon": {
       "zh": "风龙",
-      "note": "风哲的物名与正式称呼，和幻龙属于同一命名体系。",
+      "note": "印哲的物名与正式称呼，和幻龙属于同一命名体系。",
       "confidence": "high",
       "source_chunk": "18_004"
     },
@@ -1596,10 +1596,11 @@
       "source_chunk": "18_004"
     },
     "Ritsu": {
-      "zh": "风哲",
-      "note": "海国摄政王的古语名；正文说明其含义为风龙，且 tsu 是龙族称号，暂用风哲，等待作者评论确认。",
-      "confidence": "medium",
-      "source_chunk": "18_005"
+      "zh": "印哲",
+      "note": "海国摄政王、闪哲兄长的正式中文名，由 Risk 在 Chapter 016 评论中确认。",
+      "confidence": "high",
+      "source_chunk": "18_005",
+      "source_comment": "220990512"
     }
   },
   "sentence_translations": [
