@@ -135,8 +135,10 @@
       "source_chunk": "10_007"
     },
     "Tidecrest City": {
-      "zh": "潮冠城",
-      "note": "provisional city name"
+      "zh": "望潮城",
+      "note": "Risk 在 Chapter 015 评论中使用的正式中文地名，替换此前暂定的“潮冠城”。",
+      "confidence": "high",
+      "source_comment": "220662913"
     },
     "Whispering Wall": {
       "zh": "低语墙",
@@ -208,10 +210,11 @@
       "source_chunk": "01_001"
     },
     "Divine Words": {
-      "zh": "神言",
-      "note": "指至高造物主被弑后碎裂的神圣力量载体，具有世界观含义。",
-      "confidence": "medium",
-      "source_chunk": "01_001"
+      "zh": "真言",
+      "note": "指至高造物主被弑后碎裂的神圣力量载体；Risk 在 Chapter 015 评论中称魔喉所持 Divine Word 为“真言”。",
+      "confidence": "high",
+      "source_chunk": "01_001",
+      "source_comment": "220663128"
     },
     "Gu Xue Rou": {
       "zh": "顾雪柔",
@@ -388,10 +391,11 @@
       "source_chunk": "04_004"
     },
     "Five Divine Words": {
-      "zh": "五大神言",
-      "note": "由至高造物主创世权能碎裂而成的关键世界观术语。",
-      "confidence": "medium",
-      "source_chunk": "04_004"
+      "zh": "五大真言",
+      "note": "由至高造物主创世权能碎裂而成的关键世界观术语；总称沿用作者确认的“真言”。",
+      "confidence": "high",
+      "source_chunk": "04_004",
+      "source_comment": "220663128"
     },
     "The Gran Lover": {
       "zh": "格兰情人",
@@ -571,10 +575,11 @@
       "source_chunk": "07_002"
     },
     "Divine Word": {
-      "zh": "神言",
-      "note": "世界观宗教术语，出现在魔喉相关符文中，后续应保持统一。",
+      "zh": "真言",
+      "note": "世界观力量术语；Risk 在 Chapter 015 评论中明确称闪哲试图取得魔喉的“真言”。",
       "confidence": "high",
-      "source_chunk": "07_003"
+      "source_chunk": "07_003",
+      "source_comment": "220663128"
     },
     "kassan stone": {
       "zh": "卡桑石",
@@ -1347,15 +1352,17 @@
     },
     "phantom dragon": {
       "zh": "幻龙",
-      "note": "原文明确定义其为闪哲之名在古千海语中的含义，属于角色命名设定，需要固定译法。",
+      "note": "原文明确定义其为闪哲之名在古千海语中的含义；Risk 在 Chapter 015 评论中补充，“龙”是望潮城的高阶职位。",
       "confidence": "high",
-      "source_chunk": "13_004"
+      "source_chunk": "13_004",
+      "source_comment": "220662644"
     },
     "Tidecrest": {
-      "zh": "潮冠城",
-      "note": "此处作为派出间谍的地点简称独立出现，需要确认其与Tidecrest City为同一实体并固定简称译法。",
-      "confidence": "medium",
-      "source_chunk": "13_004"
+      "zh": "望潮城",
+      "note": "Tidecrest 与 Tidecrest City 指同一地点；Risk 在 Chapter 015 评论中确认正式中文名为“望潮城”。",
+      "confidence": "high",
+      "source_chunk": "13_004",
+      "source_comment": "220662913"
     },
     "Take my soul. You’re my only god.": {
       "zh": "将我灵魂取去，你是我唯一的神。",
@@ -1365,10 +1372,11 @@
       "source_comment": "219216887"
     },
     "Divine Word of Destruction": {
-      "zh": "毁灭神言",
-      "note": "反复出现的特定神言名称，需与其他神言保持明确区分。",
+      "zh": "毁灭真言",
+      "note": "第一道真言的正式名称；总称沿用作者确认的“真言”。",
       "confidence": "high",
-      "source_chunk": "14_001"
+      "source_chunk": "14_001",
+      "source_comment": "220663128"
     },
     "Yngvarr": {
       "zh": "熊爵",
@@ -1383,6 +1391,215 @@
       "confidence": "high",
       "source_chunk": "10_004",
       "source_comment": "219516522"
+    },
+    "Time Wheel": {
+      "zh": "时间之轮",
+      "note": "闪哲使用的禁术名；Chapter 013 评论沿用“时间之轮”，Risk 回复未作更正。",
+      "confidence": "medium",
+      "source_chunk": "15_003",
+      "source_comment": "219843003"
+    },
+    "Starmere": {
+      "zh": "星湖城",
+      "note": "饶国北部城市；Chapter 013 评论明确称其为星湖城，并与坠星湖并列讨论。",
+      "confidence": "high",
+      "source_chunk": "15_006",
+      "source_comment": "219849799"
+    },
+    "Genesis": {
+      "zh": "万物之始",
+      "note": "闪哲所持武器；Chapter 013 评论使用“万物之始”，Risk 回复未作更正。",
+      "confidence": "high",
+      "source_chunk": "16_005",
+      "source_comment": "219870295",
+      "aliases": [
+        "Genesis—the Origin of All Things",
+        "Origin of All Things"
+      ]
+    },
+    "Terminus": {
+      "zh": "万物之终",
+      "note": "与万物之始成对的另一半武器；按英文对称结构暂定，等待作者评论确认。",
+      "confidence": "medium",
+      "source_chunk": "16_008",
+      "aliases": [
+        "Terminus—the Destination of All Things",
+        "Destination of All Things"
+      ]
+    },
+    "Plain Lake": {
+      "zh": "平湖镇",
+      "note": "锡安出生的小镇；Plain Lake 与 Plain Lake Town 在正文中指同一地点。",
+      "confidence": "high",
+      "source_chunk": "16_006",
+      "aliases": [
+        "Plain Lake Town"
+      ]
+    },
+    "Four-Wild Fields": {
+      "zh": "四荒原",
+      "note": "坠星湖沿岸地域；沿用此前章节已有译名。",
+      "confidence": "medium",
+      "source_chunk": "16_006"
+    },
+    "Divine Word of Soul": {
+      "zh": "灵魂真言",
+      "note": "第五道真言的正式名称；总称沿用作者确认的“真言”。",
+      "confidence": "high",
+      "source_chunk": "16_007",
+      "source_comment": "220663128"
+    },
+    "Ruby River": {
+      "zh": "红宝石河",
+      "note": "坠星湖最东侧的具名支流。",
+      "confidence": "high",
+      "source_chunk": "17_002"
+    },
+    "Greenwood": {
+      "zh": "绿林镇",
+      "note": "饶国东部边境城镇及港口所在地。",
+      "confidence": "medium",
+      "source_chunk": "17_002"
+    },
+    "Caelum": {
+      "zh": "畅空",
+      "note": "闪哲同伴的正式中文名，由 Risk 在 Chapter 015 评论中确认。",
+      "confidence": "high",
+      "source_chunk": "17_003",
+      "source_comment": "220662518"
+    },
+    "Phan": {
+      "zh": "幻",
+      "note": "同伴对幻龙的简称；Chapter 015 评论也据此理解为“幻”。",
+      "confidence": "medium",
+      "source_chunk": "17_003",
+      "source_comment": "220596769"
+    },
+    "Yarin": {
+      "zh": "亚林",
+      "note": "闪哲同伴铁鱼的本名，暂用音译。",
+      "confidence": "medium",
+      "source_chunk": "17_003"
+    },
+    "Ironfish": {
+      "zh": "铁鱼",
+      "note": "Yarin 在古千海语中的名字；Risk 在 Chapter 015 评论中确认正式中文名为“铁鱼”。",
+      "confidence": "high",
+      "source_chunk": "17_003",
+      "source_comment": "220662518"
+    },
+    "Hidden Sea": {
+      "zh": "隐海",
+      "note": "铁鱼原生的具名海域。",
+      "confidence": "medium",
+      "source_chunk": "17_003"
+    },
+    "Raven": {
+      "zh": "乌鸦",
+      "note": "闪哲同伴的正式中文名，由 Risk 在 Chapter 015 评论中确认。",
+      "confidence": "high",
+      "source_chunk": "17_006",
+      "source_comment": "220662518"
+    },
+    "Sirius": {
+      "zh": "天狼",
+      "note": "闪哲同伴的正式中文名，由 Risk 在 Chapter 015 评论中确认。",
+      "confidence": "high",
+      "source_chunk": "17_006",
+      "source_comment": "220662518"
+    },
+    "Isle of Ten Thousand Voices": {
+      "zh": "万声岛",
+      "note": "狭海航线上的具名岛屿。",
+      "confidence": "medium",
+      "source_chunk": "17_008"
+    },
+    "Coral Sea": {
+      "zh": "珊瑚海",
+      "note": "望潮城附近的具名海域。",
+      "confidence": "high",
+      "source_chunk": "17_009"
+    },
+    "Dragon Palace": {
+      "zh": "龙宫",
+      "note": "望潮城王室所在的具名宫殿。",
+      "confidence": "high",
+      "source_chunk": "18_001"
+    },
+    "Dawntide Realm": {
+      "zh": "晨潮之境",
+      "note": "书中对望潮城晨光景观的专名式称谓。",
+      "confidence": "medium",
+      "source_chunk": "18_001"
+    },
+    "Gold Harbor": {
+      "zh": "黄金港",
+      "note": "望潮城的具名港口。",
+      "confidence": "high",
+      "source_chunk": "18_001"
+    },
+    "Ascending Dragon Way": {
+      "zh": "升龙道",
+      "note": "从黄金港进入望潮城的具名道路。",
+      "confidence": "high",
+      "source_chunk": "18_001"
+    },
+    "sea-folk": {
+      "zh": "海民",
+      "note": "望潮城本地族群称谓，与大陆人和龙族区分。",
+      "confidence": "high",
+      "source_chunk": "18_001"
+    },
+    "Deepwater Harbor": {
+      "zh": "深水港",
+      "note": "望潮城附近的具名港口。",
+      "confidence": "medium",
+      "source_chunk": "18_002"
+    },
+    "Ark": {
+      "zh": "方舟",
+      "note": "海国用于大暴雪避难的巨舰。",
+      "aliases": [
+        "The Ark"
+      ],
+      "confidence": "high",
+      "source_chunk": "18_003"
+    },
+    "Star Lantern Festival": {
+      "zh": "星灯节",
+      "note": "海国的具名节庆。",
+      "confidence": "high",
+      "source_chunk": "18_003"
+    },
+    "Eagle Warriors": {
+      "zh": "鹰武士",
+      "note": "骑乘战鹰守卫望潮城和龙宫的武士。",
+      "confidence": "high",
+      "source_chunk": "18_004"
+    },
+    "Obsidian": {
+      "zh": "黑曜石",
+      "note": "荣的物名，正文明确说明其含义。",
+      "confidence": "high",
+      "source_chunk": "18_004"
+    },
+    "Wind Dragon": {
+      "zh": "风龙",
+      "note": "风哲的物名与正式称呼，和幻龙属于同一命名体系。",
+      "confidence": "high",
+      "source_chunk": "18_004"
+    },
+    "Rong": {
+      "zh": "荣",
+      "note": "宫廷大总管的古语名，暂用音译，等待作者评论确认。",
+      "confidence": "medium",
+      "source_chunk": "18_004"
+    },
+    "Ritsu": {
+      "zh": "风哲",
+      "note": "海国摄政王的古语名；正文说明其含义为风龙，且 tsu 是龙族称号，暂用风哲，等待作者评论确认。",
+      "confidence": "medium",
+      "source_chunk": "18_005"
     }
   },
   "sentence_translations": [
@@ -1419,6 +1636,33 @@
       "note": "Risk reply translating Tetsu's Chapter 008 confession; preserve the supplied wording as one source paragraph.",
       "confidence": "high",
       "source_comment": "219216887"
+    },
+    {
+      "source": [
+        "Thou art an emissary from far-flung realms,",
+        "The keeper of the Eternal Gate,",
+        "A child of the world.",
+        "When descends the tide of frost that sweeps across the ages,",
+        "Rendering all between heaven and earth to naught,",
+        "Across the boundless ice I see thee approach, come to bear me away.",
+        "But whither could we possibly fly?",
+        "Within this dark, we can but kindle a fire of the soul,",
+        "And cling to one another till dawn breaks."
+      ],
+      "zh": [
+        "你是远方的执行者。",
+        "永恒之门的守门人，",
+        "你是世界的孩子。",
+        "当席卷岁月的寒潮来到之时，",
+        "天地再无痕迹。",
+        "你在无垠的冰面上朝我走来，带我离开。",
+        "可我们又能去往何处？",
+        "只能在当下生起灵魂之火",
+        "依偎到天明。"
+      ],
+      "note": "Risk 在 Chapter 015 评论中给出的九行诗官方中文版本；按连续诗节逐行保护。",
+      "confidence": "high",
+      "source_comment": "220662849"
     }
   ],
   "translation_run": {
