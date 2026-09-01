@@ -1601,6 +1601,145 @@
       "confidence": "high",
       "source_chunk": "18_005",
       "source_comment": "220990512"
+    },
+    "Meteor": {
+      "zh": "流星",
+      "note": "时间之神刹那的司命；英文名同时是其固定人物名。",
+      "confidence": "medium",
+      "source_chunk": "19_001"
+    },
+    "Blossom Terrace": {
+      "zh": "繁花台",
+      "note": "升龙道附近用于会面的具名地点。",
+      "confidence": "medium",
+      "source_chunk": "19_001"
+    },
+    "Dragon Guard": {
+      "zh": "龙卫",
+      "note": "守卫龙宫的具名组织。",
+      "confidence": "medium",
+      "source_chunk": "19_003"
+    },
+    "Lamorin": {
+      "zh": "拉莫林",
+      "note": "印哲与闪哲的先祖姓名，暂用音译，等待作者评论确认。",
+      "confidence": "medium",
+      "source_chunk": "19_004"
+    },
+    "Void": {
+      "zh": "虚空",
+      "note": "第三道真言的正式名称；沿用 Chapter 013 已有译名。",
+      "confidence": "high",
+      "source_chunk": "15_006"
+    },
+    "Divine Word of Void": {
+      "zh": "虚空真言",
+      "note": "第三道真言的完整称谓；与既有“虚空”名称保持一致。",
+      "confidence": "high",
+      "source_chunk": "15_006"
+    },
+    "Dream": {
+      "zh": "梦",
+      "note": "第四道真言的正式名称；沿用 Chapter 009 已有译名。",
+      "confidence": "high",
+      "source_chunk": "11_002"
+    },
+    "Four Gods": {
+      "zh": "四神",
+      "note": "至高造物主陨落后分别持有一道真言的四位新神合称。",
+      "confidence": "high",
+      "source_chunk": "20_002"
+    },
+    "So Close, Yet So Far": {
+      "zh": "咫尺天涯",
+      "note": "《永恒之门》第一卷正式中文卷名，由 Risk 在 Chapter 018 评论中确认。",
+      "confidence": "high",
+      "source_comment": "221715840"
+    },
+    "Fleet Chess": {
+      "zh": "舰队棋",
+      "note": "海国流行的具名棋类游戏，棋子模拟舰队穿越洋流、暗礁和岛屿交战。",
+      "confidence": "high",
+      "source_chunk": "21_003"
+    },
+    "Divine Throne": {
+      "zh": "神座",
+      "note": "供司命侍奉神明、举行神圣会面的具名场所；与普通王座区分。",
+      "confidence": "high",
+      "source_chunk": "22_001"
+    },
+    "Grand Admiral Vesper": {
+      "zh": "暮阳大提督",
+      "note": "幻龙结义兄弟之一的物名与正式军衔组合；Risk 确认其物名为“暮阳”，两位大提督分别名为朝阳与暮阳。",
+      "confidence": "high",
+      "source_chunk": "22_001",
+      "source_comment": "223111992"
+    },
+    "God-Slaying Blade": {
+      "zh": "弑神之刃",
+      "note": "幻龙用来弑神并救下锡安的具名武器。",
+      "confidence": "high",
+      "source_chunk": "22_002"
+    },
+    "All Things": {
+      "zh": "万物",
+      "note": "原初之剑的正式名称，与其重铸后的万物之始、万物之终相对应。",
+      "confidence": "high",
+      "source_chunk": "23_001"
+    },
+    "Isle of Ending": {
+      "zh": "终末岛",
+      "note": "海国王族继承万物之始的神坛所在岛屿。",
+      "confidence": "high",
+      "source_chunk": "23_001"
+    },
+    "Heavenly Kingdom": {
+      "zh": "天国",
+      "note": "传说中可能位于永恒之门彼端的世界。",
+      "confidence": "medium",
+      "source_chunk": "23_002"
+    },
+    "Lone Mountain": {
+      "zh": "孤山",
+      "note": "幻象之神俱灵所属的具名地域。",
+      "confidence": "high",
+      "source_chunk": "23_003"
+    },
+    "Salt City": {
+      "zh": "盐城",
+      "note": "流星位于狭海彼岸的故乡。",
+      "confidence": "high",
+      "source_chunk": "23_003"
+    },
+    "Amber Island": {
+      "zh": "琥珀岛",
+      "note": "流星幼年遭遇船难的岛屿。",
+      "confidence": "high",
+      "source_chunk": "23_003"
+    },
+    "Hall of Kings": {
+      "zh": "历代王殿",
+      "note": "龙宫内、神座外悬挂千海历代君王画像的具名殿堂。",
+      "confidence": "medium",
+      "source_chunk": "24_002"
+    },
+    "thing-name": {
+      "zh": "物名",
+      "note": "与古语姓名并列的世界观命名类别。",
+      "confidence": "medium",
+      "source_chunk": "24_002"
+    },
+    "White Dragon": {
+      "zh": "白龙",
+      "note": "拉莫林自述的固定物名。",
+      "confidence": "high",
+      "source_chunk": "24_002"
+    },
+    "Dragon Riders": {
+      "zh": "龙骑士",
+      "note": "由拉莫林领导、继承弑神者与龙族古老契约的正式群体称谓。",
+      "confidence": "medium",
+      "source_chunk": "24_006"
     }
   },
   "sentence_translations": [
