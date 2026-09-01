@@ -15,6 +15,19 @@ def clean_text(text: str) -> str:
     return SPACE_RE.sub(" ", text.replace("\u00a0", " ")).strip()
 
 
+def deduplicate_comments(comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    unique: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for comment in comments:
+        comment_id = clean_text(str(comment.get("id") or ""))
+        if comment_id and comment_id in seen_ids:
+            continue
+        if comment_id:
+            seen_ids.add(comment_id)
+        unique.append(comment)
+    return unique
+
+
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

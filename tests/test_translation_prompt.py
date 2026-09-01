@@ -46,28 +46,40 @@ class TranslationPromptTests(unittest.TestCase):
         serialized_payload = prompt.split("INPUT JSON:\n", 1)[1]
         self.assertEqual(json.loads(serialized_payload), payload)
 
-    def test_authoritative_chinese_comments_still_survive_budget_selection(self) -> None:
+    def test_comment_context_keeps_only_chinese_authoritative_reply_threads(self) -> None:
         comments = [
             {
+                "id": "reader-question",
                 "author": "reader",
-                "body": "普通读者评论",
-                "created": "2026-01-03",
-            },
-            {
-                "author": "Risk",
-                "body": "名字翻译为司命。",
+                "body": "这个名字的中译是什么？",
                 "created": "2026-01-01",
             },
             {
-                "author": "creator-account",
-                "body": "设定中这个称号就是司命。",
-                "is_by_creator": True,
+                "id": "risk-reply",
+                "parent_id": "reader-question",
+                "author": "Risk",
+                "body": "名字翻译为司命。",
                 "created": "2026-01-02",
             },
             {
+                "id": "unanswered-reader",
+                "author": "reader",
+                "body": "普通读者评论，不应进入提示。",
+                "created": "2026-01-03",
+            },
+            {
+                "id": "creator-standalone",
+                "author": "creator-account",
+                "body": "设定中这个称号就是司命。",
+                "is_by_creator": True,
+                "created": "2026-01-04",
+            },
+            {
+                "id": "english-risk-reply",
+                "parent_id": "unanswered-reader",
                 "author": "Risk",
                 "body": "English-only comments are not translation notes.",
-                "created": "2026-01-04",
+                "created": "2026-01-05",
             },
         ]
 
@@ -80,8 +92,8 @@ class TranslationPromptTests(unittest.TestCase):
         self.assertEqual(
             notes,
             [
-                "Risk: 名字翻译为司命。",
-                "creator-account: 设定中这个称号就是司命。",
+                "reader: 这个名字的中译是什么？",
+                "Risk reply_to=reader-question: 名字翻译为司命。",
             ],
         )
 

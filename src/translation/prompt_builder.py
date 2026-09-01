@@ -74,7 +74,7 @@ SEMANTIC DRAFT GOAL:
 CONTEXT RULES:
 - source_context describes the project-level translation premise.
 - context_before/context_after are only for understanding local continuity.
-- comment_notes contains Chinese comments/replies from the chapter, preserving commenter names.
+- comment_notes contains Chinese reader-comment threads where Risk, Via Lactea Press Inc., or the creator replied, preserving the parent comment and authoritative reply.
 - Treat comments by Risk, Via Lactea Press Inc., or the creator as authoritative for names, poems, and worldbuilding.
 - If a comment gives an explicit Chinese translation for a quoted line or poem, use that wording unless it conflicts with the glossary.
 - Preserve glossary terms exactly unless the English context proves a different sense.

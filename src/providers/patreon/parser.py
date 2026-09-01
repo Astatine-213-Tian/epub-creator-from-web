@@ -20,7 +20,7 @@ import zendriver as zd
 import requests
 from bs4 import BeautifulSoup
 
-from src.crawl.snapshot import CRAWL_SCHEMA_VERSION, write_json
+from src.crawl.snapshot import CRAWL_SCHEMA_VERSION, deduplicate_comments, write_json
 from src.core.epub_writer import is_scene_break_text, render_scene_break, write_epub
 from src.core.models import Chapter, Volume
 from src.fetch.browser import resolve_browser_executable
@@ -849,7 +849,7 @@ async def fetch_post_comments_authenticated(
                 if reply is not None:
                     comments.append(_flatten_comment(reply, users, parent_id=parent["id"]))
         url = (data.get("links") or {}).get("next")
-    return comments
+    return deduplicate_comments(comments)
 
 
 def _chapter_from_post(post_ref: PostRef, data: dict[str, Any]) -> Chapter:
