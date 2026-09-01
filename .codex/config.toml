@@ -5,3 +5,6 @@ approval_policy = "never"
 [mcp_servers.vercel]
 url = "https://mcp.vercel.com"
 enabled = false
+
+[plugins."ponytail@ponytail"]
+enabled = false
