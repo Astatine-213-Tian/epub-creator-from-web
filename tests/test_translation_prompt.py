@@ -4,7 +4,7 @@ import json
 import unittest
 
 from src.translation.codex_cli import _candidates_from
-from src.translation.comments import selected_comment_notes
+from src.translation.comments import authoritative_reply_threads
 from src.translation.glossary import glossary_terms, matched_terms
 from src.translation.prompt_builder import build_translation_prompt
 
@@ -21,7 +21,6 @@ class TranslationPromptTests(unittest.TestCase):
                     "confidence": "high",
                 }
             ],
-            "comment_notes": ["Risk: Oracle 的固定中译是司命。"],
             "items": [
                 {
                     "index": 1,
@@ -39,14 +38,29 @@ class TranslationPromptTests(unittest.TestCase):
         self.assertIn("The default is an empty list", prompt)
         self.assertIn('Ordinary examples to omit include "dried ginger"', prompt)
         self.assertIn('An invented herb such as "suluo root"', prompt)
-        self.assertIn("Authoritative comments can establish the Chinese rendering", prompt)
+        self.assertIn(
+            "maintained glossary and sentence_translations are the only",
+            prompt,
+        )
+        self.assertIn("Raw source comments are reviewed separately", prompt)
         self.assertIn("a separate protected-quotation layer", prompt)
         self.assertIn("not a source of glossary_candidates", prompt)
         self.assertIn("Omit low-confidence candidates entirely", prompt)
         serialized_payload = prompt.split("INPUT JSON:\n", 1)[1]
         self.assertEqual(json.loads(serialized_payload), payload)
 
-    def test_comment_context_keeps_only_chinese_authoritative_reply_threads(self) -> None:
+    def test_prompt_rejects_raw_comment_context(self) -> None:
+        with self.assertRaisesRegex(ValueError, "raw comment context"):
+            build_translation_prompt(
+                {
+                    "comment_notes": ["Risk: Oracle 的固定中译是司命。"],
+                    "items": [],
+                }
+            )
+
+    def test_comment_evidence_keeps_only_chinese_authoritative_reply_threads(
+        self,
+    ) -> None:
         comments = [
             {
                 "id": "reader-question",
@@ -60,6 +74,20 @@ class TranslationPromptTests(unittest.TestCase):
                 "author": "Risk",
                 "body": "名字翻译为司命。",
                 "created": "2026-01-02",
+            },
+            {
+                "id": "translation-editor-reply",
+                "parent_id": "reader-question",
+                "author": "pengiesama",
+                "body": "Zion：锡安；Tetsu：闪哲。",
+                "created": "2026-01-02T01:00:00",
+            },
+            {
+                "id": "unverified-translator-reply",
+                "parent_id": "reader-question",
+                "author": "unknown-account",
+                "body": "我是翻译，名字是错误答案。",
+                "created": "2026-01-02T02:00:00",
             },
             {
                 "id": "unanswered-reader",
@@ -83,17 +111,36 @@ class TranslationPromptTests(unittest.TestCase):
             },
         ]
 
-        notes = selected_comment_notes(
-            comments,
-            {"Oracle": "司命"},
-            char_budget=1,
-        )
+        threads = authoritative_reply_threads(comments)
 
         self.assertEqual(
-            notes,
+            threads,
             [
-                "reader: 这个名字的中译是什么？",
-                "Risk reply_to=reader-question: 名字翻译为司命。",
+                {
+                    "parent": {
+                        "id": "reader-question",
+                        "parent_id": None,
+                        "author": "reader",
+                        "body": "这个名字的中译是什么？",
+                        "created": "2026-01-01",
+                    },
+                    "authoritative_replies": [
+                        {
+                            "id": "risk-reply",
+                            "parent_id": "reader-question",
+                            "author": "Risk",
+                            "body": "名字翻译为司命。",
+                            "created": "2026-01-02",
+                        },
+                        {
+                            "id": "translation-editor-reply",
+                            "parent_id": "reader-question",
+                            "author": "pengiesama",
+                            "body": "Zion：锡安；Tetsu：闪哲。",
+                            "created": "2026-01-02T01:00:00",
+                        }
+                    ],
+                }
             ],
         )
 

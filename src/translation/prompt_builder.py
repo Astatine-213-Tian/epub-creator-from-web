@@ -4,9 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.crawl.snapshot import load_chapter, load_comments, load_manifest, snapshot_chapter_ids, write_json
+from src.crawl.snapshot import (
+    load_chapter,
+    load_manifest,
+    snapshot_chapter_ids,
+    write_json,
+)
 from src.core.output import repo_root
-from src.translation.comments import selected_comment_notes
 from src.translation.glossary import glossary_terms, matched_terms
 from src.translation.sentence_translations import sentence_translation_entries
 
@@ -31,6 +35,11 @@ def load_existing_translations(path: Path | None, chapter_id: str) -> dict[int, 
 
 
 def build_translation_prompt(payload: dict[str, Any], *, style_name: str = "") -> str:
+    if "comment_notes" in payload:
+        raise ValueError(
+            "raw comment context is not allowed in translation prompts; "
+            "review authoritative replies into the maintained glossary first"
+        )
     label = f" for {style_name}" if style_name else ""
     header = f"""You are producing a semantic Chinese draft from an English fantasy/danmei novel{label}.
 
@@ -47,14 +56,13 @@ GLOSSARY CANDIDATE CONTRACT:
 - glossary_candidates is a conservative proposal list, not a list of vocabulary translated in this chunk.
 - The default is an empty list. Most chunks should return no candidates. Never add candidates merely to fill the field.
 - A candidate is eligible only when its source is an exact span from a current items[].english value, it is not already covered by the supplied glossary or an alias, and a fixed Chinese rendering is needed for story-level consistency.
-- Eligible candidates are limited to story entities and proper names; named places, organizations, events, texts, and artifacts; invented species, materials, objects, rituals, or worldbuilding concepts; context-specific formal titles or ranks with a non-obvious Chinese rendering; and canonical translations explicitly established by an authoritative comment.
+- Eligible candidates are limited to story entities and proper names; named places, organizations, events, texts, and artifacts; invented species, materials, objects, rituals, or worldbuilding concepts; and context-specific formal titles or ranks with a non-obvious Chinese rendering.
 - A standalone proper-name form may be proposed when an existing longer glossary entry does not already cover it as an alias.
 - Exclude ordinary dictionary vocabulary even when it repeats: common animals, foods, real herbs, clothing, weapons, buildings, objects, jobs, actions, descriptions, body parts, and natural phenomena are not glossary terms.
 - Exclude author, translator, editor, or platform metadata; publication notices; full sentences; incidental descriptive phrases; and compositional phrases whose Chinese follows mechanically from existing glossary entries.
 - Recurrence or a guess that something "may recur" is not sufficient. The reason must identify the specific naming, identity, worldbuilding, or ambiguity risk that requires a canonical translation.
 - Do not infer a title or term by extracting an ambiguous subphrase from a larger phrase. For example, do not infer "grand scholars" as a rank merely from "grand scholars' tent" unless the current items independently establish that rank.
 - Ordinary examples to omit include "dried ginger", "ephedra", "torch", "spring thaw", and "cavern". An invented herb such as "suluo root", a named organization, or an author-confirmed non-literal office such as "Oracle" may qualify.
-- Authoritative comments can establish the Chinese rendering and high confidence, but the English source term must still appear in a current item and satisfy the eligibility rules above.
 - Use high confidence only for explicit authoritative evidence or an unmistakable proper/invented term. Use medium for a clearly eligible term whose rendering still needs review. Omit low-confidence candidates entirely.
 - Return at most five candidates, ordered by importance.
 
@@ -74,9 +82,8 @@ SEMANTIC DRAFT GOAL:
 CONTEXT RULES:
 - source_context describes the project-level translation premise.
 - context_before/context_after are only for understanding local continuity.
-- comment_notes contains Chinese reader-comment threads where Risk, Via Lactea Press Inc., or the creator replied, preserving the parent comment and authoritative reply.
-- Treat comments by Risk, Via Lactea Press Inc., or the creator as authoritative for names, poems, and worldbuilding.
-- If a comment gives an explicit Chinese translation for a quoted line or poem, use that wording unless it conflicts with the glossary.
+- The maintained glossary and sentence_translations are the only terminology and authoritative-quotation inputs.
+- Raw source comments are reviewed separately and must not appear in this prompt.
 - Preserve glossary terms exactly unless the English context proves a different sense.
 - Use Chinese dialogue punctuation.
 
@@ -107,7 +114,6 @@ def prepare_prompts(
     source_context = str(config.get("source_context") or translation_config.get("source_context") or "")
     chunk_size = int(translation_config.get("chunk_size") or 30)
     context_window = int(translation_config.get("context_paragraphs") or 5)
-    comment_budget = int(translation_config.get("comment_char_budget") or 10000)
     use_existing_in_prompt = bool(translation_config.get("use_existing_translations_in_prompt"))
     existing_dir = (
         (
@@ -128,8 +134,6 @@ def prepare_prompts(
     for chapter_id in snapshot_chapter_ids(manifest):
         chapter = load_chapter(snapshot_dir, manifest, chapter_id)
         paragraphs = sorted(chapter.get("paragraphs") or [], key=lambda item: int(item["index"]))
-        comments = load_comments(snapshot_dir, manifest, chapter_id)
-        comment_notes = selected_comment_notes(comments, terms, char_budget=comment_budget)
         current = load_existing_translations(existing_dir, chapter_id)
 
         by_index = {int(item["index"]): item for item in paragraphs}
@@ -167,7 +171,6 @@ def prepare_prompts(
                 "chapter_title": chapter.get("title") or "",
                 "glossary": terms,
                 "sentence_translations": sentence_translations,
-                "comment_notes": comment_notes,
                 "items": input_items,
             }
             prompt = build_translation_prompt(

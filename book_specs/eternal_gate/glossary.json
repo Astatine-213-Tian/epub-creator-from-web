@@ -8,18 +8,24 @@
     },
     "Zion": {
       "zh": "锡安",
-      "note": "comment-confirmed"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文名；其团队身份另由出版社评论 219524341 确认。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Tetsu": {
       "zh": "闪哲",
-      "note": "comment-confirmed; avoid 铁子 except joke contexts",
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文名；避免在非玩笑语境使用“铁子”。",
+      "confidence": "high",
+      "source_comment": "216416766",
       "aliases": [
         "Tesut"
       ]
     },
     "Oracle": {
       "zh": "司命",
-      "note": "user-provided canonical title",
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文称号。",
+      "confidence": "high",
+      "source_comment": "216416766",
       "aliases": [
         "the Oracle"
       ]
@@ -30,11 +36,15 @@
     },
     "Whispermaw": {
       "zh": "魔喉",
-      "note": "comment usage 魔喉; god name"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文神名。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Rao": {
       "zh": "饶",
-      "note": "country name; Kingdom of Rao -> 饶国"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文国名词根；Kingdom of Rao 译为饶国。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Kingdom of Rao": {
       "zh": "饶国",
@@ -54,7 +64,9 @@
     },
     "Springvale": {
       "zh": "春泽",
-      "note": "user-provided canonical name"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文地名。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Springvale City": {
       "zh": "春泽城",
@@ -62,11 +74,15 @@
     },
     "Chamon": {
       "zh": "车文",
-      "note": "user-provided canonical name"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文名。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Mongsih": {
       "zh": "蒙汜",
-      "note": "user-provided canonical name"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文名。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "House Mongsih": {
       "zh": "蒙汜家族",
@@ -90,7 +106,9 @@
     },
     "Laurent": {
       "zh": "隆让",
-      "note": "user-provided canonical name"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文名。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Grand General Laurent": {
       "zh": "大将军隆让",
@@ -110,15 +128,21 @@
     },
     "Legionsoul": {
       "zh": "俱灵",
-      "note": "user-provided canonical deity name"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文神名。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Aeonflare": {
       "zh": "刹那",
-      "note": "user-provided canonical deity name"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文神名。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Choros": {
       "zh": "绰罗斯",
-      "note": "user-provided canonical deity/name"
+      "note": "Via Lactea 英文版 proofreader/editor Pengie 经作者许可公布的官方中文神名。",
+      "confidence": "high",
+      "source_comment": "216416766"
     },
     "Sea Nation": {
       "zh": "海国",
@@ -1352,10 +1376,10 @@
     },
     "phantom dragon": {
       "zh": "幻龙",
-      "note": "原文明确定义其为闪哲之名在古千海语中的含义；Risk 在 Chapter 015 评论中补充，“龙”是望潮城的高阶职位。",
+      "note": "闪哲在古千海语中的名字；Risk 在评论中直接使用并认可“幻龙”。",
       "confidence": "high",
       "source_chunk": "13_004",
-      "source_comment": "220662644"
+      "source_comment": "220991044"
     },
     "Tidecrest": {
       "zh": "望潮城",
@@ -1444,10 +1468,10 @@
     },
     "Divine Word of Soul": {
       "zh": "灵魂真言",
-      "note": "第五道真言的正式名称；总称沿用作者确认的“真言”。",
+      "note": "第五道真言的正式名称；Risk 在评论中直接使用“灵魂真言”。",
       "confidence": "high",
       "source_chunk": "16_007",
-      "source_comment": "220663128"
+      "source_comment": "219903180"
     },
     "Ruby River": {
       "zh": "红宝石河",
@@ -1675,6 +1699,27 @@
       "source_chunk": "22_001",
       "source_comment": "223111992"
     },
+    "Vesper": {
+      "zh": "暮阳",
+      "note": "暮阳大提督的物名；Risk 确认两位大提督分别名为朝阳与暮阳。",
+      "confidence": "high",
+      "source_chunk": "26_001",
+      "source_comment": "223111992"
+    },
+    "Grand Admiral Aurin": {
+      "zh": "朝阳大提督",
+      "note": "幻龙阵营的大提督；Risk 确认两位大提督分别名为朝阳与暮阳。",
+      "confidence": "high",
+      "source_chunk": "26_001",
+      "source_comment": "223111992"
+    },
+    "Aurin": {
+      "zh": "朝阳",
+      "note": "朝阳大提督的物名；Risk 确认两位大提督分别名为朝阳与暮阳。",
+      "confidence": "high",
+      "source_chunk": "26_001",
+      "source_comment": "223111992"
+    },
     "God-Slaying Blade": {
       "zh": "弑神之刃",
       "note": "幻龙用来弑神并救下锡安的具名武器。",
@@ -1740,6 +1785,48 @@
       "note": "由拉莫林领导、继承弑神者与龙族古老契约的正式群体称谓。",
       "confidence": "medium",
       "source_chunk": "24_006"
+    },
+    "Pearl": {
+      "zh": "珍珠",
+      "note": "望潮城四位总督之一的物名；按英文物名直译，等待作者确认。",
+      "confidence": "medium",
+      "source_chunk": "26_002"
+    },
+    "Coral": {
+      "zh": "珊瑚",
+      "note": "望潮城四位总督之一的物名；按英文物名直译，等待作者确认。",
+      "confidence": "medium",
+      "source_chunk": "26_002"
+    },
+    "Kassan": {
+      "zh": "卡桑",
+      "note": "望潮城四位总督之一的物名；与已维护的卡桑石用词一致，等待作者确认人物物名。",
+      "confidence": "medium",
+      "source_chunk": "26_002"
+    },
+    "Gold": {
+      "zh": "黄金",
+      "note": "望潮城四位总督之一的物名；按英文物名直译，等待作者确认。",
+      "confidence": "medium",
+      "source_chunk": "26_002"
+    },
+    "Endless Abyss": {
+      "zh": "无尽深渊",
+      "note": "海国王室举行葬礼的具名地点。",
+      "confidence": "high",
+      "source_chunk": "26_003"
+    },
+    "Echo Mountain": {
+      "zh": "回声山",
+      "note": "无名故乡所在的具名山岳；与范围更广的回声山脉区分。",
+      "confidence": "high",
+      "source_chunk": "24_008"
+    },
+    "Fate": {
+      "zh": "命运",
+      "note": "第六道真言的正式名称。",
+      "confidence": "high",
+      "source_chunk": "26_006"
     }
   },
   "sentence_translations": [
@@ -1750,9 +1837,9 @@
       "zh": [
         "和你相爱，粉身碎骨也值得。"
       ],
-      "note": "user-provided author reply for PanaW's chapter 8 comment; use as the fixed translation of Tetsu's line in chapter 7.",
+      "note": "Risk 对 PanaW 的评论给出的固定中文译文；用于闪哲在 Chapter 007 的原句。",
       "confidence": "high",
-      "source_comment": "217391511"
+      "source_comment": "217451101"
     },
     {
       "source": [
@@ -1763,8 +1850,9 @@
         "若有朝品尝爱情的滋味，",
         "我将舍弃万物，不再奔往永恒之门。"
       ],
-      "note": "user-provided author-confirmed translation for Gran's poem; preserve this wording wherever the two-line quotation appears.",
-      "confidence": "high"
+      "note": "Risk 给出的格兰诗句固定中文译文；凡两行原句出现时均保持该表述。",
+      "confidence": "high",
+      "source_comment": "216407413"
     },
     {
       "source": [

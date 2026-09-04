@@ -112,8 +112,10 @@ class ProductionStyleTransferTests(unittest.TestCase):
                     "src.cli.translate.prepare_translation_run",
                     return_value=neutral_run,
                 ),
-                patch("src.cli.translate.validate_translation_run"),
-                patch("src.cli.translate.update_glossary_from_run", return_value=None),
+                patch(
+                    "src.cli.translate.validate_translation_run",
+                    return_value={"glossary_candidate_count": 0},
+                ),
                 patch(
                     "src.cli.translate.prepare_author_style_transfer_run",
                     return_value=style_run,

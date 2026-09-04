@@ -169,6 +169,18 @@ uv run book-crawl "https://www.patreon.com/collection/2218551?view=condensed" \
   --output generated/crawls/eternal_gate
 ```
 
+Extract authoritative publisher/creator reply threads into a review artifact:
+
+```bash
+uv run book-translate comment-evidence generated/crawls/eternal_gate \
+  --config book_specs/eternal_gate/config.json
+```
+
+Review `glossary_comment_evidence.json`, then deliberately record confirmed
+terminology or protected quotations in the maintained glossary.
+Raw comments never enter translation prompts; the semantic translator consumes
+only the reviewed glossary and `sentence_translations` data.
+
 Run the complete production pipeline:
 
 ```bash
@@ -199,6 +211,10 @@ uv run book-translate build-epub generated/crawls/eternal_gate \
   --config book_specs/eternal_gate/config.json \
   -o books/顾雪柔/永恒之门.bilingual.epub
 ```
+
+Neutral validation always writes `glossary_candidates.json` as a review queue.
+It does not mutate the maintained glossary. A candidate becomes canonical only
+after review and an explicit edit to the book spec.
 
 The default model order is `gpt-5.6-sol`, `gpt-5.6-terra`,
 `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.3-codex-spark`, then `gpt-5.4`.

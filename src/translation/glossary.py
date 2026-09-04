@@ -6,9 +6,6 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-from src.crawl.snapshot import write_json
-
-
 _ARTICLE_RE = re.compile(r"^(?:a|an|the)\s+", re.IGNORECASE)
 _WHITESPACE_RE = re.compile(r"\s+")
 
@@ -55,11 +52,6 @@ def _contains_lookup_key(haystack: str, lookup_key: str) -> bool:
     return False
 
 
-def _alias_identity(source: str) -> str:
-    text = unicodedata.normalize("NFKC", source)
-    return _WHITESPACE_RE.sub(" ", text).strip().casefold()
-
-
 def _term_zh(entry: Any) -> str:
     if not isinstance(entry, dict):
         return ""
@@ -71,21 +63,6 @@ def _entry_aliases(entry: dict[str, Any]) -> list[str]:
     if not isinstance(aliases, list):
         return []
     return [str(alias).strip() for alias in aliases if str(alias).strip()]
-
-
-def _add_alias(entry: dict[str, Any], source: str, alias: str) -> bool:
-    alias = alias.strip()
-    if not alias:
-        return False
-    identities = {_alias_identity(source)}
-    existing_aliases = _entry_aliases(entry)
-    identities.update(_alias_identity(item) for item in existing_aliases)
-    if _alias_identity(alias) in identities:
-        return False
-    aliases = existing_aliases
-    aliases.append(alias)
-    entry["aliases"] = aliases
-    return True
 
 
 def _register_lookup(
@@ -120,46 +97,6 @@ def _register_lookup(
             }
         )
     return existing_source
-
-
-def _candidate_conflict(
-    *,
-    source: str,
-    zh: str,
-    existing_source: str,
-    existing_zh: str,
-    lookup_key: str,
-    candidate: dict[str, Any],
-) -> dict[str, str]:
-    return {
-        "normalized_key": lookup_key,
-        "source": source,
-        "zh": zh,
-        "existing_source": existing_source,
-        "existing_zh": existing_zh,
-        "reason": str(candidate.get("reason") or "").strip(),
-        "confidence": str(candidate.get("confidence") or "").strip(),
-        "source_chunk": str(candidate.get("chunk_id") or "").strip(),
-    }
-
-
-def _existing_lookup_index(terms: dict[str, Any]) -> dict[str, str]:
-    index: dict[str, str] = {}
-    for source, entry in terms.items():
-        source_text = str(source).strip()
-        zh = _term_zh(entry)
-        if not source_text or not zh:
-            continue
-        lookup_key = normalize_lookup_key(source_text)
-        if not lookup_key:
-            continue
-        index.setdefault(lookup_key, source_text)
-        if isinstance(entry, dict):
-            for alias in _entry_aliases(entry):
-                alias_key = normalize_lookup_key(alias)
-                if alias_key:
-                    index.setdefault(alias_key, source_text)
-    return index
 
 
 def load_glossary(path: Path | None) -> dict[str, Any]:
@@ -206,79 +143,4 @@ def matched_terms(text: str, terms: dict[str, str]) -> dict[str, str]:
         for source, target in terms.items()
         if (lookup_key := normalize_lookup_key(source))
         and _contains_lookup_key(haystack, lookup_key)
-    }
-
-
-def merge_glossary_candidates(
-    *,
-    glossary_path: Path,
-    candidates_path: Path,
-) -> dict[str, int]:
-    glossary = load_glossary(glossary_path)
-    glossary.setdefault("terms", {})
-    terms = glossary["terms"]
-    if not isinstance(terms, dict):
-        raise ValueError(f"glossary terms must be an object: {glossary_path}")
-
-    candidates = json.loads(candidates_path.read_text(encoding="utf-8"))
-    lookup_index = _existing_lookup_index(terms)
-    added = 0
-    kept = 0
-    skipped = 0
-    aliases_added = 0
-    conflicts: list[dict[str, str]] = []
-    for candidate in candidates:
-        if not isinstance(candidate, dict):
-            skipped += 1
-            continue
-        source = str(candidate.get("source") or "").strip()
-        zh = str(candidate.get("zh") or "").strip()
-        if not source or not zh:
-            skipped += 1
-            continue
-
-        lookup_key = normalize_lookup_key(source)
-        if not lookup_key:
-            skipped += 1
-            continue
-        existing_source = lookup_index.get(lookup_key)
-        existing = terms.get(existing_source) if existing_source else None
-        existing_zh = _term_zh(existing)
-        if existing_source and existing_zh:
-            if existing_zh != zh:
-                conflicts.append(
-                    _candidate_conflict(
-                        source=source,
-                        zh=zh,
-                        existing_source=existing_source,
-                        existing_zh=existing_zh,
-                        lookup_key=lookup_key,
-                        candidate=candidate,
-                    )
-                )
-                continue
-            if isinstance(existing, dict) and _add_alias(existing, existing_source, source):
-                aliases_added += 1
-            kept += 1
-            continue
-
-        terms[source] = {
-            "zh": zh,
-            "note": str(candidate.get("reason") or "translation run candidate").strip(),
-            "confidence": str(candidate.get("confidence") or "").strip(),
-            "source_chunk": str(candidate.get("chunk_id") or "").strip(),
-        }
-        lookup_index[lookup_key] = source
-        added += 1
-
-    if conflicts:
-        write_json(candidates_path.with_name("glossary_conflicts.json"), {"conflicts": conflicts})
-    glossary_path.parent.mkdir(parents=True, exist_ok=True)
-    write_json(glossary_path, glossary)
-    return {
-        "added": added,
-        "kept": kept,
-        "skipped": skipped,
-        "aliases_added": aliases_added,
-        "conflicts": len(conflicts),
     }

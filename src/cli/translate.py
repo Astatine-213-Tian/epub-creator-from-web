@@ -7,12 +7,13 @@ from typing import Any
 
 from src.runtime.progress import ProgressLogger, configure_progress
 from src.translation.codex_cli import run_missing_prompts_with_model_fallback
+from src.translation.comments import write_glossary_comment_evidence
 from src.translation.pipeline import (
     build_epub_from_run,
+    default_run_dir,
     load_config,
     prepare_author_style_transfer_run,
     prepare_translation_run,
-    update_glossary_from_run,
     validate_translation_run,
 )
 from src.translation.semantic_compression import (
@@ -130,17 +131,16 @@ def _run_style(
     return summary
 
 
-def _log_glossary(
-    progress: ProgressLogger, summary: dict[str, int] | None
+def _log_glossary_candidates(
+    progress: ProgressLogger,
+    run_dir: Path,
+    summary: dict[str, Any],
 ) -> None:
-    if summary is None:
-        return
+    count = int(summary.get("glossary_candidate_count") or 0)
     progress.info(
-        "updated glossary "
-        f"(added {summary['added']}, kept {summary['kept']}, "
-        f"skipped {summary['skipped']}, "
-        f"aliases {summary.get('aliases_added', 0)}, "
-        f"conflicts {summary.get('conflicts', 0)})"
+        f"wrote {count} glossary candidate(s) to "
+        f"{run_dir.expanduser().resolve() / 'glossary_candidates.json'} for review; "
+        "maintained glossary unchanged"
     )
 
 
@@ -298,6 +298,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--verbose", action="store_true")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    p_comments = sub.add_parser(
+        "comment-evidence",
+        help="Extract authoritative reply threads for glossary review",
+    )
+    p_comments.add_argument("snapshot", type=Path)
+    p_comments.add_argument("--config", type=Path, required=True)
+    p_comments.add_argument("--output", type=Path)
+
     p_prepare = sub.add_parser("prepare", help="Prepare neutral Chinese prompts")
     p_prepare.add_argument("snapshot", type=Path)
     p_prepare.add_argument("--config", type=Path, required=True)
@@ -330,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
     p_transfer.add_argument("--chunk-id", action="append", dest="chunk_ids")
     p_transfer.add_argument("--overwrite", action="store_true")
 
-    p_validate = sub.add_parser("validate", help="Validate and merge run outputs")
+    p_validate = sub.add_parser("validate", help="Validate and assemble run outputs")
     p_validate.add_argument("run_dir", type=Path)
     p_validate.add_argument("--config", type=Path)
     p_validate.add_argument("--allow-missing", action="store_true")
@@ -386,13 +394,34 @@ def main(argv: list[str] | None = None) -> int:
     p_all.add_argument("--overwrite", action="store_true")
     p_all.add_argument("--semantic-qa-overwrite", action="store_true")
     p_all.add_argument("-o", "--output", type=Path)
-    sub.metavar = "{prepare,run,transfer-style,validate,semantic-qa,build-epub,all}"
+    sub.metavar = (
+        "{comment-evidence,prepare,run,transfer-style,validate,semantic-qa,"
+        "build-epub,all}"
+    )
 
     args = parser.parse_args(argv)
     configure_progress(debug=args.verbose)
     progress = ProgressLogger()
 
     try:
+        if args.command == "comment-evidence":
+            config = load_config(args.config)
+            output_path = args.output or (
+                default_run_dir(args.snapshot, config)
+                / "glossary_comment_evidence.json"
+            )
+            progress.section("Authoritative Comment Evidence")
+            evidence = write_glossary_comment_evidence(
+                snapshot_dir=args.snapshot,
+                output_path=output_path,
+            )
+            progress.info(
+                f"wrote {evidence['thread_count']} thread(s) with "
+                f"{evidence['authoritative_reply_count']} authoritative replies "
+                f"to {output_path.expanduser().resolve()} for glossary review"
+            )
+            return 0
+
         if args.command == "prepare":
             config = load_config(args.config)
             progress.section("Prepare Neutral")
@@ -449,7 +478,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "validate":
             config = load_config(args.config) if args.config else None
             progress.section("Validate")
-            _validate_with_optional_semantic_qa(
+            summary = _validate_with_optional_semantic_qa(
                 run_dir=args.run_dir,
                 config=config,
                 allow_missing=args.allow_missing,
@@ -460,10 +489,8 @@ def main(argv: list[str] | None = None) -> int:
                 semantic_overwrite=args.semantic_qa_overwrite,
                 progress=progress,
             )
-            if config and not is_author_style_transfer_run(args.run_dir):
-                _log_glossary(
-                    progress, update_glossary_from_run(config, args.run_dir)
-                )
+            if not is_author_style_transfer_run(args.run_dir):
+                _log_glossary_candidates(progress, args.run_dir, summary)
             return 0
 
         if args.command == "semantic-qa":
@@ -521,14 +548,16 @@ def main(argv: list[str] | None = None) -> int:
                     progress=progress,
                 )
             progress.section("Validate Neutral")
-            validate_translation_run(
+            neutral_summary = validate_translation_run(
                 semantic_run_dir,
                 allow_missing=False,
                 config=config,
                 snapshot_dir=args.snapshot,
             )
-            _log_glossary(
-                progress, update_glossary_from_run(config, semantic_run_dir)
+            _log_glossary_candidates(
+                progress,
+                semantic_run_dir,
+                neutral_summary,
             )
 
             progress.section("Prepare Author Style Transfer")

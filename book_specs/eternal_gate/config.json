@@ -14,8 +14,7 @@
   },
   "translation": {
     "chunk_size": 30,
-    "context_paragraphs": 5,
-    "comment_char_budget": 14000
+    "context_paragraphs": 5
   },
   "style_transfer": {
     "method": "content_plan_combined_full_regeneration",

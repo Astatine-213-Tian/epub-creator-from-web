@@ -7,7 +7,7 @@ from typing import Any
 from src.core.output import repo_root
 from src.crawl.snapshot import load_manifest
 from src.translation.epub_builder import build_bilingual_epub
-from src.translation.glossary import load_glossary, merge_glossary_candidates
+from src.translation.glossary import load_glossary
 from src.translation.prompt_builder import prepare_prompts
 from src.translation.semantic_compression import semantic_qa_summary_is_current
 from src.translation.sentence_translations import apply_sentence_translation_overrides
@@ -132,22 +132,6 @@ def protect_sentence_translations(
         run_dir=run_dir,
         snapshot_dir=snapshot_dir,
         glossary=glossary,
-    )
-
-
-def update_glossary_from_run(config: dict[str, Any], run_dir: Path) -> dict[str, int] | None:
-    glossary_path = config_path(config, "glossary_path")
-    if glossary_path is None:
-        return None
-    candidates_path = run_dir.expanduser() / "glossary_candidates.json"
-    if not candidates_path.exists():
-        raise FileNotFoundError(
-            f"glossary candidates not found: {candidates_path}\n"
-            "Run `book-translate validate ...` before updating the glossary."
-        )
-    return merge_glossary_candidates(
-        glossary_path=glossary_path,
-        candidates_path=candidates_path,
     )
 
 
