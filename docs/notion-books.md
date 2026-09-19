@@ -66,6 +66,8 @@ uv run book-notion resume --state generated/notion_cms_sources/<来源摘要>/im
 - 创建请求结果不确定：根据页面内容核对对应 ID，再修复检查点；不要盲目重建。
 - 同名书已存在：核对书籍身份及原检查点，不覆盖已有书籍。
 - 新爬取与检查点不同：比较本地来源和 Notion 编辑，确认合并后再继续。
+- 疑似重复番外：上传前暂停，在检查点同目录生成 `extra-review.md`。按报告选择
+  复用已有正文或新建，再续传；操作与判定范围见[共享番外](fanwai-notion.md)。
 - 实际顺序不同：在对应手动视图整理为源目录顺序，再续传；不会添加数字排序列。
 - `cover_pending` 表示封面附加结果不确定。核对页面封面及原文件；确认成功后标记
   `cover_uploaded: true` 并移除 `cover_pending`，确认未附加才清除该标记重试。

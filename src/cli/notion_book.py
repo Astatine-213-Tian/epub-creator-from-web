@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from src.notion.cms import CONFIG
+from src.notion.duplicates import resolve_extra
 from src.notion.mcp import (
     AUTH_FILE,
     TokenStore,
@@ -32,12 +33,38 @@ async def resume(state: Path, config_path: Path) -> None:
 
 def run() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["login", "logout", "resume"])
+    parser.add_argument(
+        "command", choices=["login", "logout", "resume", "resolve-extra"]
+    )
     parser.add_argument(
         "--state", type=Path, help="generated/notion_cms_sources/.../import.json"
     )
     parser.add_argument("--config", type=Path, default=CONFIG)
+    parser.add_argument(
+        "--extra", type=int, help="1-based extra index in extra-review.md"
+    )
+    decision = parser.add_mutually_exclusive_group()
+    decision.add_argument("--use-existing", help="Reviewed shared-extra page ID or URL")
+    decision.add_argument(
+        "--create-new",
+        action="store_true",
+        help="Confirm this extra is separate content",
+    )
     args = parser.parse_args()
+    if args.command == "resolve-extra":
+        if (
+            args.state is None
+            or args.extra is None
+            or not (args.use_existing or args.create_new)
+        ):
+            parser.error(
+                "resolve-extra requires --state, --extra and --use-existing or --create-new"
+            )
+        with exclusive_lock(args.state.parent / "import.lock"):
+            resolve_extra(args.state, args.extra, use_existing=args.use_existing)
+        return
+    if args.extra is not None or args.use_existing or args.create_new:
+        parser.error("Duplicate-review options require resolve-extra")
     if args.command == "resume":
         if args.state is None:
             parser.error("resume requires --state")

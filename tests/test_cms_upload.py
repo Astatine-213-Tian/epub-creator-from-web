@@ -201,7 +201,7 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
         config = {
             "databases": {
                 "works": {"data_source_id": DS},
-                "extras": {"data_source_id": "shared", "view_id": "all-extras"},
+                "extras": {"data_source_id": DS, "view_id": "all-extras"},
             }
         }
         rows = {"main": [], "extras": [], "all-extras": []}
@@ -237,6 +237,10 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
             patch("src.notion.upload.ensure_options", new=AsyncMock()),
             patch("src.notion.reader.NotionReader.document", document),
             patch("src.notion.reader.NotionReader.rows", read_rows),
+            patch(
+                "src.notion.reader.NotionReader.view",
+                new=AsyncMock(return_value={"dataSourceUrl": f"collection://{DS}"}),
+            ),
         ):
             state = Path(directory) / "import.json"
             await upload_draft(book, state, config, tools=Tools())

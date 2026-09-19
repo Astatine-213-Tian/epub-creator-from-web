@@ -7,7 +7,6 @@ import copy
 import json
 from pathlib import Path
 
-from src.content.blocks import content_signature
 from src.notion.cms import (
     CONFIG,
     STORAGE,
@@ -16,8 +15,16 @@ from src.notion.cms import (
     ensure_views,
     ensure_work,
 )
+from src.notion.duplicates import fingerprint, preflight_extras
 from src.notion.markdown import from_markdown, to_markdown
-from src.notion.mcp import AUTH_FILE, TokenStore, connect, exclusive_lock, finish
+from src.notion.mcp import (
+    AUTH_FILE,
+    TokenStore,
+    connect,
+    error_message,
+    exclusive_lock,
+    finish,
+)
 from src.notion.reader import NotionReader, notion_id, relation_ids
 from src.runtime.files import digest, write_json
 
@@ -68,9 +75,10 @@ async def upload_row(
         # A completed row now belongs to the editor; never overwrite later edits.
         return
     props, body = await reader.document(item["page_id"])
-    if props.get(title_property) != item["title"] or content_signature(
-        from_markdown(body)
-    ) != content_signature(item["blocks"]):
+    expected = item.get("reuse_fingerprint") or fingerprint(
+        item["title"], item["blocks"]
+    )
+    if fingerprint(props.get(title_property), from_markdown(body)) != expected:
         raise ValueError(
             "CMS draft readback differs from prepared content; reconcile without overwriting edits"
         )
@@ -95,6 +103,10 @@ async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
             "Not a checkpoint for this CMS catalog; old library checkpoints cannot be reused"
         )
     entries = chapter_entries(book)
+    reader = NotionReader(tools)
+    if not book.get("uploaded"):
+        # Resolve possible shared duplicates before creating a work or uploading rows.
+        await preflight_extras(book, state, config, reader)
     if book.get("cover_asset") and not book.get("cover_uploaded"):
         from src.notion.cover import api_token, validate_cover
 
@@ -105,7 +117,6 @@ async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
     if book.get("uploaded"):
         print("Draft already uploaded; later Notion edits are preserved")
         return
-    reader = NotionReader(tools)
     # Existing unknown rows indicate manual edits or an ambiguous earlier create.
     for key, items in [
         ("chapters_view_id", list(book["chapters"].values())),
@@ -141,32 +152,16 @@ async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
             title_property="章节",
             tools=tools,
         )
-    extra_rows = (
-        await reader.rows(config["databases"]["extras"]["view_id"])
-        if book["extras"]
-        else []
-    )
     for item in reversed(book["extras"]):
-        if not item.get("page_id") and not item.get("pending"):
-            matches = []
-            for row in extra_rows:
-                if row.get("番外") != item["title"]:
-                    continue
-                props, body = await reader.document(row["id"])
-                if content_signature(from_markdown(body)) == content_signature(
-                    item["blocks"]
-                ):
-                    matches.append((row["id"], props))
-            if len(matches) > 1:
-                raise ValueError(
-                    "Multiple identical shared extras exist; reconcile before linking"
-                )
-            if matches:
-                id, props = matches[0]
-                item.update(page_id=id, reused=True)
-                write_json(state, book)
         if item.get("reused") and not item.get("verified"):
-            props, _ = await reader.document(item["page_id"])
+            props, body = await reader.document(item["page_id"])
+            expected = item.get("reuse_fingerprint") or fingerprint(
+                item["title"], item["blocks"]
+            )
+            if fingerprint(props.get("番外"), from_markdown(body)) != expected:
+                raise ValueError(
+                    "Shared extra changed after duplicate review; reconcile before linking"
+                )
             works = relation_ids(props.get("涉及作品"))
             if book["work_id"] not in works:
                 await finish(
@@ -255,5 +250,10 @@ def upload_source(
                     await upload_draft(book, state, config, tools=tools)
             print("CMS draft: https://www.notion.so/" + book["work_id"])
 
-        asyncio.run(online())
+        try:
+            asyncio.run(online())
+        except Exception as error:
+            # The MCP transport may wrap domain errors in task groups. Keep the
+            # review warning visible to both ingestion CLIs without SDK internals.
+            raise ValueError(error_message(error)) from None
     return state
