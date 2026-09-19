@@ -21,7 +21,7 @@ REPO_ROOT = RESEARCH_ROOT
 
 from experiments.iteration1 import run_style_transfer_generation as generation
 from experiments.iteration4 import style_transfer_payloads as payloads
-from src.crawl.snapshot import (
+from src.crawler.snapshot import (
     load_chapter,
     load_manifest,
     snapshot_chapter_ids,

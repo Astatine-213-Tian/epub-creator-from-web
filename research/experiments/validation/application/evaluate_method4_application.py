@@ -27,7 +27,7 @@ PRODUCTION_ROOT = REPO_ROOT.parent
 from experiments.validation.application import (  # noqa: E402
     apply_content_plan_combined_to_translation_run as application,
 )
-from src.crawl.snapshot import write_json  # noqa: E402
+from src.crawler.snapshot import write_json  # noqa: E402
 
 
 SCHEMA = "method4_application_evaluation.v1"

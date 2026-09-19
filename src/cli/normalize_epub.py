@@ -3,23 +3,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.core.epub_normalizer import (
-    NormalizationReport,
-    attach_metadata_enrichment,
-    automatic_report_path,
-    normalize_and_review_epub,
-    write_reports,
-)
-from src.metadata.epub_enricher import (
-    DEFAULT_PRIMARY_SUBJECT,
-    MetadataLookup,
-    enrich_epub_metadata,
-)
-
-
-DEFAULT_BACKUP_DIR = Path(
-    "/private/tmp/epub-creator-from-web-codex-backups"
-)
+from src.content.normalization import NormalizationReport
+from src.epub.maintenance import attach_metadata_enrichment, normalize_and_review_epub
+from src.epub.metadata import enrich_epub_metadata
+from src.epub.reports import automatic_report_path, write_reports
+from src.metadata.catalog import DEFAULT_PRIMARY_SUBJECT, MetadataLookup
+from src.runtime.files import DEFAULT_BACKUP_DIR
 
 
 def _epub_paths(values: list[Path]) -> list[Path]:
@@ -39,9 +28,7 @@ def _author_ids(values: list[str]) -> dict[str, str]:
     for value in values:
         author, separator, author_id = value.partition("=")
         if not separator or not author.strip() or not author_id.strip().isdigit():
-            raise ValueError(
-                "--jjwxc-author-id must use AUTHOR=NUMERIC_ID"
-            )
+            raise ValueError("--jjwxc-author-id must use AUTHOR=NUMERIC_ID")
         result[author.strip()] = author_id.strip()
     return result
 

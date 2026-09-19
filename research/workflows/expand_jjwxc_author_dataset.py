@@ -23,10 +23,10 @@ PRODUCTION_ROOT = REPO_ROOT.parent
 if str(PRODUCTION_ROOT) not in sys.path:
     sys.path.insert(0, str(PRODUCTION_ROOT))
 
-from src.core.output import dataset_txt_output_path, safe_path_name
+from src.runtime.paths import dataset_txt_output_path, safe_path_name
 from src.metadata.jjwxc import JjwxcTypeMetadata, parse_article_type
-from src.search import build_previews, search_all
-from src.search.orchestrator import normalize_query_text
+from src.crawler.search import build_previews, search_all
+from src.crawler.search.orchestrator import normalize_query_text
 
 
 BASE_URL = "https://www.jjwxc.net/"

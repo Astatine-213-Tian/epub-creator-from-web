@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from src.providers.zlibrary import parser, search
+from src.crawler.providers.zlibrary import parser, search
 
 
 DETAIL_HTML = """

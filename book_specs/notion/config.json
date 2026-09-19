@@ -1,0 +1,16 @@
+{
+  "databases": {
+    "works": {
+      "data_source_id": "d93e7b9a-4cad-4658-b7c5-bc7a16d68f7a",
+      "view_id": "3deca693-996b-810f-8359-000c8ab94637"
+    },
+    "authors": {
+      "data_source_id": "7858f060-7572-4fce-9694-bfe8353a91b3",
+      "view_id": "3971d493-cea4-4b42-9bec-7e66bba43c9e"
+    },
+    "extras": {
+      "data_source_id": "be35434a-6cbc-47b4-ba00-b87cd04721e7",
+      "view_id": "fec2ddcf-25b5-40f9-a04b-fafedc821a00"
+    }
+  }
+}

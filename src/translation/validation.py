@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.crawl.snapshot import clean_text, write_json
+from src.crawler.snapshot import clean_text, write_json
 from src.translation.codex_cli import extract_json_object
 
 

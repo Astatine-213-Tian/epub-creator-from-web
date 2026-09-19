@@ -1,0 +1,4 @@
+interface:
+  display_name: "Book Management"
+  short_description: "Find, crawl, export and repair books with explicit output choices."
+  default_prompt: "Use $book-management to manage this book and write the requested outputs."

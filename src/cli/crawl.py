@@ -14,13 +14,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("target", help="Collection/book URL to crawl")
     parser.add_argument("--provider", choices=("patreon",), required=True)
-    parser.add_argument("--output", type=Path, required=True, help="Snapshot output directory")
+    parser.add_argument(
+        "--output", type=Path, required=True, help="Snapshot output directory"
+    )
     parser.add_argument("--title", help="Override book title in the snapshot")
     parser.add_argument("--author", help="Override author in the snapshot")
     parser.add_argument("--delay", type=float, default=0.4)
     parser.add_argument("--concurrency", type=int, default=2)
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--no-comments", action="store_true", help="Do not crawl comments")
+    parser.add_argument(
+        "--no-comments", action="store_true", help="Do not crawl comments"
+    )
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
 
@@ -29,10 +33,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.provider == "patreon":
-            from src.providers.patreon import parser as patreon
+            from src.crawler.providers.patreon import parser as patreon
 
             progress.section("Crawl")
-            progress.info(f"provider: patreon")
+            progress.info("provider: patreon")
             progress.info(f"snapshot: {args.output}")
             manifest = asyncio.run(
                 patreon.crawl_snapshot(

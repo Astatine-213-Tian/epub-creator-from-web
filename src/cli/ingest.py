@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Ingest one book for reading, training, or both."""
+"""Crawl one book and write the selected EPUB, Notion draft and/or TXT outputs."""
+
 from __future__ import annotations
 
 import argparse
@@ -7,19 +8,14 @@ import sys
 import zipfile
 from pathlib import Path
 
-from src.cli.dataset import extract_epub_text, upsert_txt_dataset_entry
-from src.cli.validate_epub_chapters import validate_epub
-from src.core.output import dataset_txt_output_path
+from src.crawler.models import CrawlOptions
+from src.crawler.registry import PARSERS, find_parser
+from src.crawler.search import build_previews, choose_preview, search_all
+from src.dataset.library import extract_epub_text, upsert_txt_dataset_entry
+from src.epub.validate import validate_epub
 from src.metadata.jjwxc import GENRES, TIME_AREAS
-from src.providers.registry import PARSERS, ParserOptions, find_parser
 from src.runtime.progress import ProgressLogger, configure_progress
-from src.search import build_previews, choose_preview, search_all
-
-
-def requested_formats(mode: str) -> tuple[str, ...]:
-    if mode == "both":
-        return ("epub", "txt")
-    return (mode,)
+from src.workflows.ingest import OutputOptions, ingest, requested_formats
 
 
 def validate_epub_output(epub_path: Path, *, strict: bool) -> bool:
@@ -40,7 +36,9 @@ def validate_epub_output(epub_path: Path, *, strict: bool) -> bool:
     return True
 
 
-def select_search_target(args: argparse.Namespace, progress: ProgressLogger) -> tuple[str, str | None]:
+def select_search_target(
+    args: argparse.Namespace, progress: ProgressLogger
+) -> tuple[str, str | None]:
     if not args.search:
         if not args.target:
             raise ValueError("target is required unless --search is used")
@@ -81,29 +79,71 @@ def select_search_target(args: argparse.Namespace, progress: ProgressLogger) -> 
 def main(argv: list[str] | None = None) -> int:
     parser_names = [parser.name for parser in PARSERS]
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", nargs="?", help="Book URL, or site-specific id with --parser")
+    parser.add_argument(
+        "target", nargs="?", help="Book URL, or site-specific id with --parser"
+    )
     parser.add_argument(
         "--mode",
-        choices=["epub", "both", "txt"],
-        default="both",
-        help="Ingestion mode. Default: both",
+        "--output-format",
+        action="append",
+        choices=["notion", "epub", "both", "txt"],
+        default=None,
+        help="Output destination; repeat to combine epub, notion and txt. No default. both means epub plus txt",
     )
-    parser.add_argument("-o", "--output", type=Path, help="EPUB output path for epub/both modes")
-    parser.add_argument("--txt-output", type=Path, help="TXT output path for txt/both modes")
+    parser.add_argument(
+        "-o", "--output", type=Path, help="EPUB output path for epub/both modes"
+    )
+    parser.add_argument(
+        "--txt-output", type=Path, help="TXT output path for txt/both modes"
+    )
     parser.add_argument(
         "--dataset-root",
         type=Path,
         default=Path("research/datasets"),
     )
-    parser.add_argument("--parser", choices=parser_names, help="Force a parser for ids or ambiguous URLs")
-    parser.add_argument("--search", help="Search supported providers, preview matches, then choose one")
-    parser.add_argument("--author", help="With --search, pass an author hint to providers that support it")
-    parser.add_argument("--limit", type=int, default=10, help="Maximum search results/previews to show")
-    parser.add_argument("--first", action="store_true", help="With --search, choose the top ranked result")
-    parser.add_argument("--delay", type=float, default=None, help="Seconds to wait between requests")
-    parser.add_argument("--concurrency", type=int, default=None, help="Maximum chapter fetch concurrency where supported")
-    parser.add_argument("--headless", action="store_true", help="Run browser-backed parsers headless where supported")
-    parser.add_argument("--overwrite", action="store_true", help="Replace requested output files")
+    parser.add_argument(
+        "--parser",
+        choices=parser_names,
+        help="Force a parser for ids or ambiguous URLs",
+    )
+    parser.add_argument(
+        "--search", help="Search supported providers, preview matches, then choose one"
+    )
+    parser.add_argument(
+        "--author",
+        help="With --search, pass an author hint to providers that support it",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=10, help="Maximum search results/previews to show"
+    )
+    parser.add_argument(
+        "--first",
+        action="store_true",
+        help="With --search, choose the top ranked result",
+    )
+    parser.add_argument(
+        "--delay", type=float, default=None, help="Seconds to wait between requests"
+    )
+    parser.add_argument(
+        "--request-interval",
+        type=float,
+        default=0.0,
+        help="Minimum interval between xfxs chapter requests",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=None,
+        help="Maximum chapter fetch concurrency where supported",
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run browser-backed parsers headless where supported",
+    )
+    parser.add_argument(
+        "--overwrite", action="store_true", help="Replace requested output files"
+    )
     parser.add_argument("--no-fetch-jjwxc", action="store_true")
     parser.add_argument("--no-codex-classify", action="store_true")
     parser.add_argument(
@@ -116,24 +156,33 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=Path("research/generated/corpus_acquisition/ranking/top50.json"),
     )
-    parser.add_argument("--time-area", choices=TIME_AREAS, help="Manual dataset time-area override")
+    parser.add_argument(
+        "--time-area", choices=TIME_AREAS, help="Manual dataset time-area override"
+    )
     parser.add_argument("--genre", choices=GENRES, help="Manual dataset genre override")
     parser.add_argument(
         "--strict-epub-validation",
         action="store_true",
         help="Return failure on chapter-number validator warnings instead of reporting them as warnings",
     )
-    parser.add_argument("--verbose", action="store_true", help="Show detailed search/preview fetch logs")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Show detailed search/preview fetch logs"
+    )
     args = parser.parse_args(argv)
 
     configure_progress(debug=args.verbose)
     progress = ProgressLogger()
-    formats = requested_formats(args.mode)
-
-    if args.output and "epub" not in formats:
-        parser.error("--output is only valid for epub/both modes")
-    if args.txt_output and "txt" not in formats:
-        parser.error("--txt-output is only valid for txt/both modes")
+    output_options = OutputOptions(
+        output=args.output,
+        txt_output=args.txt_output,
+        output_formats=tuple(args.mode or ()),
+        dataset_root=args.dataset_root if not args.txt_output else None,
+        prevent_overwrite=not args.overwrite,
+    )
+    try:
+        requested_formats(output_options)
+    except ValueError as error:
+        parser.error(str(error))
     if args.author and not args.search:
         parser.error("--author can only be used with --search")
 
@@ -141,46 +190,29 @@ def main(argv: list[str] | None = None) -> int:
         target, parser_name = select_search_target(args, progress)
         spec = find_parser(target, parser_name)
         progress.info(f"using parser: {spec.name}")
-        out_path = spec.run(
+        result = ingest(
             target,
-            ParserOptions(
-                output=args.output,
-                txt_output=args.txt_output,
-                output_formats=formats,
-                dataset_root=args.dataset_root if "txt" in formats and not args.txt_output else None,
-                prevent_overwrite=not args.overwrite,
+            parser=spec,
+            output_options=output_options,
+            crawl_options=CrawlOptions(
                 delay=args.delay,
+                request_interval=args.request_interval,
                 headless=args.headless,
                 concurrency=args.concurrency,
             ),
         )
 
-        epub_path: Path | None = None
+        epub_path = result.epub_path
         title: str | None = None
         author: str | None = None
-        if "epub" in formats:
-            epub_path = out_path
+        if epub_path:
             title, author, _ = extract_epub_text(epub_path)
             if not validate_epub_output(epub_path, strict=args.strict_epub_validation):
                 return 1
 
-        if "txt" in formats:
-            if args.txt_output:
-                txt_path = args.txt_output
-            elif "epub" not in formats:
-                txt_path = out_path
-            else:
-                assert title is not None
-                assert author is not None
-                txt_path = dataset_txt_output_path(
-                    args.dataset_root,
-                    title=title,
-                    author=author,
-                    time_area="",
-                    genre="",
-                )
+        if result.txt_path:
             entry = upsert_txt_dataset_entry(
-                txt_path=txt_path,
+                txt_path=result.txt_path,
                 output_root=args.dataset_root,
                 jjwxc_manifest=args.jjwxc_manifest,
                 jjwxc_top50=args.jjwxc_top50,
@@ -195,7 +227,13 @@ def main(argv: list[str] | None = None) -> int:
             progress.info(f"dataset upserted: {entry.author}::{entry.title}")
             progress.info(f"txt: {entry.txt_path}")
 
-        progress.info(f"primary output: {out_path}")
+        for label, path in (
+            ("EPUB", result.epub_path),
+            ("TXT", result.txt_path),
+            ("Notion draft checkpoint", result.notion_state),
+        ):
+            if path:
+                progress.info(f"{label}: {path}")
         return 0
     except Exception as exc:
         progress.warning(str(exc))

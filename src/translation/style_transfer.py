@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import platform
@@ -15,13 +14,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Sequence
 
-from src.crawl.snapshot import (
+from src.crawler.snapshot import (
     load_chapter,
     load_manifest,
     snapshot_chapter_ids,
     write_json,
 )
-from src.core.output import repo_root
+from src.runtime.paths import repo_root
 from src.translation.codex_cli import is_model_capacity_text
 from src.translation.style_transfer_assets import (
     INTENSITY,

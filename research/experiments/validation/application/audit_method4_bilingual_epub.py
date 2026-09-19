@@ -19,7 +19,7 @@ from experiments.shared.paths import RESEARCH_ROOT
 
 REPO_ROOT = RESEARCH_ROOT
 
-from src.crawl.snapshot import write_json  # noqa: E402
+from src.crawler.snapshot import write_json  # noqa: E402
 
 
 REFUSAL_RE = re.compile(

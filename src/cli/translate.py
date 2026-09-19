@@ -18,8 +18,14 @@ from src.translation.pipeline import (
 )
 from src.translation.semantic_compression import (
     DEFAULT_BATCH_SIZE as DEFAULT_COMPRESSION_BATCH_SIZE,
+)
+from src.translation.semantic_compression import (
     DEFAULT_MAX_CANDIDATES as DEFAULT_COMPRESSION_MAX_CANDIDATES,
+)
+from src.translation.semantic_compression import (
     DEFAULT_MIN_CONFIDENCE as DEFAULT_COMPRESSION_MIN_CONFIDENCE,
+)
+from src.translation.semantic_compression import (
     run_semantic_compression_qa,
     semantic_qa_summary_is_current,
 )
@@ -182,11 +188,15 @@ def _run_semantic_qa(
         batch_size=(
             batch_size
             if batch_size is not None
-            else int(semantic_config.get("batch_size") or DEFAULT_COMPRESSION_BATCH_SIZE)
+            else int(
+                semantic_config.get("batch_size") or DEFAULT_COMPRESSION_BATCH_SIZE
+            )
         ),
         models=configured_model_order(config, models),
         codex_bin=codex_bin,
-        timeout_seconds=int(effective_timeout) if effective_timeout is not None else None,
+        timeout_seconds=int(effective_timeout)
+        if effective_timeout is not None
+        else None,
         auto_repair=(
             bool(semantic_config.get("auto_repair"))
             if auto_repair is None
@@ -280,7 +290,9 @@ def _validate_with_optional_semantic_qa(
                     allow_missing=allow_missing,
                     config=config,
                 )
-                progress.info(f"validated repaired run {len(summary['chunks'])} chunk(s)")
+                progress.info(
+                    f"validated repaired run {len(summary['chunks'])} chunk(s)"
+                )
     sentence_summary = summary.get("sentence_translations")
     if sentence_summary:
         progress.info(
@@ -324,7 +336,9 @@ def main(argv: list[str] | None = None) -> int:
         "transfer-style",
         help="Prepare and optionally run content-plan author style transfer",
     )
-    p_transfer.add_argument("run_dir", type=Path, help="Validated neutral run directory")
+    p_transfer.add_argument(
+        "run_dir", type=Path, help="Validated neutral run directory"
+    )
     p_transfer.add_argument("--config", type=Path, required=True)
     p_transfer.add_argument("--style-run-dir", type=Path)
     p_transfer.add_argument("--block-size", type=int)

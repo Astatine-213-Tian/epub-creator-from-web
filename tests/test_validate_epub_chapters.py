@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from io import BytesIO
+from zipfile import ZipFile
 
-from src.cli.validate_epub_chapters import ChapterRef, validate_sequence
+from src.epub.validate import ChapterRef, find_nav_entries, validate_sequence
 
 
 class ValidateEpubChaptersTests(unittest.TestCase):
@@ -32,6 +34,26 @@ class ValidateEpubChaptersTests(unittest.TestCase):
         ]
 
         self.assertEqual(len(validate_sequence(entries)), 1)
+
+    def test_renamed_inline_extra_uses_source_marker_without_masking_missing_chapters(self) -> None:
+        for marker, next_number, expected_issues in [
+            ('<meta name="notion-source" content="https://www.notion.so/story"/>', 3, 0),
+            ('<meta name="notion-source" content="https://www.notion.so/story"/>', 4, 1),
+            ('<meta name="notion-source" content=""/>', 3, 1),
+            ("", 3, 1),
+        ]:
+            with self.subTest(marker=marker, next_number=next_number):
+                buffer = BytesIO()
+                with ZipFile(buffer, "w") as archive:
+                    archive.writestr("EPUB/nav.xhtml", f'''<html xmlns="http://www.w3.org/1999/xhtml">
+<body><nav><ol><li><a href="one.xhtml">第1章 起点</a></li>
+<li><a href="extra.xhtml">光与暗的童年</a></li>
+<li><a href="next.xhtml">第{next_number}章 后续</a></li></ol></nav></body></html>''')
+                    archive.writestr("EPUB/extra.xhtml", f'''<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>光与暗的童年</title>{marker}</head><body><h2>光与暗的童年</h2></body></html>''')
+                with ZipFile(buffer) as archive:
+                    entries = find_nav_entries(archive)
+                self.assertEqual(len(validate_sequence(entries)), expected_issues)
 
 
 if __name__ == "__main__":

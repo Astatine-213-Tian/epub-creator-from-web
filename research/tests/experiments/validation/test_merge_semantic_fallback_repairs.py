@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.crawl.snapshot import write_json
+from src.crawler.snapshot import write_json
 from experiments.validation.application.merge_semantic_fallback_repairs import merge_fallback_repairs
 
 

@@ -7,8 +7,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Sequence
 
-from src.crawl.snapshot import write_json
-from src.core.output import repo_root
+from src.crawler.snapshot import write_json
+from src.runtime.paths import repo_root
 
 
 PROMPT_JSON_MARKER = "INPUT JSON:\n"

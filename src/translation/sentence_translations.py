@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.crawl.snapshot import (
+from src.crawler.snapshot import (
     load_chapter,
     load_manifest,
     snapshot_chapter_ids,

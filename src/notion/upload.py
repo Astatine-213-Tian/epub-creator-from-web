@@ -1,0 +1,259 @@
+"""Upload prepared crawls as CMS drafts; CMS owns publication after upload."""
+
+from __future__ import annotations
+
+import asyncio
+import copy
+import json
+from pathlib import Path
+
+from src.content.blocks import content_signature
+from src.notion.cms import (
+    CONFIG,
+    STORAGE,
+    chapter_entries,
+    ensure_options,
+    ensure_views,
+    ensure_work,
+)
+from src.notion.markdown import from_markdown, to_markdown
+from src.notion.mcp import AUTH_FILE, TokenStore, connect, exclusive_lock, finish
+from src.notion.reader import NotionReader, notion_id, relation_ids
+from src.runtime.files import digest, write_json
+
+
+def source_digest(book: dict) -> str:
+    source = {k: book[k] for k in ("metadata", "sections", "chapters", "extras")}
+    return digest(json.dumps(source, ensure_ascii=False, sort_keys=True).encode())
+
+
+async def upload_row(
+    item: dict,
+    book: dict,
+    state: Path,
+    *,
+    data_source: str,
+    properties: dict,
+    title_property: str,
+    tools,
+) -> None:
+    reader = NotionReader(tools)
+    if not item.get("page_id"):
+        if item.get("pending"):
+            raise ValueError(
+                "A page create response was lost; reconcile the checkpoint before retrying"
+            )
+        item["pending"] = True
+        write_json(state, book)
+        response = await finish(
+            tools,
+            await tools.call(
+                "notion-create-pages",
+                {
+                    "allow_async": False,
+                    "parent": {"data_source_id": data_source},
+                    "pages": [
+                        {
+                            "properties": properties,
+                            "content": to_markdown(item["blocks"]),
+                        }
+                    ],
+                },
+            ),
+        )
+        item["page_id"] = notion_id(response["pages"][0]["id"])
+        item.pop("pending")
+        write_json(state, book)
+    if item.get("verified"):
+        # A completed row now belongs to the editor; never overwrite later edits.
+        return
+    props, body = await reader.document(item["page_id"])
+    if props.get(title_property) != item["title"] or content_signature(
+        from_markdown(body)
+    ) != content_signature(item["blocks"]):
+        raise ValueError(
+            "CMS draft readback differs from prepared content; reconcile without overwriting edits"
+        )
+    if "所属标题" in properties and (props.get("所属标题") or "") != (
+        properties["所属标题"] or ""
+    ):
+        raise ValueError("CMS draft parent title differs from prepared content")
+    if "涉及作品" in properties and book["work_id"] not in relation_ids(
+        props.get("涉及作品")
+    ):
+        raise ValueError("CMS extra readback has the wrong work relation")
+    item["verified"] = True
+    write_json(state, book)
+
+
+async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
+    if (
+        book.get("storage") != STORAGE
+        or book.get("catalog_id") != config["databases"]["works"]["data_source_id"]
+    ):
+        raise ValueError(
+            "Not a checkpoint for this CMS catalog; old library checkpoints cannot be reused"
+        )
+    entries = chapter_entries(book)
+    if book.get("cover_asset") and not book.get("cover_uploaded"):
+        from src.notion.cover import api_token, validate_cover
+
+        api_token()
+        validate_cover(Path(book["cover_asset"]).read_bytes())
+    await ensure_work(book, state, config, tools=tools)
+    await ensure_views(book, state, config, tools=tools)
+    if book.get("uploaded"):
+        print("Draft already uploaded; later Notion edits are preserved")
+        return
+    reader = NotionReader(tools)
+    # Existing unknown rows indicate manual edits or an ambiguous earlier create.
+    for key, items in [
+        ("chapters_view_id", list(book["chapters"].values())),
+        ("view_id", book["extras"]),
+    ]:
+        rows = await reader.rows(book[key])
+        known = {i["page_id"] for i in items if i.get("page_id")}
+        required = {
+            i["page_id"]
+            for i in items
+            if i.get("page_id") and not (i.get("reused") and not i.get("verified"))
+        }
+        actual = {r["id"] for r in rows}
+        if actual - known or required - actual:
+            raise ValueError(
+                "CMS rows differ from the import checkpoint; reconcile before appending"
+            )
+    await ensure_options(
+        book["chapters_data_source_id"],
+        {"所属标题": [p for _, p in entries]},
+        tools=tools,
+    )
+    # New records enter manual views at the top. Create from the end, then verify
+    # the actual editorial order instead of assuming query insertion order.
+    for member, parent in reversed(entries):
+        item = book["chapters"][member]
+        await upload_row(
+            item,
+            book,
+            state,
+            data_source=book["chapters_data_source_id"],
+            properties={"章节": item["title"], "所属标题": parent or None},
+            title_property="章节",
+            tools=tools,
+        )
+    extra_rows = (
+        await reader.rows(config["databases"]["extras"]["view_id"])
+        if book["extras"]
+        else []
+    )
+    for item in reversed(book["extras"]):
+        if not item.get("page_id") and not item.get("pending"):
+            matches = []
+            for row in extra_rows:
+                if row.get("番外") != item["title"]:
+                    continue
+                props, body = await reader.document(row["id"])
+                if content_signature(from_markdown(body)) == content_signature(
+                    item["blocks"]
+                ):
+                    matches.append((row["id"], props))
+            if len(matches) > 1:
+                raise ValueError(
+                    "Multiple identical shared extras exist; reconcile before linking"
+                )
+            if matches:
+                id, props = matches[0]
+                item.update(page_id=id, reused=True)
+                write_json(state, book)
+        if item.get("reused") and not item.get("verified"):
+            props, _ = await reader.document(item["page_id"])
+            works = relation_ids(props.get("涉及作品"))
+            if book["work_id"] not in works:
+                await finish(
+                    tools,
+                    await tools.call(
+                        "notion-update-page",
+                        {
+                            "allow_async": False,
+                            "command": "update_properties",
+                            "page_id": item["page_id"],
+                            "properties": {"涉及作品": works + [book["work_id"]]},
+                        },
+                    ),
+                )
+        await upload_row(
+            item,
+            book,
+            state,
+            data_source=config["databases"]["extras"]["data_source_id"],
+            properties={"番外": item["title"], "涉及作品": [book["work_id"]]},
+            title_property="番外",
+            tools=tools,
+        )
+    for view, expected in [
+        (
+            book["chapters_view_id"],
+            [book["chapters"][m]["page_id"] for m, _ in entries],
+        ),
+        (book["view_id"], [i["page_id"] for i in book["extras"]]),
+    ]:
+        if [r["id"] for r in await reader.rows(view)] != expected:
+            raise ValueError(
+                "CMS manual order differs from source; reorder the draft view, then resume"
+            )
+    if book.get("cover_asset"):
+        from src.notion.cover import upload_cover
+
+        await upload_cover(book, state, tools=tools)
+    book["uploaded"] = True
+    write_json(state, book)
+
+
+def upload_source(
+    source: dict,
+    *,
+    cover_bytes: bytes | None = None,
+    config_path: Path = CONFIG,
+) -> Path:
+    config = json.loads(config_path.read_text())
+    catalog = config["databases"]["works"]["data_source_id"]
+    key = digest((catalog + source["identifier"]).encode())[:16]
+    directory = Path("generated/notion_cms_sources") / key
+    state = directory / "import.json"
+    with exclusive_lock(directory / "import.lock"):
+        fingerprint = source_digest(source)
+        if state.exists():
+            book = json.loads(state.read_text())
+            if book.get("source_sha256") != fingerprint or book.get("cover_sha256") != (
+                digest(cover_bytes) if cover_bytes else None
+            ):
+                raise ValueError(
+                    "Crawl changed since this draft import; reconcile it with the saved checkpoint and Notion edits"
+                )
+        else:
+            chapter_entries(source)
+            book = copy.deepcopy(source)
+            book.update(
+                storage=STORAGE,
+                catalog_id=catalog,
+                source_sha256=fingerprint,
+                cover_sha256=digest(cover_bytes) if cover_bytes else None,
+            )
+            if cover_bytes:
+                from src.notion.cover import validate_cover
+
+                suffix = validate_cover(cover_bytes)
+                asset = directory / ("cover." + suffix)
+                asset.write_bytes(cover_bytes)
+                book["cover_asset"] = str(asset)
+            write_json(state, book)
+
+        async def online():
+            store = TokenStore(AUTH_FILE)
+            with store.locked():
+                async with connect(store) as tools:
+                    await upload_draft(book, state, config, tools=tools)
+            print("CMS draft: https://www.notion.so/" + book["work_id"])
+
+        asyncio.run(online())
+    return state

@@ -1,4 +1,0 @@
-interface:
-  display_name: "EPUB Reformatter"
-  short_description: "Enrich metadata and repair EPUB structure and text."
-  default_prompt: "Use $epub-reformatter to enrich metadata, repair formatting, and validate a project EPUB."

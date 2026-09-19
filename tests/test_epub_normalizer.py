@@ -5,21 +5,20 @@ import io
 import json
 import tempfile
 import unittest
-from unittest import mock
 import zipfile
+from html import escape
 from pathlib import Path
+from unittest import mock
 from xml.etree import ElementTree as ET
 
-from src.core.epub_normalizer import (
-    normalize_and_review_epub,
-    normalize_epub,
-    write_reports,
-)
-from src.core.epub_writer import write_epub
-from src.core.models import Chapter, Volume
-from src.cli.validate_epub_chapters import validate_epub
-from src.metadata.epub_enricher import MetadataEnrichmentReport
+from ebooklib import epub
 
+from src.content.models import Chapter, Volume
+from src.epub.maintenance import normalize_and_review_epub, normalize_new_epub
+from src.epub.normalize import normalize_epub
+from src.epub.reports import write_reports
+from src.epub.validate import validate_epub
+from src.metadata.catalog import MetadataEnrichmentReport
 
 CHAPTER = """<?xml version="1.0" encoding="utf-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -55,6 +54,32 @@ OPF = """<?xml version="1.0" encoding="utf-8"?>
   <metadata><dc:title>测试A书</dc:title></metadata>
 </package>
 """
+
+
+def write_raw_fixture(*, identifier, title, author, volumes, out_path):
+    book = epub.EpubBook()
+    book.set_identifier(identifier)
+    book.set_title(title)
+    book.set_language("zh-CN")
+    book.add_author(author)
+    chapters = []
+    for vi, volume in enumerate(volumes, 1):
+        for ci, chapter in enumerate(volume.chapters, 1):
+            content = f"<h2>{escape(chapter.title)}</h2>" + "".join(
+                f"<p>{escape(p)}</p>" for p in chapter.paragraphs
+            )
+            item = epub.EpubHtml(
+                title=chapter.title,
+                file_name=f"chap_{vi:02d}_{ci:03d}.xhtml",
+                content=content,
+            )
+            book.add_item(item)
+            chapters.append(item)
+    book.toc = chapters
+    book.spine = ["nav", *chapters]
+    book.add_item(epub.EpubNav())
+    book.add_item(epub.EpubNcx())
+    epub.write_epub(str(out_path), book)
 
 
 class EpubNormalizerTests(unittest.TestCase):
@@ -122,7 +147,9 @@ class EpubNormalizerTests(unittest.TestCase):
             write_reports(report_path, [report])
             payload = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["schema_version"], 1)
-            self.assertEqual(payload["reports"][0]["total_changes"], report.total_changes)
+            self.assertEqual(
+                payload["reports"][0]["total_changes"], report.total_changes
+            )
             self.assertEqual(
                 payload["cumulative_fixes"]["total_changes"],
                 report.total_changes,
@@ -200,7 +227,6 @@ class EpubNormalizerTests(unittest.TestCase):
             self.assertIn("opening=1, closing=0", mismatch[0].message)
             self.assertIn("这句话没有收尾", mismatch[0].excerpt)
 
-
     def test_quote_detection_uses_normalized_local_context(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             epub_path = Path(temp) / "quotes.epub"
@@ -275,7 +301,6 @@ class EpubNormalizerTests(unittest.TestCase):
             self.assertIn("王雷道", residue[0].excerpt)
             self.assertLessEqual(len(mismatch), 1)
 
-
     def test_codex_keep_decision_closes_review_queue(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             epub_path = Path(temp) / "review.epub"
@@ -311,7 +336,6 @@ class EpubNormalizerTests(unittest.TestCase):
             self.assertFalse(report.issues[0].requires_user_review)
             self.assertEqual(report.issues[0].review_verdict, "keep")
 
-
     def test_unchanged_codex_keep_decision_is_reused(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             epub_path = Path(temp) / "cached-review.epub"
@@ -342,16 +366,13 @@ class EpubNormalizerTests(unittest.TestCase):
             )
             write_reports(epub_path.with_suffix(".normalization.json"), [first])
 
-            with mock.patch(
-                "src.core.epub_normalizer._run_codex_review_prompt"
-            ) as review:
+            with mock.patch("src.epub.review._run_codex_review_prompt") as review:
                 second = normalize_and_review_epub(epub_path)
 
             review.assert_not_called()
             self.assertEqual(second.codex_review_status, "completed")
             self.assertFalse(second.issues[0].requires_codex_review)
             self.assertTrue(second.codex_review_decisions[0]["cached"])
-
 
     def test_codex_review_failure_is_reported_without_blocking_normalization(
         self,
@@ -442,11 +463,7 @@ class EpubNormalizerTests(unittest.TestCase):
             epub_path = Path(temp) / "punctuation-first.epub"
             self._write_fixture(
                 epub_path,
-                (
-                    "<html><body>"
-                    "<p>“喝点什么?“曹斌问,”可以吗?”</p>"
-                    "</body></html>"
-                ),
+                ("<html><body><p>“喝点什么?“曹斌问,”可以吗?”</p></body></html>"),
             )
 
             report = normalize_epub(epub_path)
@@ -555,21 +572,14 @@ class EpubNormalizerTests(unittest.TestCase):
             )
             self.assertTrue(
                 any(
-                    issue.kind == "ambiguous_duplicate_quote"
-                    for issue in report.issues
+                    issue.kind == "ambiguous_duplicate_quote" for issue in report.issues
                 )
             )
             self.assertTrue(
-                any(
-                    issue.kind == "ambiguous_han_backslash"
-                    for issue in report.issues
-                )
+                any(issue.kind == "ambiguous_han_backslash" for issue in report.issues)
             )
             self.assertTrue(
-                any(
-                    issue.kind == "ambiguous_han_spacing"
-                    for issue in report.issues
-                )
+                any(issue.kind == "ambiguous_han_spacing" for issue in report.issues)
             )
 
     def test_suspicious_ads_are_reported_but_not_deleted(self) -> None:
@@ -590,13 +600,13 @@ class EpubNormalizerTests(unittest.TestCase):
                 chapter = archive.read("EPUB/chap_01_001.xhtml").decode()
             self.assertIn("https://example.com/story", chapter)
             self.assertIn("关注微信公众号：测试账号", chapter)
-            ads = [
-                issue for issue in report.issues
-                if issue.kind == "suspicious_ad"
-            ]
+            ads = [issue for issue in report.issues if issue.kind == "suspicious_ad"]
             self.assertGreaterEqual(len(ads), 2)
             self.assertTrue(
-                all("do not delete automatically" in issue.recommended_action for issue in ads)
+                all(
+                    "do not delete automatically" in issue.recommended_action
+                    for issue in ads
+                )
             )
 
     def test_author_notes_are_permitted_but_resource_group_ads_are_removed(
@@ -680,16 +690,15 @@ class EpubNormalizerTests(unittest.TestCase):
                 chapter = archive.read("EPUB/chap_01_001.xhtml").decode()
             self.assertRegex(
                 chapter,
-                r'<p><em>Line one,</em></p>\s*'
+                r"<p><em>Line one,</em></p>\s*"
                 r'<p class="zh-translation" xml:lang="zh-CN">第一行，</p>\s*'
-                r'<p><em>Line two\.</em></p>\s*'
+                r"<p><em>Line two\.</em></p>\s*"
                 r'<p class="zh-translation" xml:lang="zh-CN">第二行。</p>',
             )
             self.assertEqual(report.change_counts["comma_paragraph_break_merged"], 0)
 
             second = normalize_epub(epub_path)
             self.assertEqual(second.total_changes, 0)
-
 
     def test_trailing_author_notes_and_emoticons_are_excluded_from_anomalies(
         self,
@@ -713,9 +722,7 @@ class EpubNormalizerTests(unittest.TestCase):
             report = normalize_epub(epub_path, apply=False)
 
         suspicious = [
-            issue
-            for issue in report.issues
-            if issue.kind == "suspicious_character"
+            issue for issue in report.issues if issue.kind == "suspicious_character"
         ]
         self.assertEqual(len(suspicious), 1)
         self.assertIn("U+3109", suspicious[0].message)
@@ -752,10 +759,7 @@ class EpubNormalizerTests(unittest.TestCase):
                 1,
             )
             self.assertFalse(
-                any(
-                    issue.member == "EPUB/intro.xhtml"
-                    for issue in report.issues
-                )
+                any(issue.member == "EPUB/intro.xhtml" for issue in report.issues)
             )
 
     def test_grouped_fanwai_titles_drop_number_but_keep_bare_entries(self) -> None:
@@ -1174,9 +1178,7 @@ class EpubNormalizerTests(unittest.TestCase):
             )
             nav = NAV.replace("第1章 小P孩", "第1章《上.下》")
             ncx = NCX.replace("第1章 小P孩", "第1章《上.下》")
-            intro = (
-                "<html><body><p>《测试 A 书》作者：测试作者</p></body></html>"
-            )
+            intro = "<html><body><p>《测试 A 书》作者：测试作者</p></body></html>"
             self._write_fixture(
                 epub_path,
                 chapter,
@@ -1188,9 +1190,7 @@ class EpubNormalizerTests(unittest.TestCase):
             report = normalize_epub(epub_path)
 
             with zipfile.ZipFile(epub_path) as archive:
-                chapter_output = archive.read(
-                    "EPUB/chap_01_001.xhtml"
-                ).decode()
+                chapter_output = archive.read("EPUB/chap_01_001.xhtml").decode()
                 nav_output = archive.read("EPUB/nav.xhtml").decode()
                 ncx_output = archive.read("EPUB/toc.ncx").decode()
             for output in (chapter_output, nav_output, ncx_output):
@@ -1205,7 +1205,7 @@ class EpubNormalizerTests(unittest.TestCase):
             self.assertIn("possible_structural_marker", issue_kinds)
             self.assertNotIn("possible_intro_boilerplate", issue_kinds)
 
-    def test_shared_writer_runs_normalizer_automatically(self) -> None:
+    def test_maintenance_runs_metadata_and_normalizer(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             epub_path = Path(temp) / "writer.epub"
             output = io.StringIO()
@@ -1215,11 +1215,11 @@ class EpubNormalizerTests(unittest.TestCase):
                 status="unmatched",
             )
             with mock.patch(
-                "src.core.epub_normalizer.enrich_epub_metadata",
+                "src.epub.maintenance.enrich_epub_metadata",
                 return_value=metadata,
             ) as enrich:
                 with contextlib.redirect_stdout(output):
-                    write_epub(
+                    write_raw_fixture(
                         identifier="test",
                         title="测试A书",
                         author="测试作者",
@@ -1236,6 +1236,7 @@ class EpubNormalizerTests(unittest.TestCase):
                         ],
                         out_path=epub_path,
                     )
+                    normalize_new_epub(epub_path)
 
             with zipfile.ZipFile(epub_path) as archive:
                 chapter = next(
@@ -1249,8 +1250,7 @@ class EpubNormalizerTests(unittest.TestCase):
             self.assertIn("METADATA", output.getvalue())
             enrich.assert_called_once_with(epub_path, backup_dir=None)
 
-
-    def test_shared_writer_runs_codex_review_after_punctuation_normalization(
+    def test_maintenance_runs_codex_review_after_punctuation_normalization(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -1276,14 +1276,14 @@ class EpubNormalizerTests(unittest.TestCase):
                 status="unmatched",
             )
             with mock.patch(
-                "src.core.epub_normalizer.enrich_epub_metadata",
+                "src.epub.maintenance.enrich_epub_metadata",
                 return_value=metadata,
             ):
                 with mock.patch(
-                    "src.core.epub_normalizer._run_codex_review_prompt",
+                    "src.epub.review._run_codex_review_prompt",
                     return_value=response,
                 ) as review:
-                    write_epub(
+                    write_raw_fixture(
                         identifier="review-test",
                         title="复核测试",
                         author="测试作者",
@@ -1300,6 +1300,7 @@ class EpubNormalizerTests(unittest.TestCase):
                         ],
                         out_path=epub_path,
                     )
+                    normalize_new_epub(epub_path)
 
             self.assertEqual(review.call_count, 1)
             prompt = review.call_args.args[0]

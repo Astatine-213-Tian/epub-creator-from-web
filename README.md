@@ -1,6 +1,6 @@
 # EPUB Creator From Web
 
-Scrape supported web novel sites and build EPUB files through one command-line entry point.
+Crawl and prepare web novels, then upload drafts to the Notion CMS or write local EPUBs directly.
 
 The repository root is the maintained production project. Dataset-heavy
 authorship and style-transfer experiments are isolated in the nested
@@ -21,7 +21,7 @@ browser is not discoverable automatically.
 Use `--search` when you know the title but not the best source URL:
 
 ```bash
-uv run book-to-epub --search "全球高考"
+uv run book-to-epub --search "全球高考" --output-format epub
 ```
 
 The pipeline:
@@ -31,20 +31,20 @@ The pipeline:
 3. Ranks results by query match, chapter count, then provider preference.
 4. Shows each candidate with title, author, chapter count, first two chapters, and last two chapters.
 5. Prompts you to choose one.
-6. Runs the existing parser for the selected provider and writes the EPUB.
+6. Crawls the selected provider, prepares its formatting, and writes a CMS draft or a local EPUB, according to the selected output.
 
 Limit search to one provider:
 
 ```bash
-uv run book-to-epub --search "斗破苍穹" --parser quanben
-uv run book-to-epub --search "魔道祖师" --parser mgsf --limit 3
-uv run book-to-epub --search "锦衣卫" --parser xfxs --author 非天夜翔
+uv run book-to-epub --search "斗破苍穹" --parser quanben --output-format epub
+uv run book-to-epub --search "魔道祖师" --parser mgsf --limit 3 --output-format epub
+uv run book-to-epub --search "锦衣卫" --parser xfxs --author 非天夜翔 --output-format epub
 ```
 
 Automatically choose the top ranked result:
 
 ```bash
-uv run book-to-epub --search "全球高考" --first -o books/book.epub
+uv run book-to-epub --search "全球高考" --first --output-format epub -o books/book.epub
 ```
 
 ## Parse A Known Book URL
@@ -52,13 +52,15 @@ uv run book-to-epub --search "全球高考" --first -o books/book.epub
 Pass a supported book URL directly:
 
 ```bash
-uv run book-to-epub "https://www.mangguoshufang.com/1/2574/info.html" -o books/book.epub
-uv run book-to-epub "http://jrkywsy.blog.fc2.com/blog-entry-938.html" -o books/book.epub
+uv run book-to-epub "https://www.mangguoshufang.com/1/2574/info.html" --output-format epub -o books/book.epub
+uv run book-to-epub "http://jrkywsy.blog.fc2.com/blog-entry-938.html" --output-format epub -o books/book.epub
 ```
 
-When `-o/--output` is omitted, the generated file is written under the author
-folder, for example `books/非天夜翔/书名.epub`. Existing author folders are reused.
-An explicit `-o/--output` path still overrides this default.
+Choose the output explicitly. Repeat `--output-format` to combine `epub`,
+`notion` and `txt`; no destination is selected by default. `--output-format epub`
+generates a local EPUB directly. Its default path is `books/<author>/<title>.epub`;
+`-o` overrides that path. Z-Library edition downloads require an explicit EPUB
+or TXT output and do not enter the web-novel source workflow.
 
 List supported providers when you need to choose one explicitly:
 
@@ -69,28 +71,38 @@ uv run book-to-epub --list-parsers
 For provider-specific IDs, force the provider:
 
 ```bash
-uv run book-to-epub 2574 --parser mgsf -o books/book.epub
-uv run book-to-epub doupocangqiong --parser quanben -o books/book.epub
+uv run book-to-epub 2574 --parser mgsf --output-format epub -o books/book.epub
+uv run book-to-epub doupocangqiong --parser quanben --output-format epub -o books/book.epub
 ```
 
 ## Ingest For Reading And Training
 
 Use `book-ingest` for the normal end-to-end workflow. It crawls the source once,
-writes the requested reader/training outputs from the same parsed book model,
-validates EPUB archive integrity, and upserts only the affected TXT entry in
-`research/datasets/dataset_manifest.json`.
+writes every selected destination: local EPUB, editable Notion CMS draft and/or
+TXT. It validates EPUB output and upserts only the requested TXT entry in the
+selected dataset manifest. Repeat `--mode` (alias `--output-format`) to combine
+destinations. An explicit `-o` or `--txt-output` can select the corresponding
+format when no modes are provided.
 
 ```bash
-# Default: reading + training
-uv run book-ingest "https://www.mangguoshufang.com/1/2574/info.html"
+# Notion draft
+uv run book-ingest "https://www.mangguoshufang.com/1/2574/info.html" --mode notion
 
-# Reading only
+# Local EPUB; no Notion upload
 uv run book-ingest "https://www.mangguoshufang.com/1/2574/info.html" --mode epub
 
 # Training only
 uv run book-ingest "https://www.mangguoshufang.com/1/2574/info.html" --mode txt
 ```
 
+For all three destinations from one crawl:
+
+```bash
+uv run book-ingest "<url>" --mode epub --mode notion --mode txt
+```
+
+`--mode both` remains an alias for EPUB + TXT. Training is a use of TXT output;
+it has no separate crawler or acquisition skill.
 EPUB output defaults to `books/<author>/<title>.epub`. TXT output defaults to
 `research/datasets/raw/<author>/<title>.txt`. Dataset metadata is resolved from
 the maintained Jinjiang research crawl when available, then falls back to Codex
@@ -126,13 +138,29 @@ This helps surface fuller versions when the same book exists on multiple sites.
 - To force a browser path:
 
 ```bash
-BOOKLIB_BROWSER_PATH="/path/to/chromium" uv run book-to-epub --search "全球高考" --parser pili45
+BOOKLIB_BROWSER_PATH="/path/to/chromium" uv run book-to-epub --search "全球高考" --parser pili45 --output-format epub
 ```
 
 - Browser-backed providers may pause on Cloudflare verification.
 - `xfxs` native search currently returns a 404 page. When `--author <name>` is supplied, xfxs searches the fixed author page `/a/<GBK-encoded-author>.html` first and skips external site-search for that provider. Without an author hint, xfxs uses external site-search fallback when available.
-`src.search.engines.site_search()` tries DuckDuckGo and raw Google result-page fallbacks. Browser-backed providers can also use the same third-party engines through Chromium when raw search pages throttle. All results are still filtered back to the provider's canonical URL pattern.
+`src.crawler.search.engines.site_search()` tries DuckDuckGo and raw Google result-page fallbacks. Browser-backed providers can also use the same third-party engines through Chromium when raw search pages throttle. All results are still filtered back to the provider's canonical URL pattern.
 - Generated EPUB files belong in `books/<author>/` by default and should not be treated as source code.
+
+## Notion CMS Drafts
+
+The [EPUB CMS](https://app.notion.com/p/3deca693996b810c8774f3658c89a423)
+owns editing and publishing. This repository uploads drafts into each book's
+chapter database and the shared-extra database. Use `book-notion login` once
+for MCP OAuth; interrupted uploads resume with `book-notion resume --state <import.json>`.
+
+Automatic native cover upload additionally needs `NOTION_API_TOKEN` in the
+process environment; grant that integration access to the CMS. Only covers use
+the public API. The scripts do not read `.env` or depend on a logged-in browser.
+Local EPUBs retain the cover thumbnail without a cover reading page.
+
+See [output selection, storage, covers and recovery](docs/notion-books.md) and
+[shared extras](docs/fanwai-notion.md). Formatting cleanup happens before either
+output; the existing presentation renderer interprets only block structure and style.
 
 ## Crawl Then Translate
 
@@ -253,31 +281,29 @@ snapshot primitives through an editable dependency on the production project.
 See [`research/README.md`](research/README.md) for the active reports and
 reproduction entry points.
 
-## Development Layout
+## Book Workflow Skill
 
-Provider-specific code lives under:
+Use the single [book-management skill](.agents/skills/book-management/SKILL.md)
+for adding, updating or repairing books. It asks for missing output choices and
+routes to crawler-development or formatting references only when needed.
+A training request selects TXT, the requested dataset path and a targeted
+manifest update in this same workflow.
 
-```text
-src/providers/<provider>/
-  parser.py
-  search.py
-```
+## Architecture
 
-Shared orchestration lives in:
+The [architecture guide](docs/architecture.md) describes module ownership,
+input/output contracts and dependency boundaries. The main modules are:
 
-```text
-src/cli/main.py
-src/core/
-src/fetch/
-src/metadata/
-src/providers/registry.py
-src/runtime/
-src/search/orchestrator.py
-src/search/engines.py
-src/crawl/
-src/translation/
-tests/
-```
+- `src/crawler/`: providers, search, fetching and reusable snapshots.
+- `src/content/`: shared source models, cleanup and formatting preparation.
+- `src/epub/`: local EPUB presentation, validation and edition repair.
+- `src/notion/`: CMS draft upload, storage adaptation and cover upload.
+- `src/translation/`: translation, style transfer and semantic QA.
+- `src/workflows/`: compose those modules and select the output destination.
+
+`src/dataset/`, `src/metadata/` and `src/runtime/` own dataset manifests,
+metadata lookup and runtime utilities respectively. CLI modules parse arguments
+and call these modules; providers never choose output destinations.
 
 ## Validation
 
@@ -285,6 +311,7 @@ Useful checks after parser or search changes:
 
 ```bash
 uv run book-to-epub --list-parsers
-uv run book-to-epub --search "known title" --parser provider_name
-python3 -m py_compile src/*.py src/*/*.py src/providers/*/*.py
+uv run book-to-epub --search "known title" --parser provider_name --output-format epub
+uv run python -m compileall -q src
+uv run python -m unittest discover -s tests -p 'test_*.py'
 ```

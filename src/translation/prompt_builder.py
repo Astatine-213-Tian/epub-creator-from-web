@@ -4,13 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.crawl.snapshot import (
+from src.crawler.snapshot import (
     load_chapter,
     load_manifest,
     snapshot_chapter_ids,
     write_json,
 )
-from src.core.output import repo_root
+from src.runtime.paths import repo_root
 from src.translation.glossary import glossary_terms, matched_terms
 from src.translation.sentence_translations import sentence_translation_entries
 

@@ -7,8 +7,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Sequence
 
-from src.crawl.snapshot import clean_text, load_chapter, load_manifest, write_json
-from src.core.output import repo_root
+from src.crawler.snapshot import clean_text, load_chapter, load_manifest, write_json
+from src.runtime.paths import repo_root
 from src.translation.codex_cli import (
     ModelCapacityError,
     extract_json_object,

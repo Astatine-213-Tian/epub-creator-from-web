@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from src.crawl.snapshot import (
+from src.crawler.snapshot import (
     clean_text,
     load_comments,
     load_manifest,

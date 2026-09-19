@@ -6,8 +6,8 @@ import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
-from src.core.output import repo_root
-from src.metadata.jjwxc import GENRES, TIME_AREAS, JjwxcTypeMetadata, classify_from_text
+from src.runtime.paths import repo_root
+from src.metadata.jjwxc import GENRES, TIME_AREAS, JjwxcTypeMetadata
 
 
 def classify_with_codex(

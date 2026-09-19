@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.crawl.snapshot import write_json
+from src.crawler.snapshot import write_json
 from src.translation.sentence_translations import (
     apply_sentence_translation_overrides,
     sentence_translation_entries,

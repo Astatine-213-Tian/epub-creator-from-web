@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.core.output import repo_root
-from src.crawl.snapshot import load_manifest
-from src.translation.epub_builder import build_bilingual_epub
+from src.runtime.paths import repo_root
+from src.crawler.snapshot import load_manifest
+from src.translation.output import build_bilingual_epub
 from src.translation.glossary import load_glossary
 from src.translation.prompt_builder import prepare_prompts
 from src.translation.semantic_compression import semantic_qa_summary_is_current

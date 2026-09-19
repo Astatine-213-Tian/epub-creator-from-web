@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.crawl.snapshot import write_json
+from src.crawler.snapshot import write_json
 from src.translation.style_transfer_assets import (
     ASSET_SCHEMA,
     METHOD_ID,

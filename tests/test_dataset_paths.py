@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.cli.dataset import manifest_path
+from src.dataset.library import manifest_path
 
 
 class DatasetManifestPathTests(unittest.TestCase):

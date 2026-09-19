@@ -4,13 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
-from src.metadata.epub_enricher import (
-    DEFAULT_BACKUP_DIR,
+from src.epub.metadata import enrich_epub_metadata
+from src.metadata.catalog import (
     DEFAULT_PRIMARY_SUBJECT,
     MetadataEnrichmentReport,
     MetadataLookup,
-    enrich_epub_metadata,
 )
+from src.runtime.files import DEFAULT_BACKUP_DIR
 
 
 def _epub_paths(values: list[Path]) -> list[Path]:
@@ -30,9 +30,7 @@ def _author_ids(values: list[str]) -> dict[str, str]:
     for value in values:
         author, separator, author_id = value.partition("=")
         if not separator or not author.strip() or not author_id.strip().isdigit():
-            raise ValueError(
-                "--jjwxc-author-id must use AUTHOR=NUMERIC_ID"
-            )
+            raise ValueError("--jjwxc-author-id must use AUTHOR=NUMERIC_ID")
         result[author.strip()] = author_id.strip()
     return result
 
@@ -78,9 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="AUTHOR=ID",
-        help=(
-            "Supply a known Jinjiang author ID; repeat for multiple aliases."
-        ),
+        help=("Supply a known Jinjiang author ID; repeat for multiple aliases."),
     )
     parser.add_argument(
         "--no-kadokado",
@@ -112,9 +108,7 @@ def write_report(
         "summary": {
             "books": len(reports),
             "changed": sum(report.changed for report in reports),
-            "unmatched": sum(
-                report.status == "unmatched" for report in reports
-            ),
+            "unmatched": sum(report.status == "unmatched" for report in reports),
             "errors": sum(report.status == "error" for report in reports),
         },
     }

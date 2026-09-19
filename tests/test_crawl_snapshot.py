@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from src.crawl.snapshot import deduplicate_comments
+from src.crawler.snapshot import deduplicate_comments
 
 
 class CrawlSnapshotTests(unittest.TestCase):

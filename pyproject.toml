@@ -10,10 +10,16 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4==4.14.3",
+    "cssselect2>=0.10.1",
     "EbookLib==0.20",
+    "httpx==0.28.1",
     "lxml==6.1.0",
+    "markdown-it-py==4.0.0",
+    "mcp==1.26.0",
     "opencc-python-reimplemented==0.1.7",
+    "pillow>=11.3,<13",
     "requests==2.33.1",
+    "tinycss2>=1.5.1",
     "tqdm==4.67.1",
     "zendriver==0.15.3",
 ]
@@ -26,6 +32,7 @@ book-translate = "src.cli.translate:main"
 book-dataset = "src.cli.dataset:main"
 book-normalize = "src.cli.normalize_epub:main"
 book-enrich-metadata = "src.cli.enrich_epub_metadata:main"
+book-notion = "src.cli.notion_book:main"
 
 [tool.setuptools.packages.find]
 include = ["src*"]

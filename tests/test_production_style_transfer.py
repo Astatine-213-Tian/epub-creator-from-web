@@ -10,7 +10,7 @@ from src.cli.translate import (
     _validate_with_optional_semantic_qa,
     main as translate_main,
 )
-from src.crawl.snapshot import write_json
+from src.crawler.snapshot import write_json
 from src.runtime.progress import ProgressLogger
 from src.translation.codex_cli import (
     ModelCapacityError,

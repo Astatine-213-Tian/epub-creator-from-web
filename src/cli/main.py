@@ -1,26 +1,35 @@
 #!/usr/bin/env python3
-"""Auto-detect a supported novel site and build an EPUB.
+"""Crawl a novel, then upload a CMS draft or write local EPUB/TXT output.
 
 Usage:
     uv run book-to-epub <url> [-o output.epub]
-    uv run book-to-epub 2574 --parser mgsf
+    uv run book-to-epub 2574 --parser mgsf --output-format epub
 """
+
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
-from src.providers.registry import PARSERS, ParserOptions, find_parser
+from src.crawler.models import CrawlOptions
+from src.crawler.registry import PARSERS, find_parser
+from src.crawler.search import (
+    build_previews,
+    choose_preview,
+    fake_menu_previews,
+    search_all,
+)
 from src.runtime.progress import ProgressLogger, configure_progress
-from src.search import build_previews, choose_preview, fake_menu_previews, search_all
+from src.workflows.ingest import OutputOptions, ingest, requested_formats
 
 
 def main(argv: list[str] | None = None) -> int:
     parser_names = [parser.name for parser in PARSERS]
 
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("target", nargs="?", help="Book URL, or site-specific id with --parser")
+    p.add_argument(
+        "target", nargs="?", help="Book URL, or site-specific id with --parser"
+    )
     p.add_argument("-o", "--output", type=Path, default=None)
     p.add_argument(
         "--txt-output",
@@ -31,9 +40,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--output-format",
         action="append",
-        choices=["epub", "txt", "both"],
+        choices=["notion", "epub", "txt", "both"],
         default=None,
-        help="Output format to write; repeat for multiple formats, or use both. Default: epub",
+        help="Output destination; repeat to combine epub, notion and txt. No default. both means epub plus txt",
     )
     p.add_argument(
         "--dataset-root",
@@ -52,12 +61,36 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Skip writing any requested output file that already exists. This is the default",
     )
-    p.add_argument("--parser", choices=parser_names, help="Force a parser for ids or ambiguous URLs")
-    p.add_argument("--search", help="Search supported providers, preview matches, then choose one to parse")
-    p.add_argument("--author", help="With --search, pass an author hint to providers that support it")
-    p.add_argument("--limit", type=int, default=10, help="Maximum search results/previews to show")
-    p.add_argument("--first", action="store_true", help="With --search, choose the top ranked result")
-    p.add_argument("--delay", type=float, default=None, help="Seconds to wait between requests")
+    p.add_argument(
+        "--parser",
+        choices=parser_names,
+        help="Force a parser for ids or ambiguous URLs",
+    )
+    p.add_argument(
+        "--search",
+        help="Search supported providers, preview matches, then choose one to parse",
+    )
+    p.add_argument(
+        "--author",
+        help="With --search, pass an author hint to providers that support it",
+    )
+    p.add_argument(
+        "--limit", type=int, default=10, help="Maximum search results/previews to show"
+    )
+    p.add_argument(
+        "--first",
+        action="store_true",
+        help="With --search, choose the top ranked result",
+    )
+    p.add_argument(
+        "--delay", type=float, default=None, help="Seconds to wait between requests"
+    )
+    p.add_argument(
+        "--request-interval",
+        type=float,
+        default=0.0,
+        help="Minimum interval between xfxs chapter requests",
+    )
     p.add_argument(
         "--concurrency",
         type=int,
@@ -69,7 +102,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Run browser-backed parsers headless where supported",
     )
-    p.add_argument("--verbose", action="store_true", help="Show detailed search/preview fetch logs")
+    p.add_argument(
+        "--verbose", action="store_true", help="Show detailed search/preview fetch logs"
+    )
     p.add_argument("--list-parsers", action="store_true", help="Show supported parsers")
     p.add_argument(
         "--test-menu",
@@ -95,6 +130,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.author and not args.search:
         p.error("--author can only be used with --search")
+
+    output_options = OutputOptions(
+        output=args.output,
+        txt_output=args.txt_output,
+        output_formats=tuple(args.output_format or ()),
+        dataset_root=args.dataset_root,
+        prevent_overwrite=not args.overwrite,
+    )
+    try:
+        requested_formats(output_options)
+    except ValueError as error:
+        p.error(str(error))
 
     if args.search:
         scope = f" with parser {args.parser}" if args.parser else ""
@@ -139,15 +186,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         spec = find_parser(args.target, args.parser)
         progress.info(f"using parser: {spec.name}")
-        out_path = spec.run(
+        result = ingest(
             args.target,
-            ParserOptions(
-                output=args.output,
-                txt_output=args.txt_output,
-                output_formats=tuple(args.output_format or ["epub"]),
-                dataset_root=args.dataset_root,
-                prevent_overwrite=not args.overwrite,
+            parser=spec,
+            output_options=output_options,
+            crawl_options=CrawlOptions(
                 delay=args.delay,
+                request_interval=args.request_interval,
                 headless=args.headless,
                 concurrency=args.concurrency,
             ),
@@ -156,7 +201,13 @@ def main(argv: list[str] | None = None) -> int:
         progress.warning(str(exc))
         return 1
 
-    progress.info(f"wrote {out_path}")
+    for label, path in (
+        ("EPUB", result.epub_path),
+        ("TXT", result.txt_path),
+        ("Notion draft checkpoint", result.notion_state),
+    ):
+        if path:
+            progress.info(f"{label}: {path}")
     return 0
 
 

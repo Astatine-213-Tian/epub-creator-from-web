@@ -7,17 +7,14 @@ from pathlib import Path
 
 from lxml import etree
 
-from src.metadata.epub_enricher import (
-    DC_NS,
-    OPF_NS,
+from src.epub.metadata import DC_NS, OPF_NS, enrich_epub_metadata
+from src.metadata.catalog import (
     MetadataLookup,
     PackageMetadata,
     SourceMetadata,
-    enrich_epub_metadata,
     parse_jjwxc_author_catalog,
     parse_jjwxc_author_search,
 )
-
 
 OPF = """<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
@@ -124,8 +121,12 @@ class EpubMetadataEnricherTests(unittest.TestCase):
             "425111",
         )
         candidates = parse_jjwxc_author_catalog(AUTHOR_CATALOG)
-        self.assertEqual([candidate.title for candidate in candidates], ["千秋", "无双"])
-        self.assertEqual([candidate.series for candidate in candidates], ["剑胆琴心", "剑胆琴心"])
+        self.assertEqual(
+            [candidate.title for candidate in candidates], ["千秋", "无双"]
+        )
+        self.assertEqual(
+            [candidate.series for candidate in candidates], ["剑胆琴心", "剑胆琴心"]
+        )
         self.assertEqual(
             [candidate.series_position for candidate in candidates],
             [1, 2],

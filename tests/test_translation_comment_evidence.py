@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from src.cli.translate import main as translate_main
-from src.crawl.snapshot import write_json
+from src.crawler.snapshot import write_json
 from src.translation.comments import write_glossary_comment_evidence
 from src.translation.prompt_builder import prepare_prompts
 
