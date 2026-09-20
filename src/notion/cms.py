@@ -13,6 +13,38 @@ CONFIG = Path("book_specs/notion/config.json")
 STORAGE = "cms-chapter-database-v1"
 
 
+def chapter_entries(book: dict) -> list[tuple[str, str]]:
+    entries = []
+    seen = set()
+
+    def add(member: str, parent: str) -> None:
+        if member not in book["chapters"] or member in seen:
+            raise ValueError("chapter outline must contain every chapter exactly once")
+        if book["chapters"][member].get("shared"):
+            raise ValueError(
+                "shared extras belong in the shared database, not chapter rows"
+            )
+        seen.add(member)
+        entries.append((member, parent))
+
+    for node in book["sections"]:
+        children = node.get("children")
+        if children is None:
+            add(node["member"], "")
+            continue
+        if not node.get("title") or not children:
+            raise ValueError("CMS parent titles must have chapters")
+        for child in children:
+            if child.get("children") is not None:
+                raise ValueError(
+                    "CMS supports one parent title per chapter; use local EPUB for deeper TOCs"
+                )
+            add(child["member"], node["title"])
+    if len(seen) != len(book["chapters"]):
+        raise ValueError("chapter outline must contain every chapter exactly once")
+    return entries
+
+
 def author_names(metadata: dict) -> list[str]:
     # Never guess separators in a pen name. Multi-author sources can supply creators.
     names = metadata.get("creators") or [metadata["creator"]]
@@ -36,7 +68,10 @@ async def ensure_work(book: dict, path: Path, config: dict, *, tools) -> None:
             )
         return
     names = author_names(book["metadata"])
-    work_properties(book["metadata"], [])  # Validate before any remote writes.
+    metadata = book["metadata"] | {
+        "language": book["metadata"].get("language") or "zh-CN"
+    }
+    work_properties(metadata, [])  # Validate before any remote writes.
     template = states["works"].get("default_page_template")
     if not template:
         raise ValueError("CMS Works requires its default book template")
@@ -73,7 +108,7 @@ async def ensure_work(book: dict, path: Path, config: dict, *, tools) -> None:
         ids.append(id)
         book.pop("pending_author")
         write_json(path, book)
-    properties = work_properties(book["metadata"], ids)
+    properties = work_properties(metadata, ids)
     await reader.ensure_options(
         works_ds,
         {
@@ -99,6 +134,7 @@ async def ensure_views(book: dict, path: Path, config: dict, *, tools) -> None:
             book["work_id"],
             [config["databases"]["works"]["data_source_id"]],
             config["databases"]["extras"]["data_source_id"],
+            view_policy="editorial",
         )
         found = {
             "chapters_view_id": source["chapters_view"],

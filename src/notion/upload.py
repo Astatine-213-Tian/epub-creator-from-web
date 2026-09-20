@@ -10,7 +10,6 @@ from pathlib import Path
 from notion_books import (
     FIELDS,
     NotionBooks,
-    chapter_entries,
     from_markdown,
     relation_ids,
     to_markdown,
@@ -19,6 +18,7 @@ from notion_books import (
 from src.notion.cms import (
     CONFIG,
     STORAGE,
+    chapter_entries,
     ensure_views,
     ensure_work,
 )

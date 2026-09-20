@@ -12,14 +12,14 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 from lxml import etree as ET
-from notion_books import chapter_entries, exact_book_filter, work_properties
+from notion_books import exact_book_filter, work_properties
 from PIL import Image
 
 from src.content.models import Chapter, Volume
 from src.content.prepare import prepare_crawl
 from src.crawler.models import CrawledBook
 from src.epub.writer import export_local
-from src.notion.cms import STORAGE
+from src.notion.cms import STORAGE, chapter_entries, ensure_work, ensure_views
 from src.notion.cover import upload_cover, validate_cover
 from src.notion.upload import upload_draft, upload_row
 from src.runtime.files import digest
@@ -174,6 +174,22 @@ class DestinationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             export_local(book, Path(directory) / "book.epub")
 
+    def test_cms_outline_rejects_missing_duplicate_and_shared_chapters(self):
+        for kind in ("missing", "duplicate", "shared"):
+            with self.subTest(kind=kind):
+                book = source()
+                member = next(iter(book["chapters"]))
+                if kind == "missing":
+                    book["chapters"]["unlisted"] = copy.deepcopy(
+                        book["chapters"][member]
+                    )
+                elif kind == "duplicate":
+                    book["sections"].append({"member": member})
+                else:
+                    book["chapters"][member]["shared"] = True
+                with self.assertRaises(ValueError):
+                    chapter_entries(book)
+
     def test_manual_filter_rejects_or_with_a_single_clause(self):
         f = {
             "type": "property",
@@ -189,6 +205,113 @@ class DestinationTests(unittest.TestCase):
 
 
 class UploadTests(unittest.IsolatedAsyncioTestCase):
+    async def test_importer_applies_language_default_without_changing_checkpoint_source(
+        self,
+    ):
+        for language in (None, "", "en"):
+            with self.subTest(language=language):
+                book = source()
+                book["metadata"].pop("language", None)
+                if language is not None:
+                    book["metadata"]["language"] = language
+                original = copy.deepcopy(book["metadata"])
+                config = {
+                    "databases": {
+                        "works": {"data_source_id": DS, "view_id": "works"},
+                        "authors": {"data_source_id": DS, "view_id": "authors"},
+                    }
+                }
+                tools = AsyncMock()
+                tools.call.return_value = {"pages": [{"id": WORK}]}
+                with (
+                    tempfile.TemporaryDirectory() as directory,
+                    patch(
+                        "notion_books.NotionBooks.catalog",
+                        new=AsyncMock(
+                            return_value={"works": {"default_page_template": WORK}}
+                        ),
+                    ),
+                    patch(
+                        "notion_books.NotionBooks.rows",
+                        new=AsyncMock(
+                            side_effect=[
+                                [{"id": WORK, "作者": original["creator"]}],
+                                [],
+                            ]
+                        ),
+                    ),
+                    patch("notion_books.NotionBooks.ensure_options", new=AsyncMock()),
+                ):
+                    await ensure_work(
+                        book, Path(directory) / "import.json", config, tools=tools
+                    )
+                properties = tools.call.call_args.args[1]["pages"][0]["properties"]
+                self.assertEqual(properties["语言"], language or "zh-CN")
+                self.assertEqual(book["metadata"], original)
+
+    async def test_template_discovery_selects_manual_views_over_display_views(self):
+        chapter_database = "33333333-3333-4333-8333-333333333333"
+        manual = "44444444-4444-4444-8444-444444444444"
+        sorted_view = "55555555-5555-4555-8555-555555555555"
+        extras_database = "66666666-6666-4666-8666-666666666666"
+        extras_source = "77777777-7777-4777-8777-777777777777"
+        extras_view = "88888888-8888-4888-8888-888888888888"
+        book = {"work_id": WORK}
+        config = {
+            "databases": {
+                "works": {"data_source_id": WORK},
+                "extras": {"data_source_id": extras_source},
+            }
+        }
+
+        def view(data_source, **options):
+            return {
+                "text": "<view>\n"
+                + json.dumps(
+                    {"dataSourceUrl": "collection://" + data_source, **options}
+                )
+                + "\n</view>"
+            }
+
+        documents = {
+            WORK: {
+                "text": f'<parent-data-source url="collection://{WORK}"/>\n<properties>\n{{}}\n</properties>\n<content>\n<database url="{chapter_database}"/>\n<database url="{extras_database}"/>\n</content>'
+            },
+            chapter_database: {
+                "text": f'<parent-page url="{WORK}"/> view://{sorted_view} view://{manual}'
+            },
+            extras_database: {"text": "view://" + extras_view},
+            "collection://" + DS: {
+                "url": chapter_database,
+                "text": '<data-source-state>\n{"name":"正文","schema":{"章节":{"type":"title"},"所属标题":{"type":"select"}}}\n</data-source-state>',
+            },
+            "view://" + manual: view(DS),
+            "view://" + sorted_view: view(DS, sorts=[{"property": "章节"}]),
+            "view://" + extras_view: view(
+                extras_source,
+                advancedFilter={
+                    "type": "property",
+                    "property": "涉及作品",
+                    "propertyType": "relation",
+                    "operator": "relation_contains",
+                    "value": {"type": "exact", "value": WORK},
+                },
+            ),
+        }
+
+        class Tools:
+            async def call(self, name, arguments):
+                if name != "notion-fetch":
+                    raise AssertionError("Unexpected write during discovery")
+                return documents[arguments["id"]]
+
+        with tempfile.TemporaryDirectory() as directory:
+            await ensure_views(
+                book, Path(directory) / "import.json", config, tools=Tools()
+            )
+        self.assertEqual(book["chapters_view_id"], manual)
+        self.assertEqual(book["view_id"], extras_view)
+
     async def test_draft_creation_matches_cms_order_and_resumes_without_overwrite(self):
         book = source()
         book.update(

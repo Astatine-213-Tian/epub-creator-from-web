@@ -38,6 +38,8 @@ Notion schema, Markdown encoding/decoding, paginated reads and writes live in th
 versioned `notion-books` dependency, shared with NAS Bookshelf CMS. Its Python
 adapter executes the same Go core linked by the CMS and calls back into this
 project's authenticated transport. It owns no login, import job or draft status.
+The importer maps its prepared chapter tree to Notion rows, supplies its language default, and explicitly selects
+the editorial-view contract needed by CMS; general shared reads allow display views.
 Property mapping changes ship in a shared release; both consumers update their
 pins and run their gates. The future public extras sync remains a separate project.
 
