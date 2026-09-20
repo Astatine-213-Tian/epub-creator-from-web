@@ -8,9 +8,9 @@ import warnings
 from pathlib import Path
 
 import httpx
+from notion_books import API_VERSION, NotionBooks, cover_request, notion_id, page_cover
 from PIL import Image
 
-from src.notion.reader import NotionReader, notion_id
 from src.runtime.files import digest, write_json
 
 MAX_BYTES = 10 * 1024 * 1024
@@ -72,66 +72,52 @@ async def upload_cover(book: dict, state: Path, *, tools) -> None:
         raise ValueError("Cover asset changed since preparation")
     suffix = validate_cover(data)
     token = api_token()
-    reader = NotionReader(tools)
+    reader = NotionBooks(tools)
     page = await reader.fetch(book["work_id"])
-    if "cover" not in page:
-        raise ValueError("CMS cover is unavailable; cannot safely attach a cover")
+    existing_cover = page_cover(page)
     if book.get("cover_pending"):
         # Never overwrite a later manual cover after an uncertain PATCH response.
         raise ValueError(
             "Cover attachment result is uncertain; inspect the page and reconcile cover_pending before retrying"
         )
-    if page["cover"] is not None:
+    if existing_cover is not None:
         raise ValueError(
             "Book already has a cover; reconcile it before uploading the crawler cover"
         )
     async with httpx.AsyncClient(
         headers={
             "Authorization": "Bearer " + token,
-            "Notion-Version": "2025-09-03",
+            "Notion-Version": API_VERSION,
         },
         timeout=60,
         follow_redirects=False,
     ) as client:
         # Verify API access before allocating or sending a file.
         await api_json(client, "GET", "pages/" + book["work_id"])
-        filename = "cover." + suffix
-        mime = "image/png" if suffix == "png" else "image/jpeg"
+        request = cover_request("create", suffix=suffix)
         upload = await api_json(
-            client,
-            "POST",
-            "file_uploads",
-            json={
-                "mode": "single_part",
-                "filename": filename,
-                "content_type": mime,
-            },
+            client, request["method"], request["path"], json=request["json"]
         )
         id = notion_id(upload["id"])
+        request = cover_request("send", id=id, suffix=suffix)
         sent = await api_json(
             client,
-            "POST",
-            f"file_uploads/{id}/send",
-            files={"file": (filename, data, mime)},
+            request["method"],
+            request["path"],
+            files={"file": (request["filename"], data, request["content_type"])},
         )
         if sent.get("status") != "uploaded":
             raise ValueError("Notion did not finish uploading the cover")
         book["cover_pending"] = id
         write_json(state, book)
-        await api_json(
-            client,
-            "PATCH",
-            "pages/" + book["work_id"],
-            json={
-                "cover": {"type": "file_upload", "file_upload": {"id": id}},
-            },
-        )
-    cover = (await reader.fetch(book["work_id"])).get("cover")
-    if not isinstance(cover, dict) or cover.get("type") != "file":
+        request = cover_request("attach", id=id, page=book["work_id"])
+        await api_json(client, request["method"], request["path"], json=request["json"])
+    cover = page_cover(await reader.fetch(book["work_id"]))
+    if cover is None or cover["kind"] != "file":
         raise ValueError("CMS cover readback is not a native uploaded file")
     # Only download the newly attached native file; never persist its signed URL.
     async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
-        response = await client.get(cover["file"]["url"])
+        response = await client.get(cover["url"])
         if not response.is_success or digest(response.content) != book["cover_sha256"]:
             raise ValueError("CMS uploaded cover bytes differ from the prepared cover")
     book.pop("cover_pending")

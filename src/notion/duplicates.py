@@ -12,11 +12,17 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
+from notion_books import (
+    FIELDS,
+    NotionBooks,
+    from_markdown,
+    notion_id,
+    to_markdown,
+    validate_inventory,
+)
 from opencc import OpenCC
 
 from src.content.blocks import content_signature
-from src.notion.markdown import from_markdown, to_markdown
-from src.notion.reader import NotionReader, notion_id
 from src.runtime.files import digest, write_json
 
 SIMILARITY_THRESHOLD = 0.70
@@ -266,7 +272,7 @@ def resolve_extra(state: Path, index: int, *, use_existing: str | None = None) -
 
 
 async def preflight_extras(
-    book: dict, state: Path, config: dict, reader: NotionReader
+    book: dict, state: Path, config: dict, reader: NotionBooks
 ) -> None:
     """Inspect the whole library once; never infer absence from ranked search results."""
     pending = [
@@ -282,12 +288,7 @@ async def preflight_extras(
         )
     database = config["databases"]["extras"]
     view = await reader.view(database["view_id"])
-    if notion_id(view["dataSourceUrl"]) != database["data_source_id"] or any(
-        view.get(key) for key in ("advancedFilter", "filter", "quickFilters")
-    ):
-        raise ValueError(
-            "Shared-extra similarity check requires an unfiltered inventory view"
-        )
+    validate_inventory(view, database["data_source_id"])
     rows = await reader.rows(database["view_id"])
     print(
         f"Checking {len(pending)} incoming extras against {len(rows)} shared Notion pages…",
@@ -299,7 +300,7 @@ async def preflight_extras(
         async with semaphore:
             props, markdown = await reader.document(row["id"])
         blocks = from_markdown(markdown)
-        title = props.get("番外")
+        title = props.get(FIELDS["extra_title"])
         if not isinstance(title, str):
             raise ValueError(
                 "Shared extra is missing its title; duplicate check incomplete"

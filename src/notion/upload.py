@@ -7,25 +7,29 @@ import copy
 import json
 from pathlib import Path
 
+from notion_books import (
+    FIELDS,
+    NotionBooks,
+    chapter_entries,
+    from_markdown,
+    relation_ids,
+    to_markdown,
+)
+
 from src.notion.cms import (
     CONFIG,
     STORAGE,
-    chapter_entries,
-    ensure_options,
     ensure_views,
     ensure_work,
 )
 from src.notion.duplicates import fingerprint, preflight_extras
-from src.notion.markdown import from_markdown, to_markdown
 from src.notion.mcp import (
     AUTH_FILE,
     TokenStore,
     connect,
     error_message,
     exclusive_lock,
-    finish,
 )
-from src.notion.reader import NotionReader, notion_id, relation_ids
 from src.runtime.files import digest, write_json
 
 
@@ -44,7 +48,7 @@ async def upload_row(
     title_property: str,
     tools,
 ) -> None:
-    reader = NotionReader(tools)
+    reader = NotionBooks(tools)
     if not item.get("page_id"):
         if item.get("pending"):
             raise ValueError(
@@ -52,23 +56,11 @@ async def upload_row(
             )
         item["pending"] = True
         write_json(state, book)
-        response = await finish(
-            tools,
-            await tools.call(
-                "notion-create-pages",
-                {
-                    "allow_async": False,
-                    "parent": {"data_source_id": data_source},
-                    "pages": [
-                        {
-                            "properties": properties,
-                            "content": to_markdown(item["blocks"]),
-                        }
-                    ],
-                },
-            ),
+        item["page_id"] = await reader.create_page(
+            data_source,
+            properties,
+            content=to_markdown(item["blocks"]),
         )
-        item["page_id"] = notion_id(response["pages"][0]["id"])
         item.pop("pending")
         write_json(state, book)
     if item.get("verified"):
@@ -82,12 +74,12 @@ async def upload_row(
         raise ValueError(
             "CMS draft readback differs from prepared content; reconcile without overwriting edits"
         )
-    if "所属标题" in properties and (props.get("所属标题") or "") != (
-        properties["所属标题"] or ""
-    ):
+    if FIELDS["parent_title"] in properties and (
+        props.get(FIELDS["parent_title"]) or ""
+    ) != (properties[FIELDS["parent_title"]] or ""):
         raise ValueError("CMS draft parent title differs from prepared content")
-    if "涉及作品" in properties and book["work_id"] not in relation_ids(
-        props.get("涉及作品")
+    if FIELDS["related_works"] in properties and book["work_id"] not in relation_ids(
+        props.get(FIELDS["related_works"])
     ):
         raise ValueError("CMS extra readback has the wrong work relation")
     item["verified"] = True
@@ -103,7 +95,7 @@ async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
             "Not a checkpoint for this CMS catalog; old library checkpoints cannot be reused"
         )
     entries = chapter_entries(book)
-    reader = NotionReader(tools)
+    reader = NotionBooks(tools)
     if not book.get("uploaded"):
         # Resolve possible shared duplicates before creating a work or uploading rows.
         await preflight_extras(book, state, config, reader)
@@ -134,10 +126,9 @@ async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
             raise ValueError(
                 "CMS rows differ from the import checkpoint; reconcile before appending"
             )
-    await ensure_options(
+    await reader.ensure_options(
         book["chapters_data_source_id"],
-        {"所属标题": [p for _, p in entries]},
-        tools=tools,
+        {FIELDS["parent_title"]: [p for _, p in entries]},
     )
     # New records enter manual views at the top. Create from the end, then verify
     # the actual editorial order instead of assuming query insertion order.
@@ -148,8 +139,11 @@ async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
             book,
             state,
             data_source=book["chapters_data_source_id"],
-            properties={"章节": item["title"], "所属标题": parent or None},
-            title_property="章节",
+            properties={
+                FIELDS["chapter_title"]: item["title"],
+                FIELDS["parent_title"]: parent or None,
+            },
+            title_property=FIELDS["chapter_title"],
             tools=tools,
         )
     for item in reversed(book["extras"]):
@@ -158,31 +152,29 @@ async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
             expected = item.get("reuse_fingerprint") or fingerprint(
                 item["title"], item["blocks"]
             )
-            if fingerprint(props.get("番外"), from_markdown(body)) != expected:
+            if (
+                fingerprint(props.get(FIELDS["extra_title"]), from_markdown(body))
+                != expected
+            ):
                 raise ValueError(
                     "Shared extra changed after duplicate review; reconcile before linking"
                 )
-            works = relation_ids(props.get("涉及作品"))
+            works = relation_ids(props.get(FIELDS["related_works"]))
             if book["work_id"] not in works:
-                await finish(
-                    tools,
-                    await tools.call(
-                        "notion-update-page",
-                        {
-                            "allow_async": False,
-                            "command": "update_properties",
-                            "page_id": item["page_id"],
-                            "properties": {"涉及作品": works + [book["work_id"]]},
-                        },
-                    ),
+                await reader.write_properties(
+                    item["page_id"],
+                    {FIELDS["related_works"]: works + [book["work_id"]]},
                 )
         await upload_row(
             item,
             book,
             state,
             data_source=config["databases"]["extras"]["data_source_id"],
-            properties={"番外": item["title"], "涉及作品": [book["work_id"]]},
-            title_property="番外",
+            properties={
+                FIELDS["extra_title"]: item["title"],
+                FIELDS["related_works"]: [book["work_id"]],
+            },
+            title_property=FIELDS["extra_title"],
             tools=tools,
         )
     for view, expected in [

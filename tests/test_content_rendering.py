@@ -6,7 +6,7 @@ from lxml import etree as ET
 
 from src.content.xhtml import read_xhtml
 from src.epub.xhtml import render_blocks
-from src.notion.markdown import from_markdown, text_blocks, to_markdown
+from notion_books import from_markdown, text_blocks, to_markdown
 
 
 class ContentTests(unittest.TestCase):

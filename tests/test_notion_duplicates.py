@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from notion_books import NotionBooks, from_markdown
+
 from src.notion.cms import STORAGE
 from src.notion.duplicates import (
     TextProfile,
@@ -15,7 +17,6 @@ from src.notion.duplicates import (
     resolve_extra,
     similarity,
 )
-from src.notion.markdown import from_markdown
 from src.notion.upload import upload_draft, upload_source
 
 WORK = "11111111-1111-1111-1111-111111111111"
@@ -88,6 +89,15 @@ class Library:
         self.calls = []
         self.reads = []
         self.filter = None
+
+    async def ensure_options(self, data_source, values):
+        pass
+
+    async def create_page(self, data_source, properties, **kwargs):
+        return await NotionBooks(self).create_page(data_source, properties, **kwargs)
+
+    async def write_properties(self, id, properties):
+        return await NotionBooks(self).write_properties(id, properties)
 
     async def view(self, view):
         return {"dataSourceUrl": f"collection://{EXTRAS}", "filter": self.filter}
@@ -281,10 +291,10 @@ class DuplicateUploadTests(unittest.IsolatedAsyncioTestCase):
 
     async def upload(self):
         with (
-            patch("src.notion.upload.NotionReader", return_value=self.library),
+            patch("src.notion.upload.NotionBooks", return_value=self.library),
             patch("src.notion.upload.ensure_work", new=AsyncMock()) as work,
             patch("src.notion.upload.ensure_views", new=AsyncMock()),
-            patch("src.notion.upload.ensure_options", new=AsyncMock()),
+            patch("notion_books.NotionBooks.ensure_options", new=AsyncMock()),
         ):
             try:
                 await upload_draft(self.book, self.state, CONFIG, tools=self.library)

@@ -5,6 +5,22 @@
 TXT 或任意组合。爬取一次后写入所选目的地；单独选择本地文件时不连接 Notion。
 CMS 负责从 Notion 发布电子书，本仓库只上传草稿，不触发发布按钮或服务。
 
+## 安装共享依赖
+
+`notion-books` 固定到私有 Git 仓库的版本标签，`uv.lock` 记录确切提交；无需相邻 checkout。
+首次安装运行 `gh auth login`、`gh auth setup-git` 配置 Git 访问权限，
+然后在本项目运行 `mise trust`、`mise install`、`mise exec -- uv sync --locked`。
+Go 核心在安装时编译进 Python 包；运行时无需 Go 或新增服务。
+
+测试共享库的本地修改时，使用临时覆盖，不修改依赖配置或锁文件：
+
+```bash
+mise exec -- uv run --with /absolute/path/to/notion-books python -m unittest discover -s tests -p 'test_*.py'
+```
+
+正式升级时同步修改版本号和 Git 标签，运行 `mise exec -- uv lock`，并更新 CMS 的 Go 依赖。
+双方测试必须使用发布版本再通过一次。
+
 ## 使用
 
 ```bash
@@ -77,8 +93,9 @@ uv run book-notion resume --state generated/notion_cms_sources/<来源摘要>/im
 
 ## 排版约定
 
-`src/content/` 负责内容相关的清理和格式识别；`src/notion/markdown.py` 保存显式排版。
-`src/notion/cms.py` 管理存储结构，`src/notion/upload.py` 上传草稿。
+`src/content/` 负责内容相关的清理和格式识别；共享依赖 `notion-books` 负责
+Notion schema、格式编解码和读写。`src/notion/cms.py` 与 `upload.py`
+负责导入决策、身份匹配、检查点和流程；认证与封面 HTTP 客户端也留在本项目。
 `src/workflows/ingest.py` 决定输出目的地；本地输出调用 `src/epub/writer.py`，不经 Notion。
 模块边界见[架构说明](architecture.md)。
 
@@ -89,3 +106,9 @@ uv run book-notion resume --state generated/notion_cms_sources/<来源摘要>/im
 
 本地替换先生成、验证候选 EPUB，再校验原文件哈希、备份和原子安装。
 检查点、书籍内容和生成的 EPUB 不提交 Git。
+
+## Live upload validation
+
+The [crawler live test](../tests/LIVE_NOTION.md) runs a synthetic crawl result
+through real Notion upload, readback and checkpoint resume. It has no dependency
+on the CMS checkout; publication is tested by the CMS itself.

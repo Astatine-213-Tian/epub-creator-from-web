@@ -12,13 +12,14 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 from lxml import etree as ET
+from notion_books import chapter_entries, exact_book_filter, work_properties
 from PIL import Image
 
 from src.content.models import Chapter, Volume
 from src.content.prepare import prepare_crawl
 from src.crawler.models import CrawledBook
 from src.epub.writer import export_local
-from src.notion.cms import STORAGE, chapter_entries, exact_book_filter, work_properties
+from src.notion.cms import STORAGE
 from src.notion.cover import upload_cover, validate_cover
 from src.notion.upload import upload_draft, upload_row
 from src.runtime.files import digest
@@ -234,11 +235,11 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
             tempfile.TemporaryDirectory() as directory,
             patch("src.notion.upload.ensure_work", new=AsyncMock()),
             patch("src.notion.upload.ensure_views", new=AsyncMock()),
-            patch("src.notion.upload.ensure_options", new=AsyncMock()),
-            patch("src.notion.reader.NotionReader.document", document),
-            patch("src.notion.reader.NotionReader.rows", read_rows),
+            patch("notion_books.NotionBooks.ensure_options", new=AsyncMock()),
+            patch("notion_books.NotionBooks.document", document),
+            patch("notion_books.NotionBooks.rows", read_rows),
             patch(
-                "src.notion.reader.NotionReader.view",
+                "notion_books.NotionBooks.view",
                 new=AsyncMock(return_value={"dataSourceUrl": f"collection://{DS}"}),
             ),
         ):

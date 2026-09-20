@@ -26,13 +26,20 @@ flowchart LR
 | `crawler/` | Site parsing, browser/parallel fetch, search/previews, reusable snapshots | `registry.find_parser`, `ParserSpec.crawl`, `snapshot` |
 | `content/` | Shared chapter models, source cleanup, explicit headings/emphasis/alignment | `prepare.prepare_source`, `normalization.normalize_member` |
 | `epub/` | Local archive creation, XHTML presentation, validation and existing-edition repair | `writer.export_local`, `bilingual.create_bilingual_book`, `maintenance.normalize_new_epub` |
-| `notion/` | CMS schema, Markdown adaptation, OAuth transport, upload checkpoints and native covers | `upload.upload_source`, `upload.upload_draft` |
+| `notion/` | OAuth/API transport, import decisions, duplicate review, upload checkpoints and cover orchestration | `upload.upload_source`, `upload.upload_draft` |
 | `translation/` | Glossary/comment evidence, translation, style transfer, semantic QA and joining translations to snapshots | `pipeline`, `output.build_bilingual_epub` |
 | `dataset/` | Targeted TXT export, classification and manifest maintenance | `library.upsert_txt_dataset_entry`, `library.export_single_epub_txt` |
 | `metadata/` | Authoritative source lookup and book classification | `catalog.MetadataLookup`, `jjwxc`, `classifier` |
 | `workflows/` | Join collection, preparation and output selection | `ingest.ingest`, `ingest.OutputOptions` |
 | `runtime/` | Output paths, atomic state files, hashes and progress | `paths`, `files`, `progress` |
 | `cli/` | Argument parsing and command dispatch | Installed commands in `pyproject.toml` |
+
+Notion schema, Markdown encoding/decoding, paginated reads and writes live in the
+versioned `notion-books` dependency, shared with NAS Bookshelf CMS. Its Python
+adapter executes the same Go core linked by the CMS and calls back into this
+project's authenticated transport. It owns no login, import job or draft status.
+Property mapping changes ship in a shared release; both consumers update their
+pins and run their gates. The future public extras sync remains a separate project.
 
 Paths in this table are relative to `src/`. Dependencies point toward the shared
 contracts and services, never back into `cli/`. Production does not import the
@@ -96,7 +103,7 @@ Existing-edition repair is explicit:
 These repair stages are not invoked by the prepared-content EPUB renderer.
 Site-specific cleanup stays in providers; shared wording/formatting rules stay
 in source preparation. A presentation change belongs in the EPUB renderer or
-Notion Markdown adapter and must work for arbitrary text.
+`notion-books` content codec and must work for arbitrary text.
 
 ## Removed paths
 

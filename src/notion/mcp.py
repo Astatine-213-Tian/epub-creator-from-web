@@ -303,20 +303,6 @@ async def connect(store: TokenStore, *, login: bool = False) -> AsyncIterator[MC
             callback.close()
 
 
-async def finish(tools, result: dict) -> dict:
-    while result.get("object") == "async_task":
-        if result["status"] == "succeeded":
-            return result.get("result", result)
-        if result["status"] in {"failed", "cancelled"}:
-            raise ValueError(
-                "Notion background write failed: "
-                + json.dumps(result.get("error", {}), ensure_ascii=False)
-            )
-        await asyncio.sleep(min(10, result.get("poll_after_seconds", 2)))
-        result = await tools.call("notion-get-async-task", {"task_id": result["id"]})
-    return result
-
-
 async def login(store: TokenStore) -> None:
     store.clear_tokens()
     async with connect(store, login=True) as tools:

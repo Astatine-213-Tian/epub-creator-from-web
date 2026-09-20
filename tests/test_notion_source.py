@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from lxml import etree as ET
+from notion_books import NotionBooks, from_markdown, text_blocks, to_markdown
 
 from src.content.blocks import content_signature
 from src.content.formatting import prepare_blocks
@@ -16,8 +17,6 @@ from src.content.xhtml import read_xhtml
 from src.crawler.models import CrawledBook
 from src.epub.archive import install_archive
 from src.epub.writer import create_book
-from src.notion.markdown import from_markdown, text_blocks, to_markdown
-from src.notion.reader import NotionReader
 from src.runtime.files import digest
 from src.workflows.ingest import OutputOptions, write_outputs
 
@@ -38,7 +37,7 @@ class SourceTests(unittest.TestCase):
     def test_notion_autolinks_preserve_bare_urls_without_dropping_named_links(self):
         url = "https://example.org/book?id=1"
         self.assertEqual(from_markdown(f"[{url}]({url})"), from_markdown(url))
-        with self.assertRaisesRegex(ValueError, "Unsupported"):
+        with self.assertRaisesRegex(ValueError, "(?i)unsupported"):
             from_markdown(f"[different label]({url})")
 
     def test_install_checks_observed_bytes_and_backs_up_absolute_paths(self):
@@ -149,7 +148,7 @@ class BatchResumeTests(unittest.IsolatedAsyncioTestCase):
                     "text": '<properties>\n{"title":"Section"}\n</properties>\n<blank-page>This page is blank and has no content.</blank-page>'
                 }
 
-        props, body = await NotionReader(Tools()).document("page")
+        props, body = await NotionBooks(Tools()).document("page")
         self.assertEqual(props["title"], "Section")
         self.assertEqual(from_markdown(body), [])
 
