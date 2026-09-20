@@ -9,7 +9,7 @@ description = "Scrape supported web novels and build EPUB files."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "notion-books==0.2.0",
+    "notion-books==0.2.1",
     "beautifulsoup4==4.14.3",
     "cssselect2>=0.10.1",
     "EbookLib==0.20",
@@ -38,4 +38,4 @@ book-notion = "src.cli.notion_book:main"
 include = ["src*"]
 
 [tool.uv.sources]
-notion-books = { git = "https://github.com/Astatine-213-Tian/notion-books", tag = "v0.2.0" }
+notion-books = { git = "https://github.com/Astatine-213-Tian/notion-books", tag = "v0.2.1" }

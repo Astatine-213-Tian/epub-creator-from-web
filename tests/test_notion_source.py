@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 import zipfile
@@ -17,6 +18,7 @@ from src.content.xhtml import read_xhtml
 from src.crawler.models import CrawledBook
 from src.epub.archive import install_archive
 from src.epub.writer import create_book
+from src.notion.upload import upload_row
 from src.runtime.files import digest
 from src.workflows.ingest import OutputOptions, write_outputs
 
@@ -141,6 +143,62 @@ class SourceTests(unittest.TestCase):
 
 
 class BatchResumeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_prepared_crawl_readback_preserves_trailing_spaces(self):
+        for html in ("<p>hello  </p>", "<p>hello <strong>world</strong> </p>"):
+            for trim_readback in (False, True):
+                with self.subTest(html=html, trim_readback=trim_readback):
+                    book = prepare_crawl(
+                        title="Fixture",
+                        author="Author",
+                        source_url="https://example.org/book",
+                        volumes=[Volume("", [Chapter("Chapter", html_blocks=[html])])],
+                    )
+                    member, item = next(iter(book["chapters"].items()))
+                    self.assertTrue(text_blocks(item["blocks"])[0].endswith(" "))
+                    page_id = "11111111-1111-4111-8111-111111111111"
+                    calls = []
+
+                    class Tools:
+                        async def call(self, name, arguments):
+                            calls.append(name)
+                            if name == "notion-create-pages":
+                                self.page = arguments["pages"][0]
+                                return {"pages": [{"id": page_id}]}
+                            if name == "notion-fetch" and arguments["id"] == page_id:
+                                body = self.page["content"]
+                                if trim_readback:
+                                    body = body.rstrip(" ")
+                                return {
+                                    "text": "<properties>\n"
+                                    + json.dumps(self.page["properties"])
+                                    + "\n</properties>\n<content>\n"
+                                    + body
+                                    + "\n</content>"
+                                }
+                            raise AssertionError((name, arguments))
+
+                    with tempfile.TemporaryDirectory() as directory:
+                        state = Path(directory) / "import.json"
+                        upload = upload_row(
+                            item,
+                            book,
+                            state,
+                            data_source="22222222-2222-4222-8222-222222222222",
+                            properties={"章节": "Chapter"},
+                            title_property="章节",
+                            tools=Tools(),
+                        )
+                        if trim_readback:
+                            with self.assertRaisesRegex(ValueError, "readback differs"):
+                                await upload
+                        else:
+                            await upload
+                        saved = json.loads(state.read_text())["chapters"][member]
+                        self.assertEqual(saved.get("verified", False), not trim_readback)
+                        self.assertEqual(saved["page_id"], page_id)
+                        self.assertNotIn("pending", saved)
+                    self.assertEqual(calls, ["notion-create-pages", "notion-fetch"])
+
     async def test_title_only_source_page_is_readable(self):
         class Tools:
             async def call(self, *_):
