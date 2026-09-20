@@ -612,10 +612,11 @@
       "source_chunk": "07_003"
     },
     "Howling County": {
-      "zh": "嚎风郡",
-      "note": "地名，结合 howling 的风声意象译为嚎风郡。",
-      "confidence": "medium",
-      "source_chunk": "07_003"
+      "zh": "啸镇",
+      "note": "Risk 在 Chapter 027 评论中确认正式中文名为“啸镇”，因当地常年海风呼号犹如龙啸。",
+      "confidence": "high",
+      "source_chunk": "07_003",
+      "source_comment": "224966797"
     },
     "Falling Star Lake": {
       "zh": "坠星湖",
@@ -1827,6 +1828,120 @@
       "note": "第六道真言的正式名称。",
       "confidence": "high",
       "source_chunk": "26_006"
+    },
+    "Ro": {
+      "zh": "罗",
+      "note": "熊爵派往海国的使者姓名；暂用音译，等待作者确认。",
+      "confidence": "medium",
+      "source_chunk": "27_004"
+    },
+    "Stargazers": {
+      "zh": "观星者",
+      "note": "继承古老学识、预测未来的学派，与学士并列；暂按英文含义翻译，等待作者确认。",
+      "confidence": "medium",
+      "source_chunk": "27_004"
+    },
+    "Dragon Bloodline": {
+      "zh": "龙血一族",
+      "note": "闪哲王族所属的具名海民族群支系；与既有“龙血”用词一致，等待作者确认族群称谓。",
+      "confidence": "medium",
+      "source_chunk": "27_006"
+    },
+    "Alder": {
+      "zh": "阿尔德",
+      "note": "孤山来使的人名，暂用音译。当前评论已有读者询问官中，尚无作者确认。",
+      "confidence": "medium",
+      "source_chunk": "28_002"
+    },
+    "Voidhaven City": {
+      "zh": "虚港城",
+      "note": "孤山境内的具名城市，依据英文暂译，等待作者确认。",
+      "confidence": "medium",
+      "source_chunk": "28_002"
+    },
+    "Crown of New Spring": {
+      "zh": "新春之冠",
+      "note": "锡安为隆让加冕时正式授予的具名王冠，依据英文暂译。",
+      "confidence": "medium",
+      "source_chunk": "28_002"
+    },
+    "Itha": {
+      "zh": "伊萨族",
+      "note": "闪哲所属族群的正式族名，暂用音译。当前评论已有读者询问官中，尚无作者确认。",
+      "confidence": "medium",
+      "source_chunk": "28_003"
+    },
+    "Dragon People": {
+      "zh": "龙之民",
+      "note": "伊萨族的自称，与本章明确区分的龙族及龙骑士称谓保持区别；依据英文暂译。",
+      "confidence": "medium",
+      "source_chunk": "28_003"
+    },
+    "North Islanders": {
+      "zh": "北岛族",
+      "note": "千海族群名称，依据英文暂译，等待作者确认。",
+      "confidence": "medium",
+      "source_chunk": "28_003"
+    },
+    "Tridacna": {
+      "zh": "砗磲族",
+      "note": "与北岛族并列的千海族群名称；此处指族群而非普通贝类，依据英文暂译。",
+      "confidence": "medium",
+      "source_chunk": "28_003"
+    },
+    "Albatross Knights": {
+      "zh": "信天翁骑士",
+      "note": "海国在主岛上空巡行并维持秩序的具名骑士群体，依据英文暂译。",
+      "confidence": "medium",
+      "source_chunk": "28_006"
+    },
+    "Eastern Lands": {
+      "zh": "东土",
+      "note": "Chapter 027 地图所示的具名地域，依据英文暂译；不额外限定为多个国家，等待作者确认。",
+      "confidence": "medium",
+      "source_chunk": "29_002"
+    },
+    "Snowport": {
+      "zh": "雪港",
+      "note": "Chapter 028 中的罗的故乡，地名；依据英文暂译，尚无作者中文确认。",
+      "confidence": "medium",
+      "source_chunk": "30_001"
+    },
+    "Cyran": {
+      "zh": "赛兰",
+      "note": "Chapter 028 中的狭海中出现的古老亡魂，人名；依据英文暂译，尚无作者中文确认。",
+      "confidence": "medium",
+      "source_chunk": "30_002"
+    },
+    "Forgotten One": {
+      "zh": "遗忘者",
+      "note": "Chapter 028 中的无法进入永恒之门、长久漂泊的亡魂身份；依据英文暂译，尚无作者中文确认。",
+      "confidence": "medium",
+      "source_chunk": "30_002"
+    },
+    "Azure Heart": {
+      "zh": "苍蓝之心",
+      "note": "Chapter 028 中的诸海最大岛屿，地名；依据英文暂译，尚无作者中文确认。",
+      "confidence": "medium",
+      "source_chunk": "30_003"
+    },
+    "Third Era": {
+      "zh": "第三纪元",
+      "note": "Chapter 028 中的至高造物主陨落后的具名历史纪元；依据英文暂译，尚无作者中文确认。",
+      "confidence": "medium",
+      "source_chunk": "30_003"
+    },
+    "Dolen": {
+      "zh": "多伦",
+      "note": "Chapter 028 中的啸镇已故镇长，人名；依据英文暂译，尚无作者中文确认。",
+      "confidence": "medium",
+      "source_chunk": "30_004"
+    },
+    "Cold Peaks": {
+      "zh": "寒峰",
+      "note": "Chapter 028 中的狼族部落所在地域，地名；依据英文暂译，尚无作者中文确认。",
+      "confidence": "medium",
+      "source_chunk": "30_006"
     }
   },
   "sentence_translations": [
