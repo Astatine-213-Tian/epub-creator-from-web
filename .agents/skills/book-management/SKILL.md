@@ -1,12 +1,12 @@
 ---
 name: book-management
-description: Add, find, update, or repair books in epub-creator-from-web. Use for choosing sources, crawling to local EPUB, Notion CMS drafts and/or TXT, targeted training-dataset exports, adding or fixing crawler providers, and correcting book formatting or metadata. Dataset export is an output choice in the shared book workflow.
+description: Add, find, update, or repair books in epub-creator-from-web. Use for choosing sources, crawling to local EPUB, Notion drafts and/or TXT, targeted training-dataset exports, adding or fixing crawler providers, and correcting book formatting or metadata. Dataset export is an output choice in the shared book workflow.
 ---
 
 # Book Management
 
 Use the maintained CLI for book acquisition and output. One crawl can produce
-local EPUB, a Notion CMS draft, TXT, or any combination of these.
+local EPUB, a Notion draft, TXT, or any combination of these.
 
 ## Choose the Task
 
@@ -15,8 +15,8 @@ local EPUB, a Notion CMS draft, TXT, or any combination of these.
   implement or repair the provider, then resume acquisition if a book output was requested.
   A provider-development-only task ends with its fixture and CLI checks.
 - **Correct existing content, formatting, TOC or metadata:** read
-  [formatting.md](references/formatting.md). For CMS-managed content, edit the CMS
-  source and let its publishing service publish; repair a local archive when requested.
+  [formatting.md](references/formatting.md). Edit uploaded content in Notion;
+  repair a local archive when requested.
 - **Export an existing book for training:** use the targeted dataset command below.
   Training output uses the same collection pipeline when a fresh source is needed.
 
@@ -62,7 +62,7 @@ The CLI requires a format choice, or infers EPUB/TXT from explicit output paths.
 - TXT: default path `research/datasets/raw/<author>/<title>.txt`; override with
   `--txt-output` or `--dataset-root`. `book-ingest` upserts only that book in the
   selected dataset's `dataset_manifest.json` whenever TXT is requested.
-- Notion: upload an editable draft; the CMS owns publication. Authentication,
+- Notion: upload an editable draft and verify its readback. Authentication,
   cover upload, schema and checkpoint recovery are documented in
   [notion-books.md](../../../docs/notion-books.md). Shared extras use
   [fanwai-notion.md](../../../docs/fanwai-notion.md).

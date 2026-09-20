@@ -1,6 +1,6 @@
 # EPUB Creator From Web
 
-Crawl and prepare web novels, then upload drafts to the Notion CMS or write local EPUBs directly.
+Crawl and prepare web novels, then upload drafts to Notion or write local EPUBs directly.
 
 The repository root is the maintained production project. Dataset-heavy
 authorship and style-transfer experiments are isolated in the nested
@@ -8,9 +8,11 @@ authorship and style-transfer experiments are isolated in the nested
 
 ## Setup
 
-```bash
-uv sync
-```
+Install `uv`, `mise`, and the GitHub CLI (`gh`), then follow the
+[dependency setup](docs/notion-books.md#安装共享依赖). The required private
+`notion-books` package needs GitHub repository access and a Go toolchain at build
+time, including for local EPUB-only use. The setup installs the pinned toolchain
+and Python dependencies; Go is not needed at runtime.
 
 Browser-backed providers require a Chromium-compatible browser. Install Chromium,
 Google Chrome, or Playwright-managed Chromium; set `BOOKLIB_BROWSER_PATH` if the
@@ -31,7 +33,7 @@ The pipeline:
 3. Ranks results by query match, chapter count, then provider preference.
 4. Shows each candidate with title, author, chapter count, first two chapters, and last two chapters.
 5. Prompts you to choose one.
-6. Crawls the selected provider, prepares its formatting, and writes a CMS draft or a local EPUB, according to the selected output.
+6. Crawls the selected provider, prepares its formatting, and writes a Notion draft or a local EPUB, according to the selected output.
 
 Limit search to one provider:
 
@@ -78,7 +80,7 @@ uv run book-to-epub doupocangqiong --parser quanben --output-format epub -o book
 ## Ingest For Reading And Training
 
 Use `book-ingest` for the normal end-to-end workflow. It crawls the source once,
-writes every selected destination: local EPUB, editable Notion CMS draft and/or
+writes every selected destination: local EPUB, editable Notion draft and/or
 TXT. It validates EPUB output and upserts only the requested TXT entry in the
 selected dataset manifest. Repeat `--mode` (alias `--output-format`) to combine
 destinations. An explicit `-o` or `--txt-output` can select the corresponding
@@ -146,16 +148,16 @@ BOOKLIB_BROWSER_PATH="/path/to/chromium" uv run book-to-epub --search "全球高
 `src.crawler.search.engines.site_search()` tries DuckDuckGo and raw Google result-page fallbacks. Browser-backed providers can also use the same third-party engines through Chromium when raw search pages throttle. All results are still filtered back to the provider's canonical URL pattern.
 - Generated EPUB files belong in `books/<author>/` by default and should not be treated as source code.
 
-## Notion CMS Drafts
+## Notion Drafts
 
-The [EPUB CMS](https://app.notion.com/p/3deca693996b810c8774f3658c89a423)
-owns editing and publishing. This repository uploads drafts into each book's
-chapter database and the shared-extra database. Use `book-notion login` once
-for MCP OAuth; interrupted uploads resume with `book-notion resume --state <import.json>`.
+This repository uploads editable drafts into the configured
+[Notion library](https://app.notion.com/p/3deca693996b810c8774f3658c89a423),
+using each book's chapter database and the shared-extra database. Use
+`book-notion login` once for MCP OAuth; interrupted uploads resume with `book-notion resume --state <import.json>`.
 
 Automatic native cover upload additionally needs `NOTION_API_TOKEN` in the
-process environment; grant that integration access to the CMS. Only covers use
-the public API. The scripts do not read `.env` or depend on a logged-in browser.
+process environment; grant that integration access to the target Notion pages.
+Only covers use the public API. The scripts do not read `.env` or depend on a logged-in browser.
 Local EPUBs retain the cover thumbnail without a cover reading page.
 
 See [output selection, storage, covers and recovery](docs/notion-books.md) and
@@ -297,7 +299,7 @@ input/output contracts and dependency boundaries. The main modules are:
 - `src/crawler/`: providers, search, fetching and reusable snapshots.
 - `src/content/`: shared source models, cleanup and formatting preparation.
 - `src/epub/`: local EPUB presentation, validation and edition repair.
-- `src/notion/`: CMS draft upload, storage adaptation and cover upload.
+- `src/notion/`: Notion draft upload, storage adaptation and cover upload.
 - `src/translation/`: translation, style transfer and semantic QA.
 - `src/workflows/`: compose those modules and select the output destination.
 

@@ -8,8 +8,8 @@ Live readback checks names and complete formatting/content. It uses the crawler'
 own OAuth login and public `book_specs/notion/config.json` database settings.
 
 This tests the result-to-Notion path. Provider crawling/parsing remains covered
-by provider fixtures and the regular crawler suite. It does not run CMS publishing
-or require the NAS checkout. The CMS owns its independent Notion-to-Bookshelf test.
+by provider fixtures and the regular crawler suite. Success means the uploaded
+Notion content matches the prepared source and resume preserves page identities.
 
 With authorization to create and clean up live test pages, run from this repo:
 

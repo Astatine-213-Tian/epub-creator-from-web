@@ -33,7 +33,7 @@ For “update eternal gate” / “更新永恒之门”, use this workflow:
 
 When changing module boundaries or adding an output destination, read
 [docs/architecture.md](docs/architecture.md). Keep collection in `src/crawler/`,
-source cleanup in `src/content/`, local EPUB writing/repair in `src/epub/`, CMS
+source cleanup in `src/content/`, local EPUB writing/repair in `src/epub/`, Notion
 upload in `src/notion/`, and translation/QA in `src/translation/`.
 `src/workflows/ingest.py` chooses outputs after collection; `src/cli/` handles
 arguments. Reusable logic belongs outside CLI modules. `tests/test_architecture.py`
@@ -42,9 +42,9 @@ checks dependency direction and the separation of cleanup from rendering.
 For adding, updating or repairing books, use the single
 [book-management skill](.agents/skills/book-management/SKILL.md). Ask for missing
 output choices; EPUB, Notion draft and TXT can be combined. A training request
-uses TXT plus the targeted dataset manifest. CMS storage and recovery follow
+uses TXT plus the targeted dataset manifest. Notion storage and recovery follow
 [docs/notion-books.md](docs/notion-books.md); shared extras follow
-[docs/fanwai-notion.md](docs/fanwai-notion.md). The CMS owns publishing from Notion.
+[docs/fanwai-notion.md](docs/fanwai-notion.md).
 Render explicit formatting without matching prose. EPUB covers are thumbnail
 assets with no separate reading page. Keep credentials and checkpoints local.
 
@@ -57,11 +57,10 @@ assets with no separate reading page. Keep credentials and checkpoints local.
 
 ## Build, Test, and Development Commands
 
-Create and sync the local environment with `uv`:
-
-```bash
-uv sync
-```
+For initial environment setup, follow
+[dependency installation](docs/notion-books.md#安装共享依赖): the required private
+`notion-books` package needs GitHub access and the pinned Go toolchain to build.
+Use `mise exec -- uv sync --locked` for subsequent dependency syncs.
 
 Run the unified entry point:
 
@@ -142,6 +141,12 @@ def preview_book(result: SearchResult) -> BookPreview: ...
 Prefer native site search. If unavailable, use `src.crawler.search.engines.site_search()` and filter results back to canonical provider book URLs. The shared helper uses no-key DuckDuckGo and raw Google result-page fallbacks. Preview should be lightweight: parse metadata and table-of-contents pages, but do not fetch all chapter bodies before the user chooses a result.
 
 ## Testing Guidelines
+
+Keep documentation, dependency upgrades and verification scoped to this project.
+Tests cover collection through the selected output: local EPUB/TXT or Notion
+upload, readback and checkpoint resume. External publication and deployment are
+outside this boundary. For live Notion upload checks, follow
+[tests/LIVE_NOTION.md](tests/LIVE_NOTION.md).
 
 Focused production contract tests live under `tests/` and run with
 `uv run python -m unittest discover -s tests -p 'test_*.py'`. For parser

@@ -39,7 +39,7 @@ def source(run: dict) -> CrawledBook:
         title=f"[E2E {marker}] 合成书籍",
         author=f"[E2E {marker}] 测试作者",
         source_url=f"https://example.invalid/notion-books-e2e/{marker}",
-        intro_paragraphs=[f"简介校验 {marker}：仅用于验证真实导入和发布。"],
+        intro_paragraphs=[f"简介校验 {marker}：仅用于验证真实导入与回读。"],
         volumes=[
             Volume(
                 "测试卷",

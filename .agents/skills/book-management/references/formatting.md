@@ -13,9 +13,9 @@ Before archive surgery, make one overwriteable temp backup per target EPUB under
 
 ## Workflow
 
-For CMS-managed books, follow [the content workflow](../../../../docs/notion-books.md):
+For books stored in Notion, follow [the content workflow](../../../../docs/notion-books.md):
 edit chapter rows in the owned 正文 database, set their optional 所属标题 and
-preserve the manual 正文 view order. The CMS service owns EPUB publication.
+preserve the manual 正文 view order.
 Shared independent extras follow [the shared library workflow](../../../../docs/fanwai-notion.md).
 Keep one editable body with book relations and independent per-book view order.
 

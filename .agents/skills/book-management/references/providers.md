@@ -7,7 +7,7 @@
 - Parser modules: `src/crawler/providers/<site>/parser.py`.
 - Search modules: `src/crawler/providers/<site>/search.py`.
 - Prepared source adapter: `src/content/prepare.py`.
-- CMS draft upload: `src/notion/upload.py`.
+- Notion draft upload: `src/notion/upload.py`.
 - EPUB presentation: `src/epub/`.
 - Shared models: `src/content/models.py`.
 - Sources and checkpoints: `generated/`; optional reader outputs: `books/`.

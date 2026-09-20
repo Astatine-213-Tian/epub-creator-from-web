@@ -2,7 +2,7 @@
 
 The production pipeline collects source material, prepares editable content, then
 chooses a destination. Collection, Notion storage and local EPUB rendering have
-separate interfaces. The external CMS owns publishing from Notion.
+separate interfaces.
 
 ```mermaid
 flowchart LR
@@ -11,7 +11,7 @@ flowchart LR
     Crawler --> Raw[CrawledBook]
     Raw --> Content[Source preparation]
     Content --> Draft[Prepared book]
-    Draft --> Notion[Notion CMS draft upload]
+    Draft --> Notion[Notion draft upload]
     Draft --> EPUB[Local EPUB writer]
     Raw --> Dataset[Targeted TXT and dataset manifest]
     Crawler --> Snapshot[Crawl snapshot]
@@ -35,13 +35,12 @@ flowchart LR
 | `cli/` | Argument parsing and command dispatch | Installed commands in `pyproject.toml` |
 
 Notion schema, Markdown encoding/decoding, paginated reads and writes live in the
-versioned `notion-books` dependency, shared with NAS Bookshelf CMS. Its Python
-adapter executes the same Go core linked by the CMS and calls back into this
-project's authenticated transport. It owns no login, import job or draft status.
-The importer maps its prepared chapter tree to Notion rows, supplies its language default, and explicitly selects
-the editorial-view contract needed by CMS; general shared reads allow display views.
-Property mapping changes ship in a shared release; both consumers update their
-pins and run their gates. The future public extras sync remains a separate project.
+versioned `notion-books` dependency. Its Python adapter calls back into this
+project's authenticated transport. The importer maps its prepared chapter tree
+to Notion rows, supplies its language default, and explicitly selects the
+editorial-view contract to preserve complete content and manual chapter order.
+Dependency upgrades update this project's version/tag and lockfile, then run its
+own verification against the pinned release.
 
 Paths in this table are relative to `src/`. Dependencies point toward the shared
 contracts and services, never back into `cli/`. Production does not import the
@@ -60,7 +59,7 @@ choice stops before collection. `IngestResult` records each actual output path
 and Notion checkpoint, so dataset updates never guess a TXT path from enriched
 EPUB metadata.
 
-`content.prepare` resolves source wording and formatting before either CMS or
+`content.prepare` resolves source wording and formatting before either Notion or
 local EPUB output. The prepared book contains:
 
 - `metadata`: title, creator, language, source, description, subjects and series.
@@ -75,7 +74,7 @@ The reading CSS lives in `content/styles.py`; H3 is `1.1em`, independent of
 alignment. Covers are thumbnail assets without a separate reading page.
 
 Notion stores prepared chapters in the book-owned database and independent
-extras in the shared library. CMS schema and recovery details live in
+extras in the shared library. Notion schema and recovery details live in
 [notion-books.md](notion-books.md). The local writer consumes the same prepared
 book directly, validates a candidate EPUB, then backs up and atomically replaces
 an observed destination. It neither authenticates with nor reads from Notion.
@@ -109,13 +108,12 @@ in source preparation. A presentation change belongs in the EPUB renderer or
 
 ## Removed paths
 
-The CMS replaced the old native-page migration and Notion-to-local publishing
-flows. Their `notion_books/` and `fanwai/` implementations, obsolete per-book
-mapping files and `book-fanwai` command have been removed. The active draft
-uploader is now `notion/upload.py`.
+The old native-page migration and Notion-to-local publishing flows have been
+removed, along with `notion_books/`, `fanwai/`, obsolete per-book mapping files
+and `book-fanwai`. The active draft uploader is `notion/upload.py`.
 
 The duplicate legacy EPUB writer, provider-specific CLI forwarding functions,
 unused EPUB outline-import helpers and unused `.env` loader were also removed.
 Use the installed CLI commands; there are no compatibility wrappers for old
 internal Python module paths. Existing crawl snapshots, translation artifacts,
-CMS upload checkpoints and reader files retain their formats and locations.
+Notion upload checkpoints and reader files retain their formats and locations.
