@@ -18,7 +18,6 @@ from notion_books import (
     from_markdown,
     notion_id,
     to_markdown,
-    validate_inventory,
 )
 from opencc import OpenCC
 
@@ -287,9 +286,7 @@ async def preflight_extras(
             "A page create response was lost; reconcile the checkpoint before retrying"
         )
     database = config["databases"]["extras"]
-    view = await reader.view(database["view_id"])
-    validate_inventory(view, database["data_source_id"])
-    rows = await reader.rows(database["view_id"])
+    rows = await reader.inventory(database)
     print(
         f"Checking {len(pending)} incoming extras against {len(rows)} shared Notion pages…",
         flush=True,
@@ -298,7 +295,8 @@ async def preflight_extras(
 
     async def read(row: dict) -> tuple[str, dict]:
         async with semaphore:
-            props, markdown = await reader.document(row["id"])
+            document = await reader.document(row["id"])
+            props, markdown = document.properties, document.markdown
         blocks = from_markdown(markdown)
         title = props.get(FIELDS["extra_title"])
         if not isinstance(title, str):

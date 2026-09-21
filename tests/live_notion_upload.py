@@ -105,15 +105,16 @@ def import_book(root: Path) -> None:
     book = load(result.notion_state)
 
     async def verify(reader, tools):
-        work, _ = await reader.document(book["work_id"])
+        work = (await reader.document(book["work_id"])).properties
         assert work[FIELDS["title"]] == book["metadata"]["title"]
         run["author_ids"] = relation_ids(work[FIELDS["authors"]])
         save(manifest, run)
         for author_id in run["author_ids"]:
-            author, _ = await reader.document(author_id)
+            author = (await reader.document(author_id)).properties
             assert author[FIELDS["authors"]] == book["metadata"]["creator"]
         for item in list(book["chapters"].values()) + book["extras"]:
-            props, body = await reader.document(item["page_id"])
+            document = await reader.document(item["page_id"])
+            props, body = document.properties, document.markdown
             title_field = (
                 "chapter_title" if item in book["chapters"].values() else "extra_title"
             )

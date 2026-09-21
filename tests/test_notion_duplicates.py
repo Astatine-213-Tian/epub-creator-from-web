@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from notion_books import NotionBooks, from_markdown
+from notion_books import NotionBooks, Page, from_markdown
 
 from src.notion.cms import STORAGE
 from src.notion.duplicates import (
@@ -99,8 +99,8 @@ class Library:
     async def write_properties(self, id, properties):
         return await NotionBooks(self).write_properties(id, properties)
 
-    async def view(self, view):
-        return {"dataSourceUrl": f"collection://{EXTRAS}", "filter": self.filter}
+    async def inventory(self, database):
+        return await NotionBooks(self).inventory(database)
 
     async def rows(self, view):
         ids = self.main if view == "main" else self.shared
@@ -115,9 +115,24 @@ class Library:
     async def document(self, id):
         self.reads.append(id)
         page = self.pages[id]
-        return copy.deepcopy(page["properties"]), page["content"]
+        return Page(
+            page_id=id,
+            data_source_id=EXTRAS,
+            title="",
+            markdown=page["content"],
+            revision="",
+            properties=copy.deepcopy(page["properties"]),
+            blocks=None,
+            cover=None,
+            cover_known=False,
+        )
 
     async def call(self, name, args):
+        if name == "notion-fetch":
+            view = {"dataSourceUrl": f"collection://{EXTRAS}", "filter": self.filter}
+            return {"text": "<view>\n" + json.dumps(view) + "\n</view>"}
+        if name == "notion-query-data-sources":
+            return {"results": [{"url": id} for id in self.shared], "has_more": False}
         self.calls.append((name, args))
         if name == "notion-update-page":
             self.pages[args["page_id"]]["properties"].update(args["properties"])

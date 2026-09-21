@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import os
 import warnings
 from pathlib import Path
 
 import httpx
-from notion_books import API_VERSION, NotionBooks, cover_request, notion_id, page_cover
+from notion_books import API_VERSION, NotionBooks
 from PIL import Image
 
 from src.runtime.files import digest, write_json
@@ -48,20 +49,34 @@ def api_token() -> str:
     return token
 
 
-async def api_json(client: httpx.AsyncClient, method: str, path: str, **kwargs) -> dict:
+async def api_request(client: httpx.AsyncClient, request: dict) -> dict:
+    kwargs = {}
+    if "json" in request:
+        kwargs["json"] = request["json"]
+    if "file" in request:
+        file = request["file"]
+        kwargs["files"] = {
+            "file": (
+                file["filename"],
+                base64.b64decode(file["data"]),
+                file["content_type"],
+            )
+        }
+    response = await client.request(
+        request["method"], "https://api.notion.com/v1/" + request["path"], **kwargs
+    )
     try:
-        response = await client.request(
-            method, "https://api.notion.com/v1/" + path, **kwargs
-        )
-    except httpx.HTTPError:
-        raise ValueError(
-            "Notion cover API connection failed; resume the saved checkpoint"
-        ) from None
-    if not response.is_success:
-        raise ValueError(
-            f"Notion cover API failed (HTTP {response.status_code}); check token permissions and resume"
-        )
-    return response.json()
+        body = response.json()
+    except ValueError:
+        if response.is_success:
+            raise
+        body = {}
+    return {
+        "status": response.status_code,
+        "body": body,
+        "request_id": response.headers.get("x-request-id", ""),
+        "retry_after": response.headers.get("retry-after", ""),
+    }
 
 
 async def upload_cover(book: dict, state: Path, *, tools) -> None:
@@ -73,8 +88,10 @@ async def upload_cover(book: dict, state: Path, *, tools) -> None:
     suffix = validate_cover(data)
     token = api_token()
     reader = NotionBooks(tools)
-    page = await reader.fetch(book["work_id"])
-    existing_cover = page_cover(page)
+    page = await reader.page(book["work_id"])
+    if not page.cover_known:
+        raise ValueError("Notion did not provide page cover metadata")
+    existing_cover = page.cover
     if book.get("cover_pending"):
         # Never overwrite a later manual cover after an uncertain PATCH response.
         raise ValueError(
@@ -92,27 +109,16 @@ async def upload_cover(book: dict, state: Path, *, tools) -> None:
         timeout=60,
         follow_redirects=False,
     ) as client:
-        # Verify API access before allocating or sending a file.
-        await api_json(client, "GET", "pages/" + book["work_id"])
-        request = cover_request("create", suffix=suffix)
-        upload = await api_json(
-            client, request["method"], request["path"], json=request["json"]
-        )
-        id = notion_id(upload["id"])
-        request = cover_request("send", id=id, suffix=suffix)
-        sent = await api_json(
-            client,
-            request["method"],
-            request["path"],
-            files={"file": (request["filename"], data, request["content_type"])},
-        )
-        if sent.get("status") != "uploaded":
-            raise ValueError("Notion did not finish uploading the cover")
+        api = NotionBooks(api=lambda request: api_request(client, request))
+        await api.check_page_access(book["work_id"])
+        id = await api.upload_cover(suffix, data)
         book["cover_pending"] = id
         write_json(state, book)
-        request = cover_request("attach", id=id, page=book["work_id"])
-        await api_json(client, request["method"], request["path"], json=request["json"])
-    cover = page_cover(await reader.fetch(book["work_id"]))
+        await api.attach_cover(book["work_id"], id)
+    page = await reader.page(book["work_id"])
+    if not page.cover_known:
+        raise ValueError("Notion did not provide page cover metadata")
+    cover = page.cover
     if cover is None or cover["kind"] != "file":
         raise ValueError("CMS cover readback is not a native uploaded file")
     # Only download the newly attached native file; never persist its signed URL.

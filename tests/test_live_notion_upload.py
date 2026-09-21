@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from notion_books import Page
+
 from tests import live_notion_upload as live
 
 
@@ -69,10 +71,20 @@ class LiveUploadRecoveryTests(unittest.TestCase):
         async def document(page_id):
             if page_id == "created-work":
                 run = live.load(self.manifest)
-                return {
-                    live.FIELDS["title"]: live.source(run).title,
-                    live.FIELDS["authors"]: ["00000000-0000-4000-8000-000000000001"],
-                }, ""
+                return Page(
+                    page_id=page_id,
+                    data_source_id="",
+                    title="",
+                    markdown="",
+                    revision="",
+                    properties={
+                        live.FIELDS["title"]: live.source(run).title,
+                        live.FIELDS["authors"]: ["00000000-0000-4000-8000-000000000001"],
+                    },
+                    blocks=None,
+                    cover=None,
+                    cover_known=False,
+                )
             raise ValueError("author readback failed")
 
         self.reader.document = document

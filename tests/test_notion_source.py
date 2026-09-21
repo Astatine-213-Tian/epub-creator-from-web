@@ -194,7 +194,9 @@ class BatchResumeTests(unittest.IsolatedAsyncioTestCase):
                         else:
                             await upload
                         saved = json.loads(state.read_text())["chapters"][member]
-                        self.assertEqual(saved.get("verified", False), not trim_readback)
+                        self.assertEqual(
+                            saved.get("verified", False), not trim_readback
+                        )
                         self.assertEqual(saved["page_id"], page_id)
                         self.assertNotIn("pending", saved)
                     self.assertEqual(calls, ["notion-create-pages", "notion-fetch"])
@@ -206,7 +208,9 @@ class BatchResumeTests(unittest.IsolatedAsyncioTestCase):
                     "text": '<properties>\n{"title":"Section"}\n</properties>\n<blank-page>This page is blank and has no content.</blank-page>'
                 }
 
-        props, body = await NotionBooks(Tools()).document("page")
+        document = await NotionBooks(Tools()).document("page")
+
+        props, body = document.properties, document.markdown
         self.assertEqual(props["title"], "Section")
         self.assertEqual(from_markdown(body), [])
 

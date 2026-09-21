@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from notion_books import FIELDS, NotionBooks, parent_id, work_properties
+from notion_books import CATALOG_SCHEMA, FIELDS, NotionBooks, work_properties
 
 from src.runtime.files import write_json
 
@@ -59,10 +59,21 @@ def author_names(metadata: dict) -> list[str]:
 
 async def ensure_work(book: dict, path: Path, config: dict, *, tools) -> None:
     reader = NotionBooks(tools)
-    states = await reader.catalog(config["databases"])
+    states = await reader.catalog(
+        {
+            kind: database
+            | {
+                "fields": {
+                    name: {"type": typ, "writable": True}
+                    for name, typ in CATALOG_SCHEMA[kind].items()
+                }
+            }
+            for kind, database in config["databases"].items()
+        }
+    )
     works_ds = config["databases"]["works"]["data_source_id"]
     if book.get("work_id"):
-        if parent_id(await reader.fetch(book["work_id"]), "data-source") != works_ds:
+        if (await reader.page(book["work_id"])).data_source_id != works_ds:
             raise ValueError(
                 "Checkpoint work belongs to another catalog; original library is read-only"
             )
@@ -72,7 +83,7 @@ async def ensure_work(book: dict, path: Path, config: dict, *, tools) -> None:
         "language": book["metadata"].get("language") or "zh-CN"
     }
     work_properties(metadata, [])  # Validate before any remote writes.
-    template = states["works"].get("default_page_template")
+    template = states["works"].get("default_template")
     if not template:
         raise ValueError("CMS Works requires its default book template")
     authors = await reader.rows(config["databases"]["authors"]["view_id"])

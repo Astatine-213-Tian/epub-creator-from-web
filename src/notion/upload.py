@@ -66,7 +66,8 @@ async def upload_row(
     if item.get("verified"):
         # A completed row now belongs to the editor; never overwrite later edits.
         return
-    props, body = await reader.document(item["page_id"])
+    document = await reader.document(item["page_id"])
+    props, body = document.properties, document.markdown
     expected = item.get("reuse_fingerprint") or fingerprint(
         item["title"], item["blocks"]
     )
@@ -148,7 +149,8 @@ async def upload_draft(book: dict, state: Path, config: dict, *, tools) -> None:
         )
     for item in reversed(book["extras"]):
         if item.get("reused") and not item.get("verified"):
-            props, body = await reader.document(item["page_id"])
+            document = await reader.document(item["page_id"])
+            props, body = document.properties, document.markdown
             expected = item.get("reuse_fingerprint") or fingerprint(
                 item["title"], item["blocks"]
             )

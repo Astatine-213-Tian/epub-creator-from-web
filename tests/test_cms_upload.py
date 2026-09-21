@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 from lxml import etree as ET
-from notion_books import exact_book_filter, work_properties
+from notion_books import NotionError, Page, work_properties
 from PIL import Image
 
 from src.content.models import Chapter, Volume
@@ -190,19 +190,6 @@ class DestinationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     chapter_entries(book)
 
-    def test_manual_filter_rejects_or_with_a_single_clause(self):
-        f = {
-            "type": "property",
-            "property": "涉及作品",
-            "propertyType": "relation",
-            "operator": "relation_contains",
-            "value": {"type": "exact", "value": WORK},
-        }
-        self.assertTrue(exact_book_filter(f, WORK))
-        self.assertFalse(
-            exact_book_filter({"type": "group", "operator": "or", "filters": [f]}, WORK)
-        )
-
 
 class UploadTests(unittest.IsolatedAsyncioTestCase):
     async def test_importer_applies_language_default_without_changing_checkpoint_source(
@@ -228,7 +215,7 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
                     patch(
                         "notion_books.NotionBooks.catalog",
                         new=AsyncMock(
-                            return_value={"works": {"default_page_template": WORK}}
+                            return_value={"works": {"default_template": WORK}}
                         ),
                     ),
                     patch(
@@ -349,7 +336,17 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
                 return {"pages": [{"id": id}]}
 
         async def document(_reader, id):
-            return created[id]["properties"], created[id]["content"]
+            return Page(
+                page_id=id,
+                data_source_id=DS,
+                title="",
+                markdown=created[id]["content"],
+                revision="",
+                properties=created[id]["properties"],
+                blocks=None,
+                cover=None,
+                cover_known=False,
+            )
 
         async def read_rows(_reader, view):
             return rows[view]
@@ -362,8 +359,8 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
             patch("notion_books.NotionBooks.document", document),
             patch("notion_books.NotionBooks.rows", read_rows),
             patch(
-                "notion_books.NotionBooks.view",
-                new=AsyncMock(return_value={"dataSourceUrl": f"collection://{DS}"}),
+                "notion_books.NotionBooks.inventory",
+                new=AsyncMock(return_value=[]),
             ),
         ):
             state = Path(directory) / "import.json"
@@ -394,8 +391,10 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
                 "title_property": "章节",
                 "tools": tools,
             }
-            with self.assertRaises(TimeoutError):
+            with self.assertRaises(NotionError) as caught:
                 await upload_row(item, book, state, **kwargs)
+            self.assertTrue(caught.exception.uncertain)
+            self.assertIsInstance(caught.exception.__cause__, TimeoutError)
             self.assertTrue(item["pending"])
             with self.assertRaisesRegex(ValueError, "response was lost"):
                 await upload_row(item, book, state, **kwargs)
@@ -449,12 +448,16 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
             }
             tools = AsyncMock()
             tools.call.side_effect = [
-                {"cover": None},
                 {
+                    "cover": None,
+                    "text": "<properties>\n{}\n</properties>\n<blank-page>",
+                },
+                {
+                    "text": "<properties>\n{}\n</properties>\n<blank-page>",
                     "cover": {
                         "type": "file",
                         "file": {"url": "https://files.example.org/cover"},
-                    }
+                    },
                 },
             ]
             await upload_cover(book, Path(directory) / "import.json", tools=tools)
